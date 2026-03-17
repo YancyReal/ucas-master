@@ -1,0 +1,854 @@
+                                            USENIX Association
+
+
+
+
+         Proceedings of the Third Virtual Machine
+          Research and Technology Symposium
+                                              San Jose, CA, USA
+                                                May 6–7, 2004
+
+
+
+
+© 2004 by The USENIX Association                All Rights Reserved             For more information about the USENIX Association:
+Phone: 1 510 528 8649            FAX: 1 510 548 5738              Email: office@usenix.org              WWW: http://www.usenix.org
+                                Rights to individual papers remain with the author or the author's employer.
+                  Permission is granted for noncommercial reproduction of the work for educational or research purposes.
+              This copyright notice must be included in the reproduced paper. USENIX acknowledges all trademarks herein.
+Java™ Just-In-Time Compiler and Virtual Machine Improvements for Server
+                     and Middleware Applications
+     Nikola Grcevski, Allan Kielstra, Kevin Stoodley, Mark Stoodley, and Vijay Sundaresan
+                                Toronto Lab, IBM Canada Ltd.
+                    © Copyright International Business Machines Corporation, 2004. All rights reserved.
+
+
+
+
+                                                       Abstract
+This paper describes optimization techniques recently applied to the Just-In-Time compilers that are part of the
+IBM® Developer Kit for Java™ and the J9 Java virtual machine specification. It focusses primarily on those
+optimizations that improved server and middleware performance. Large server and middleware applications written
+in the Java programming language present a variety of performance challenges to virtual machines (VMs) and just-
+in-time (JIT) compilers; we must address not only steady-state performance but also start-up time. In this paper, we
+describe 12 optimizations that have been implemented in IBM products because they improve the performance and
+scalability of these types of applications. These optimizations reduce, for example, the overhead of synchronization,
+object allocation, and some commonly used Java class library calls. We also describe techniques to address server
+start-up time, such as recompilation strategies. The experimental results show that the optimizations we discuss in
+this paper improve the performance of applications such as SPECjbb2000 and SPECjAppServer2002 by as much as
+10-15%.
+
+                                                                  that negatively impact their performance. In this
+1. Introduction                                                   paper, we describe 12 separate optimizations and
+                                                                  features that have been implemented in IBM products
+The steady growth in the size and complexity of large
+                                                                  to accelerate the performance of these applications.
+server and middleware applications written in the
+                                                                  Examples of these features include: optimizing
+Java™ programming language[8] offers continuing
+                                                                  synchronization to reduce repetitive locking and
+performance challenges to virtual machines (VMs) and
+                                                                  unlocking on the same object to improve scalability,
+just-in-time (JIT) compilers. One source for these
+                                                                  and optimizing Java class libraries to improve the
+challenges is that program maintenance has become at
+                                                                  performance of, for example, computing transaction
+least as important as performance for this class of
+                                                                  time-stamps.
+applications. This stronger emphasis on program
+maintenance has encouraged programmers to make
+more widespread use of the many features available in             Steady-state performance, however, is not the only
+the Java programming language that support software               important performance factor. Application servers,
+engineering efforts, such as: multiple inheritance via            for example, must be able to start quickly when a
+interface classes, polymorphic virtual method                     machine is rebooted to avoid costly interruption of
+invocations, and complex exception handling                       service. Fast start-up time also greatly enhances
+                                                                  productivity for application developers who regularly
+mechanisms such as finally blocks. While these
+                                                                  must restart the application server as part of the usual
+features are convenient to use from a Java
+                                                                  edit-compile-debug development cycle. We show in
+programmer's perspective, they can impose a significant
+                                                                  this paper how the JIT compiler can employ different
+runtime performance overhead and thus they challenge
+                                                                  recompilation strategies to significantly improve
+JITs and VMs to provide features that mitigate that
+                                                                  server start-up time.
+overhead.      Moreover, addressing these software
+engineering related overheads is doubly difficult since
+many large middleware applications do not have                    This paper describes recently implemented
+obvious hotspots on which to focus compilation or                 optimization techniques used by the Just-In-Time
+performance analysis resources.                                   compilers that are part of the IBM® Developer Kit
+                                                                  for Java and the J9 Java virtual machine
+                                                                  specification, focussing primarily on those
+Even beyond this particular challenge, however, server
+                                                                  optimizations that improved server and middleware
+and middleware applications have many other features
+                                                                  performance. We report performance results on three
+platforms for industrial-strength implementations of         servlets, can still induce long compilations, which
+these features rigorous enough to stand up to our            can result in performance problems as outlined
+customers’ applications.                                     above.
+
+The rest of the paper is organized as follows. In            A second important consideration is that
+Section 2, we discuss three Java coding conventions we       automatically generated bytecodes tend to exploit the
+have observed in customer applications and detail some       more powerful aspects of the Java programming
+of the performance overheads incurred in each case. In       language more fully than programs written directly in
+Section 3, we describe eight optimizations that              Java. Tools that compile domain-specific languages
+specifically target server performance. Similarly, in        to bytecode quite naturally build their own
+Section 4, we describe four optimizations we have            abstractions to represent elements of interest in their
+found to be important for middleware applications. We        language. For example, if language X supported
+present the performance results achieved by these            subroutine calls, an X-to-bytecode compiler might
+techniques in Section 5 using a well-known server            use an explicit representation of a stack frame. It is
+application (SPECjbb2000), a middleware application          often easier for such a compiler to use type-opaque
+(SPECjAppServer2002), as well as an XML parser and           representations of these abstractions, which are
+a cryptographic benchmark program. Finally, in Section       supported by the Java language, to simplify both the
+6, we summarize the paper’s contributions.                   bytecode generation model and the supporting run
+                                                             time. JITs, on the other hand, are better able to
+2. Java Coding Observations                                  optimize the use of concrete data types and abstract
+                                                             types typically used by Java programmers. Work
+Through the process of addressing customer defects,          may be required in both JITs and bytecode generators
+our teams are exposed to large amounts of Java code          to ensure that generated bytecodes benefit from
+written by our customers. We present, in this section,       overall optimizations such as de-virtualization and
+what we believe are three important observations about       method specialization.
+the code being employed that have a direct impact on
+the performance of Java applications: 1) a trend towards
+bytecode generation rather than Java code translated by
+                                                             2.2. Finally Blocks
+javac, 2) the more frequent use of finally blocks,           Finally blocks provide a mechanism whereby a
+and 3) the common use of exceptions.                         Java programmer can guarantee an action is
+                                                             performed regardless of how control leaves a method:
+2.1. Bytecode Generation                                     whether via a normal return path or via an exception.
+                                                             One way that this mechanism is employed in
+Bytecode generators other than javac are becoming            middleware applications is to guarantee that a tracing
+more prevalent. These range from relatively simple           function will be called if it is necessary to document
+tools such as JavaServer Pages (JSP) servlet generators      that the method has completed executing. In this
+to full-fledged compilers such as extensible stylesheet      coding pattern, most of the code in the method is
+language transformation (XSLT) compilers.             The    enclosed within a try region and the tracing code is
+bytecode streams generated by these tools may have           placed in a finally block for that try region.
+performance implications throughout the virtual              This organization guarantees consistency of tracing
+machine and in particular in their interactions with JITs.   information.
+Some of these interactions can be ameliorated through
+advances in JIT implementations but some require care        The control flows associated with the use of a
+in the bytecode generator implementation.
+                                                             finally block can be quite complex, complicating
+                                                             the construction of efficient and effective traversal
+One particular factor that should be taken into account
+                                                             orders for the JIT, which can necessitate more
+is that very long compilations can cause undesirable
+                                                             iterations than otherwise necessary to solve dataflow
+system behavior. For example, if a very large method
+                                                             equations. The resulting increase in JIT compilation
+is invoked as part of servicing an RMI request, the time
+                                                             time can affect the program's performance. Even
+taken to compile that large method might trigger a time
+                                                             worse, if the control flows are sufficiently complex
+out elsewhere, the effect of which could cascade
+                                                             (consider nested finally blocks, for example,
+through the system. For this and other reasons, most
+                                                             which can and do occur after aggressive inlining) the
+JITs have built-in limits on various phases such as
+                                                             JIT may decide not to, or be unable to, apply certain
+method inlining to prevent compile times from
+                                                             optimizations that can have profound performance
+becoming prohibitively long. However, methods that
+                                                             implications.
+are individually very large, such as some generated JSP
+Although finally blocks are convenient from a              1.   The expensive invocation to the native
+programmer's point of view, they are less so for the JIT        newInstanceImpl method.
+compiler. We recommend against using finally               2.   The search for the default constructor.
+blocks in performance-critical codes unless there is a     3.   Verifying that the constructor is visible in the
+valid engineering reason to do so.                              caller’s context may involve walking the stack to
+                                                                determine that the constructor is not currently
+2.3. Exceptions                                                 being executed.
+                                                           4.   The expensive callback into the Java constructor
+Despite the wealth of evidence detailing the hidden cost        from the native method.
+of processing exceptions, we still encounter
+applications where exceptions are thrown in commonly
+                                                           Because newInstance is commonly used, it
+executed paths. While JITs expend considerable effort
+                                                           warrants a special slot in the virtual function table
+to improve the delay between the time an exception is
+                                                           (VFT) of each class. This entry represents a class-
+thrown and the time that the handler for that exception
+begins to execute, the delay is still significant and      specific newInstanceImplThunk, which can
+several orders of magnitude larger than executing, for     perform the allocation, avoiding both the native
+example, a branch. In particular, throwing an exception    invocation (#1) and the callback to the Java
+that will be caught higher in the stack can be             constructor (#4). We also avoid the accessibility
+particularly expensive because each frame must be          check (#2) altogether for classes with public default
+searched both for a catcher and for locked objects that    constructors.     Furthermore, we can inline the
+must be unlocked. The latter problem is typically          constructor into the caller and avoid even overhead of
+addressed by having an artificial catch block that         a JITed code invocation. Even better, the JIT can use
+unlocks the object and then rethrows the exception. If     value profiling information[5] to inline the
+the "real" catcher is many frames above the frame          newInstanceImplThunk               invocation      with
+where the exception was originally thrown and there are    appropriate runtime guards, which has the benefit of
+many objects to unlock in the intermediate frames, the     exposing the allocation to the JIT’s optimizer. Once
+exception will be even more expensive to process; it       exposed, optimizations such as escape analysis[6] can
+will involve throwing the exception several times.         transform the heap allocation into a stack allocation if
+                                                           the created object does not escape to another thread
+                                                           or to the method’s caller.
+3. Server Performance Work
+In this section, we describe eight areas in which we       3.2. String.indexOf()
+have made enhancements (either in the VM or in the
+                                                           Numerous algorithms, such as Boyer and Moore’s
+JIT) to improve the performance of server applications:
+                                                           technique[4], exist to perform the semantics specified
+newInstance,                   String.indexOf(),
+                                                           by the String.indexOf() method in the Java
+System.currentTimeMillis(),
+                                                           class library. Many of these algorithms operate in
+System.arraycopy(), object allocation inlining,            two phases: first they compute some meta-data based
+lock coarsening, thread-local heap batch clearing, and     on the target string and then they use this to rapidly
+utilizing the Intel® SSE instructions. Many of these       iterate through the source string. Our analysis of
+enhancements target, in particular, the SPECjbb2000        benchmarks such as SPECjbb2000 revealed that
+[16] benchmark.                                            indexOf is frequently invoked with short constant
+                                                           pattern strings. This situation is ideal for the
+3.1. newInstance                                           application of Boyer and Moore’s algorithm because
+The java.lang.Class.newInstance method                     the compiler can statically compute the meta-data
+returns an instance of the same type as the                associated with the pattern string, leaving only the
+java.lang.Class object passed as the parameter to          rapid phase to be executed in response to the actual
+newInstance. The newInstance method in the                 invocation of indexOf.
+class library calls a native newInstanceImpl
+method that does three things: first, it checks for the    3.3. System.currentTimeMillis()
+presence of a default constructor for the class being      The java.lang.System.currentTimeMillis()
+instantiated; second, it checks that this default          method is often called by transaction-based server
+constructor is accessible to the caller; and third, it     applications such as SPECjbb2000 that repeatedly
+invokes the constructor. Several factors make this         build time stamps. This method is expensive because:
+process inefficient:
+1.   There is an expensive call from JITted code to a          When copying arrays of references, there are
+     native method.                                            additional optimizations that are performed. These
+2.   The method returns a long value that must be held         optimizations fall into two broad categories deriving
+     in a register (increasing register pressure) or           from: 1) the garbage collector design, and 2) the need
+     returned via the stack (which may be slower to            to enforce the Java rules [11][12] for reference
+     access).                                                  assignment compatibility.
+
+We optimize these costs by generating a platform-              To maintain correctness, a generational garbage
+specific inline code sequence to replace calls to              collector[18] must detect when a reference to a
+System.currentTimeMillis(). The inline                         nursery (or “new space”) object is stored into a
+sequence sets up the arguments according to the system         tenured (or “old space”) array object. For certain
+linkage convention and then directly calls the                 array copies, the JIT can prove that checking for such
+appropriate          OS           timing          routine:     stores is unnecessary. The simplest optimization
+GetSystemTimeAsFileTime() in a Microsoft®                      opportunity of this class, for example, is copying
+Windows®        environment,       for    example,      or     regions within a single array. Clearly the array
+gettimeofday() in a Linux environment. The                     cannot be both in the nursery and tenured at the same
+inlined sequence stores the result directly as required by     time. A second opportunity in this class occurs once
+the application’s use of currentTimeMillis().                  one nursery object reference has been stored into a
+                                                               tenured object/array. Once the tenured array has
+                                                               been added to the list of objects that must be scanned
+3.4. System.arraycopy()                                        when garbage collecting the nursery, the remaining
+One of the most frequently used intrinsics in Java             elements of the array are copied without checking for
+middleware applications is System.arraycopy().                 nursery objects1.
+The optimal code sequence for this method is platform-
+specific and varies with the actual size of the array to be    The second class of optimizations results from the
+copied.                                                        JIT’s existing type propagation capabilities. It is
+                                                               often the case that the JIT is able to prove that there
+To avoid the frequently suboptimal generic arraycopy           will be no exceptions raised by storing the elements
+implementation        for     specific      calls      to      of one array into another.
+System.arraycopy(), the compiler can either
+generate code inline or invoke tuned versions of               There are two effects of these optimizations that
+System.arraycopy() provided in the compiler’s                  improve performance. First, proving that it is
+runtime. The compiler can, of course, implement both           unnecessary to load either the class object or the
+approaches and evaluate the cost trade-off at code             garbage collection bits from the header of the object
+generation between the call overhead to the tuned              being copied reduces memory traffic into the cache
+library code versus the code expansion cost of the inline      during the copy, which in turn reduces the cache
+code to copy the array.                                        pollution effects of the copy. Second, by eliminating
+                                                               the control flow from the copy loop, more efficient
+If the size of the array to be copied is constant, the JIT     copy mechanisms supported by most CPU
+can easily generate the best possible instruction              architectures are enabled.
+sequence. When the size isn’t known, however, it has
+to either generate an instruction sequence that will           3.5. Object Allocation Inlining
+perform best on average (like the generic
+                                                               Virtually all versions of the IBM Developer Kits
+implementation of the arraycopy intrinsic) or it can
+                                                               have included facilities that enable JITs to perform
+employ value profiling to determine the most frequent
+                                                               common object allocations using a thread local heap
+array size. In a subsequent compilation for the method,
+                                                               (TLH). A TLH is a small region of the heap that is
+the JIT can then special-case that most frequent size
+                                                               temporarily assigned for the exclusive use of a
+with an inlined code sequence and rely on a more
+                                                               particular thread. When no further allocations are
+generic code sequence for other sizes. Since most of
+                                                               possible in a TLH, the region resumes its status as a
+the arrays copied in middleware applications are shorter
+                                                               regular part of the heap.
+than 256 bytes, the JIT can also choose either to use a
+general instruction sequence that works best for shorter
+array sizes, or to use a runtime test to exploit the benefit
+of the faster arraycopy instruction sequence for cases         1
+                                                                 The check can be omitted so long as collection
+where the faster sequence will compensate for the test         cannot occur during the array copy.
+overhead.
+Since each thread has its own TLH, no synchronization        however, because holding a lock for a substantially
+is needed to allocate the majority of objects. When          longer time can increase contention and therefore
+processing modestly sized object allocation requests,        reduce an application's scalability. Even worse,
+the JIT will generate fast-path code to allocate the         without proper care, deadlock opportunities can be
+objects in the TLH. The initial implementations of this      created that make the application hang.
+strategy targeted the case where the allocation is
+satisfied from the TLH as the fast-path. The generated       We implemented a computationally efficient lock
+code was quite effective in this case, but each allocation   coarsening pass that does not unduly increase
+site had associated with it a series of return code checks   contention or create deadlock opportunities. The
+and recovery sequences to handle the less-frequent           pass only acts on synchronization resulting from
+cases where the allocation could not be satisfied by the     inlining synchronized methods and so it will not
+TLH.                                                         interfere    with     hand-crafted    synchronization
+                                                             implemented by a programmer via a synchronized
+Analysis of many benchmarks revealed that the                block. Although there has been previous work in this
+execution time spent in the return-code checking code        area [1][3][7], our implementation is novel because
+could be substantial. The Developer Kit was enhanced         of its aggressiveness and its computational efficiency.
+so that, when the fast-path code fails to allocate storage   Unfortunately, space restrictions prevent us from
+from the TLH, it invokes a JIT service routine. This         providing a detailed description of the technique in
+routine, which is part of the garbage collection (GC)        this paper.
+component, will always return either a new object or an
+OutOfMemoryError indication. The latter can be               3.7. Thread-local Heap Batch Clearing
+checked quickly by the fast-path code. The service           The IBM JITs employ a thread-local heap (see
+routine handles the necessary bookkeeping, including
+                                                             Section 3.5) to reduce contention on the heap lock.
+possibly collecting unused objects, as well as memory        On some processors, it can be more efficient to
+synchronizations. As a result, the fast-path code            initialize the entire contents of the thread-local heap
+sequence is shorter, which results in better instruction     to the value zero when it is allocated rather than
+cache utilization. Furthermore, in most cases where the      initialize those values for each individual object
+original TLH storage allocation request fails, fewer
+                                                             allocation.     In particular, the IBM PowerPC®
+compares and branches are executed.
+                                                             architecture allows an entire cache line at a time to be
+                                                             initialized to zero. The IBM JITs use this batch
+3.6. Lock Coarsening                                         clearing approach only for processors that have
+Because the JIT aggressively inlines invocations when        efficient architectural support for initializing large
+compiling a method, it is not uncommon to synthesize a       blocks of memory. For other processors, the objects
+block of code containing several lock and unlock             allocated from the local heap are initialized
+operations applied serially (i.e., not in nested fashion)    individually.
+to the same object. These lock and unlock operations
+result from inlining synchronized methods into the           3.8. Intel® SSE Instructions
+method being compiled.             When we analyzed          When Intel introduced the Pentium® III processor, it
+SPECjbb2000, we noted a method that executed 6 or 7          included Streaming SIMD Extensions (SSE), a
+repetitive lock and unlock operations on the same            technology designed to accelerate applications such
+object, depending on the path executed.                      as 2D/3D graphics, image processing, and speech
+                                                             recognition. It includes a file of eight 128-bit XMM
+Synchronization has two negative impacts on program          registers. The SSE architecture specifies that each
+performance. First, the lock and unlock operations           XMM register holds four single-precision floating-
+themselves are expensive, in most cases requiring            point values. A further extension (SSE2) introduced
+expensive atomic memory accesses. Second, locks act          in the Xeon™ and Pentium 4 processors, allows each
+as barriers to optimizations in the JIT, to processor        register to hold a pair of double-precision floating-
+instruction schedulers, and to the reordering ability of     point values (or four single-precision values). The
+most modern processors. To alleviate these two               extensions include a rich set of instructions for
+problems, we implemented a lock coarsening                   inserting and extracting data from XMM registers
+optimization that eliminates many of the intermediate        and, of course, for manipulating the data therein.
+unlock and lock operations, leaving only one lock to be
+executed early in the method and as many unlocks as          Fully exploiting the SIMD capabilities of these
+there are paths exiting the locked region. This
+                                                             extensions in a Java environment is nontrivial. The
+optimization must be performed with great care,
+                                                             difficulty arises primarily because the extensions
+perform best when the data being moved in and out of          However, application server start-up frequently
+XMM registers have specific alignment characteristics         involves transient behavior: some methods are hot for
+and the instructions are used in a streaming fashion.         a short period of time, which confuses the profiler
+Keeping salient data aligned in an environment with           and causes the JIT to recompile the method at an
+active garbage collection (and object relocation) is a        optimization level higher than is truly justified. The
+significant challenge. Furthermore, relatively few            JIT expends considerable resources compiling such a
+applications are streaming in nature.            Without      method, but the method does not execute frequently
+surmounting this challenge, however, the SSE                  after it is recompiled and so the compilation effort is
+architecture can still be used to good advantage. If each     not rewarded. To reduce incidences of this problem,
+XMM register is treated as a single value (single- or         the JIT compiler has additional heuristics to estimate
+double-precision), the extensions form an excellent           the expected gain to be achieved by recompiling
+scalar floating-point computation engine. Furthermore,        methods at higher optimization levels.           These
+it is easier for the JIT to manage a set of eight             heuristics dampen the aggressiveness of compilation
+orthogonal registers than the x87 FPU stack, especially       optimization early in the process, which benefits
+in the presence of registers whose live ranges span           application server start-up time.
+control flow boundaries. Our JIT compiler therefore
+favors the SSE extensions over the traditional floating       4.2. Polymorphic Inline Caches
+point mechanisms when targeting X86 CPUs. An
+                                                              Java invocations can be polymorphic: when a method
+exception to this rule is in cases where SSE2 is not
+                                                              is invoked, the actual target is determined by the
+available and a particular method requires frequent
+                                                              runtime type of the receive object. This feature
+conversions between single and double precision.
+                                                              benefits programmers by allowing the design of
+                                                              clear, reusable and maintainable code. But this
+4. Middleware Performance Work                                benefit comes with the additional and sometimes not
+We describe in this section four items on which we            insignificant cost that each such polymorphic
+have recently focussed to improve the performance of          invocation requires the system to decode the type of
+middleware                applications            like        the receiver object before the appropriate target can
+SPECjAppServer2002[15]: reducing application server           be invoked. Determining the correct target for an
+start-up time via recompilation strategies, improving         invocation via an interface method can be particularly
+interface invocations via polymorphic inline caches,          expensive because the Java language allows a class to
+recognizing when 64-bit long variables are used to            implement multiple interfaces. Large middleware
+(inefficiently) perform unsigned 32-bit computations,         applications often use interface-based polymorphism
+and code reordering to reduce branch mispredictions           so that they can be easily extended with additional
+and instruction cache misses.                                 features, and therefore these applications can suffer
+                                                              from the performance impairment because of the
+4.1. Application Server Start-up Time                         polymorphic call overhead
+The start-up time of the application server is critical for   An efficient technique to reduce the effect of the
+many reasons, including quick recovery from server            interface invocation overhead is a polymorphic inline
+failures and shorter development time since the server        cache (PIC) [2][9][10][17] which is a dynamic code
+is often started at least once per edit-compile-debug         or data structure that can cache a particular target call
+cycle.                                                        site and perform quick subsequent invocation at the
+                                                              same call site, without invoking the target lookup
+This requirement is a challenging aspect of the quality       routine. The compiler generates and maintains a
+of the JIT compiler because the speed of the compiler         small cache containing usually two to four entries of
+itself is critical to good performance, rather than the       the most frequent actual targets for the polymorphic
+quality of the generated code. There are two conflicting      invocation. By employing such a cache for each
+factors that have significant effect on the start-up          interface invocation site, the majority of the
+performance. First, the compiler itself should take as        invocations can be quickly dispatched. Since most
+little time as possible. Second, we want to generate fast     polymorphic invocation sites have only a few
+code to reduce the application execution time. These          targets[2], caching a small number of targets for low-
+two factors must be carefully balanced and tuned to           overhead invocation can greatly mitigate the total
+minimize start-up time.                                       overhead of the full polymorphic call sequence.
+
+We approached this problem by applying various                The polymorphic cache is initially empty after the
+recompilation strategies with different optimization          method is compiled. As the program continues to
+levels and correspondingly different compile times.
+execute, the targets invoked from the site are recorded                void aMethod(...) {
+with the type of the invocation’s receiver object into the                if (_trace.entryTracing()) {
+cache. Subsequent invocations with that same receiver                        _trace.entry("aMethod");
+                                                                             // log arg info
+object type will be directly dispatched to the cached                     }
+target. If the cache is full and the receiver object’s type
+does not match any of the cache entries, a full lookup                     // do the work of aMethod
+and dispatch is performed (the “slow” path). Profiling
+can be used to order or even evict entries in the cache                    if (_trace.exitTracing()) {
+according to frequency. The profile data can also be                          _trace.exit("aMethod");
+used to recompile the method containing the call site if                       // log effect
+inlining the most frequently executed target would be                          // log return value info
+                                                                           }
+beneficial.                                                            }
+
+4.3. Unsigned Arithmetic for Cryptography                     While these conditional code snippets provide useful
+Applications                                                  debugging information when there is a problem, they
+With the introduction of SSL (Secure Sockets Layer)           can also impose a performance penalty in a
+and its implementation in middleware application              middleware application even when they do not
+servers written in Java code, the performance of              execute. There are three aspects to this penalty:
+transactions that use the security protocol becomes as
+important as traditionally non-secure transaction             1.   The additional code can perturb the JIT’s
+operations. This secure layer overhead can significantly           allocation of machine resources such as registers.
+impair the performance of a secure application                2.   The instruction fetch engine for many modern
+compared to a non-secure implementation.                           processors will (incorrectly) predict by default
+                                                                   that the forward branch around the code snippet
+The JIT can affect the performance of this secure layer            will not be taken.
+because of a specific characteristic of the Java code         3.   The effective user code is inefficiently and
+often used to implement these cryptographic codes. A               unnecessarily spread over additional cache lines
+frequently appropriate data type to use in these codes is          and memory pages.
+unsigned 32-bit integer, which is unfortunately not
+directly available in the Java programming language.          Fortunately, the first problem is easily overcome
+To implement many cryptographic algorithms,                   because the JIT usually has access to profile
+therefore, Java programmers have resorted to using the        information indicating which paths are not frequently
+64-bit signed long data type to hold 32-bit unsigned          executed. In many cases, this information enables
+data, which on 32-bit architectures can cause a               the JIT to avoid dedicating resources to those parts of
+significant performance slowdown.                             the code that are rarely executed. In the above
+                                                              example, the JIT would not likely inline the
+To address this problem we have added support in the          entry() and exit()invocations if those paths are
+JIT compiler to recognize long arithmetic operations          marked as rare code.
+that are used to implement 32-bit unsigned arithmetic.
+If the JIT can prove that the upper 32 bits of a 64-bit       In contrast to the first problem, the second problem is
+computation are zero, then more efficient instruction         significant. The condition test is turned into a
+sequences can be used on some platforms to accomplish         forward branch around the code outputting the trace
+that computation than the naïvely generated 64-bit            information. Most current processors, by default,
+code.                                                         assume that forward branches are not taken. To
+                                                              alleviate this problem, current processors also include
+4.4. Code Reordering                                          prediction tables that remember what happened the
+                                                              last time a branch was executed. These tables are
+As a debugging aid, the methods of many middleware            used by the processor to predict future outcomes for
+applications include tracing code that conditionally          branches based on the information about earlier
+executes at the beginning and/or end of the method to         branch outcomes stored in the table. Unfortunately,
+document how the application is executing. Since the          these tables are a scarce resource, and middleware
+tracing information is typically voluminous, this code is     applications can be so large that by the time a branch
+typically executed when debugging the application and         instruction is fetched a second or subsequent time,
+is only rarely executed in a production environment.          the history for that instruction has already been
+An example of this style of coding is as follows:             ejected. When there is no historical data in the table
+for a branch, the processor falls back to the default not-   different baselines. Furthermore, IBM maintains
+taken prediction for a forward branch. The processor         more than one Java JIT product and some
+then speculatively executes the tracing code only to         improvements are specific to one particular
+discover several cycles later that it had mispredicted the   technology base.      The two products we have
+branch and must throw away all the work it has done.         evaluated are the IBM Developer Kit for Java and the
+Recovering from a branch misprediction can take more         J9 Java virtual machine.
+than 10 processor cycles, depending on the processor,
+plus any work it has done since the prediction was           Moreover, some of the improvements described in
+made must also be discarded.                                 this section are platform-specific. These results
+                                                             should not be carried across to other platforms as the
+The third problem results in instruction cache and,          improvements will vary considerably from platform
+potentially, TLB misses because the code executing is        to platform; the work done for one platform may be
+typically spread over more cache lines or memory             irrelevant or even harmful for another. To the best of
+pages than is necessary.                                     our knowledge, we have not excluded any result
+                                                             available to us simply because it degraded
+To solve these three problems, the JIT reorders the          performance.
+basic blocks of each method to make each block's most
+commonly executed successor its fall-through                 In all cases, we have made an effort to collect
+successor. Since the JIT has information about which         together improvements that can reasonably be
+direction each branch favors, branches with a relatively     considered together by platform or by underlying JIT
+biased outcome such as debugging tests can be flipped        technology, though these improvements should never
+so that the processor's default not-taken prediction for     be interpreted in any additive sense except where
+forward branches becomes the correct prediction.             explicitly noted.
+Some processors do not even try to remember a branch
+if its prediction matches the default prediction, which      The results in this section are organized by
+means this optimization can have a secondary                 benchmark. The improvements that had an impact on
+performance benefit because more branches can be             each benchmark are listed in each subsection. The
+maintained in the prediction tables than before. Finally,    benchmarks we discuss are: SPECjbb2000[16],
+because the commonly executed code appears close             SPECjAppServer2002[15], XML Parser[14], a
+together in memory, fewer instruction cache and TLB          cryptography-based micro-benchmark, and IBM
+misses are expected. Although reordering code along          WebSphere® Application Server start-up.
+hot paths is not a new idea [13], we have found it to be
+particularly effective in the context of a JIT compiler.     5.1. SPECjbb2000
+                                                             The SPECjbb2000 benchmark models a pure server
+5. Results                                                   application without using an application server or
+In this section, we report the benefits we have seen in a    database tier. The benchmark encodes the logic and
+group of benchmarks relevant to server and middleware        database for a business managing orders, inventory,
+application performance. The improvements we report          deliveries, and payments. It is inspired by, but not
+have not been collected at a single point in time but        directly comparable to, the TPC-C database
+rather over the course of the recent product                 workload. The benchmark progressively increases its
+development cycle for the practical reason that it is not    workload to test the throughput supported by a
+always possible or reasonable to maintain code to            particular system by increasing the number of
+selectively enable or disable particular features. In a      operating warehouses over time, starting at 1
+production JIT compiler, wherever serviceability is not      warehouse and ending at 2N warehouses where N is
+improved by such code, it is eliminated after a testing      usually the number of processors in the machine.
+cycle to simplify code maintenance.                          The results reported below are improvements to the
+                                                             final score, which is an aggregate metric that
+The impact of this practise on the results of this section   primarily tracks the average of the throughputs
+is that individual improvements should not be                achieved at warehouses P through 2P, where P is the
+considered additive. If two improvements are measured        warehouse at which the peak throughput was
+at 3% and 5%, one should not conclude that the two           measured (usually P = N).
+improvements together would provide an aggregate 8%
+speedup; the two measurements have implicitly
+   7%
+   6%
+   5%
+                                                                                                     xSeries
+   4%
+                                                                                                     pSeries
+   3%
+   2%                                                                                                zSeries
+   1%
+   0%
+         Object Inlining      Lock              Code             indexOf        Arraycopy
+                    Figure 1: SPECjbb2000 Improvements, IBM Developer Kit for Java
+                            Coarsening        Reordering
+
+Many of the features we’ve described in Section 3           not present because that feature was not implemented
+improve the performance of the SPECjbb2000                  for a particular platform or in this product, or because
+benchmark. The benefit for each such feature for three      that feature had no benefit on that particular platform.
+platforms (xSeries®, pSeries®, and zSeries®) and for
+the IBM Developer Kit for Java product is shown in          5.2. SPECjAppServer2002
+Figure 1. The percentage improvement is in the self-
+                                                            The SPECjAppServer2002 benchmark is a large-
+reporting score relative to the same score without the
+                                                            scale middleware application benchmark that models
+specific feature. Note that some bars are not present in
+                                                            the complete business processes of a Fortune-500
+this graph because those features have not been
+                                                            company, from customer ordering and invoicing
+implemented for that particular platform or for this
+                                                            through inventory and supply chain management to
+particular product. The xSeries results were measured
+                                                            manufacturing. The benchmark exercises both an
+on a 4x2.8Ghz Pentium 4 system with Intel Hyper-
+                                                            application server and a database tier, which can
+threading enabled running Microsoft Windows 2000.
+                                                            reside on the same machine, on different machines,
+The pSeries results were measured on a 16-way 1.1Ghz
+                                                            or each tier can be distributed across many machines.
+POWER4 p670 system running AIX® 5.1. The zSeries
+                                                            It is a strenuous test of Enterprise JavaBeans (EJB)
+results were measured on a variety of different machine
+                                                            2.0. From the JIT’s perspective, our main ability to
+configurations and so these results in particular should
+                                                            improve this benchmark is within the application
+not be compared directly against one another.
+                                                            server, where a very flat and widely distributed
+                                                            profile greatly hinders the identification of “bang-for-
+For the J9 virtual machine product, we report the
+                                                            the-buck” performance improvements.
+improvements found in Figure 2. Again, some bars are
+
+
+
+
+   10%
+    8%
+    6%                                                                                               xSeries
+    4%                                                                                               pSeries
+    2%
+    0%
+                                                                    ce
+                                          f
+
+
+
+
+                                                                                      s
+             ng
+
+
+
+
+                                                       py
+                           g
+
+
+
+
+                                         O
+
+
+
+
+                                                                                  illi
+                         rin
+
+
+
+
+                                                                  an
+                                       ex
+
+
+
+
+                                                     co
+          ni
+
+
+
+
+                                                                                eM
+                       de
+         se
+
+
+
+
+                                       d
+
+
+
+
+                                                   ay
+
+
+
+
+                                                                st
+                                    in
+
+
+
+
+                                                                              m
+                                                              In
+                       r
+         r
+
+
+
+
+                                                    r
+                    eo
+      oa
+
+
+
+
+                                                 Ar
+
+
+
+
+                                                                            Ti
+                                                             w
+                   R
+     C
+
+
+
+
+                                                            ne
+
+
+
+
+                                                                           nt
+                                                                         rre
+                  e
+  ck
+
+
+
+
+               od
+Lo
+
+
+
+
+                                                                      cu
+              C
+
+
+
+
+                           Figure 2: SPECjbb2000 Improvements, J9 virtual machine
+             PIC           Code Reordering                                 PIC         Code Reordering
+
+
+   9%                                                           30%
+   8%
+                                                                25%
+   7%
+   6%                                                           20%
+   5%
+                                                                15%
+   4%
+   3%                                                           10%
+   2%
+                                                                5%
+   1%
+   0%                                                           0%
+
+
+  Figure 3: SPECjAppServer2002 Improvements                 Figure 4: XML Parser Benchmark Improvements
+
+Our investigation of the SPECjAppServer2002                 measured on an xSeries 1.6 Ghz Pentium 4
+benchmark is still in its preliminary stages.               uniprocessor running Microsoft Windows 2000,
+Nevertheless, we have observed that two of the              which are presented in Figure 4, measured on the
+improvements discussed in Section 4 have significantly      IBM Developer Kit for Java product. Note that the
+improved the performance of this benchmark:                 scale of the y-axis is different than that of the
+polymorphic inline caches and code reordering (see          adjacent Figure 3. We tested the XML Parser
+Figure 3).                                                  benchmark using several different sample XML files
+                                                            with sizes ranging from 1 KB to 5 MB. The
+In this particular case, these two measurements can be      benchmark parses each of the files a number of times
+combined since the improvement we have seen by              and calculates a ratio score reflecting the number of
+enabling both of these features in the IBM Developer        elements parsed per second for each data set. The
+Kit for Java was 14%. In the context of the incredibly      benchmark also computes an average score by
+flat profile for this application, both results are even    combining and interleaving the parsing for each
+more impressive. We are continuing to investigate           sample XML file into a single run. Figure 4 also
+improving the performance of this benchmark. As for         includes the improvement in the parser throughput
+the SPECjbb2000 benchmark, the percentage                   because of the code reordering technique described in
+improvement is in the self-reporting score relative to      Section 4.4.
+the same score without the specific feature. The
+performance improvements were measured on an                5.4. Cryptography
+xSeries 4x2.8Ghz Pentium 4 system with Hyper-
+                                                            The cryptography benchmark we used for our
+threading enabled running Windows 2000.
+                                                            experiments is a micro-benchmark consisting of a
+                                                            loop that performs extended precision integer
+5.3. XML Parser                                             operations. The loop computes A*B+C where A and
+The XML Parser benchmark we have used is based on           C are 1024-bit precision integers simulated by
+the Apache Xerces XML Parser for Java [14] that tests       vectors of 32 unsigned 32-bit values using arrays of
+parser performance on different combinations of XML         the Java long data type2 and B is a 32-bit unsigned
+data sets. One of the main design goals for the Xerces      number. The loop body contains one long addition
+parser is extensibility; the implementation of the parser   and one long multiplication operation. On a 32-bit
+relies heavily on abstract classes and method
+invocations via interface classes. An example of such a
+class is AbstractSAXParser. Given this design               2
+approach, proper implementation of Polymorphic Inline         Java has no unsigned integer types, so longs are
+Caches (PICs) can yield significant improvements as         typically used to hold unsigned 32-bit values.
+                                         50%
+                                         45%
+        % Improvement over Interpreter   40%
+                                         35%
+                                                                                  JIT Default mode
+                                         30%
+                                                                                  JIT Multi-level Compilation
+                                         25%
+                                                                                  Class Verification Off
+                                         20%
+                                                                                  Combined
+                                         15%
+                                         10%
+                                         5%
+                                         0%
+
+                                               Figure 5: Application Server Start-up Improvements
+
+platform, the long add operation naïvely expands to two                  level optimization recompilation strategies. Since
+32-bit operations and four 32-bit loads. Similarly, the                  significant class loading occurs at server start-up, we
+long multiplication, depending on the instruction set                    show that significant additional performance
+architecture (ISA) of the platform, naïvely requires                     improvement can be achieved by reducing the class
+three 32-bit multiplies (two 32-bit by 32-bit producing                  loading cost by turning off class verification. Figure
+low order 32-bit results and one full 32-bit by 32-bit                   5 shows the percentage improvements relative to the
+multiply with 64-bit result), two adds to compute the                    time taken by the interpreter to boot the application
+high order 32-bits of the product from the three                         server to its ready state. The results were collected by
+multiplies, and four 32-bit loads.                                       running the IBM WebSphere Application Server
+                                                                         product with the J9 virtual machine on an xSeries 1.6
+The JIT compiler is able to discover that the long                       GHz Pentium 4 uniprocessor on Microsoft Windows
+operands are actually 32-bit unsigned quantities and                     2000.
+therefore that the high order 32-bits of each long used
+to hold an unsigned 32-bit value are provably zero.                      6. Summary
+This discovery enables the JIT to dramatically simplify
+the computation and memory traffic that occurs in                        In this paper, we have made three basic contributions.
+computing this inner product. After the JIT recognizes                   First, we made three observations regarding Java
+the 32-bit unsigned multiplication, the computation is                   coding practices among our customers that directly
+performed by one 32-bit by 32-bit multiply with 64-bit                   impact the performance capabilities of JITs and VMs:
+product, no adds, and two loads. Similarly, the 64-bit                   bytecode generation, the more prevalent use of
+add operation in the loop is reduced from two adds and                   finally blocks and the continuing frequent use of
+four loads to two adds and two loads.                                    exceptions. Second, we described 12 different
+                                                                         optimizations and features that our teams have
+Transforming these computations as described above                       developed recently to improve the performance of
+results in an almost 50% performance improvement,                        both server and middleware applications. Third, we
+which, in the case of X86, is due to the reduced                         presented results that show the benefits of robust
+computation and operand driven memory traffic as well                    implementations of these optimizations for a variety
+as the complete elimination of spill and fill instructions               of applications. These results demonstrate both the
+in the loop. The results are based on measurements                       effectiveness of the features we have implemented as
+performed on an xSeries 1.6 GHz Pentium 4                                well as the level of improvements that can reasonably
+uniprocessor running Microsoft Windows 2000.                             be expected for robust implementations in a high
+                                                                         performance production JIT.
+5.5. Application Server Start-up
+As the basis for application server start-up performance
+                                                                         Acknowledgements
+analysis we chose the IBM WebSphere Application                          The authors would like to thank the members of the
+Server product, where we report the levels of                            IBM Java JIT and VM development teams whose
+improvement that can be achieved by applying multi-                      work is described in this paper. In particular, we
+would like to acknowledge the feedback and advice        [11]    T. Lindholm and F. Yellin. The Java Virtual
+from Alan Adamson, Mike Fulton, and Derek Inglis in              Machine Specification. The Java Series.
+the preparation of this paper. We also thank the                 Addison-Wesley, 1996.
+reviewers for their time and effort to evaluate this     [12]    T. Lindholm and F. Yellin. The Java Virtual
+paper.                                                           Machine Specification Second Edition. The
+                                                                 Java Series. Addison-Wesley, 1999.
+References                                               [13]    S. Muchnick. Advanced Compiler Design &
+                                                                 Implementation.        Morgan Kaufmann
+[1]     J. Aldrich, E. G. Sirer, C. Chambers, and S.             Publishers. 1997.
+        Eggars.      Comprehensive Synchronization       [14]    The Apache XML Project, 2001.
+        Elimination for Java. In Science of Computer             http://xml.apache.org/xerces-j
+        Programming, Volumn 47, Issue 2-3, May           [15]    The Standard Performance Evaluation
+        2003.                                                    Corporation.      SPECjAppServer       2002
+[2]     B. Alpern, A. Cocchi, S. Fink, D. Grove, and             Benchmark.
+        Derek Lieber. Efficient Implementation of Java           http://www.spec.org/jAppServer2002, 2002.
+        Interfaces:    Invokeinterface      Considered   [16]    The Standard Performance Evaluation
+        Harmless. In ACM Conference on Object-                   Corporation. SPEC JBB 2000 Benchmark.
+        Oriented Programming Systems, Languages                  http://www.spec.org/osg/jbb2000, 2000.
+        and Applications, Oct 2001.                      [17]    J. Vitek, and R. N. Horspool. Compact
+[3]     J. Bogda and U. Holzle.              Removing            dispatch tables for dynamically typed object
+        Unnecessary Synchronization in Java. In                  oriented languages. In Proceedings of
+        Conference on Object-Oriented Programming,               International Conference on Compiler
+        Systems, Languages, and Applications, Nov                Construction (CC'96) pages 281-293, Apr.
+        1999.                                                    1996. Published as LNCS, vol 1060.
+[4]     R. Boyer and S. Moore, A Fast String             [18]    P. Wilson.         Uniprocessor Garbage
+        Searching Algorithm, CACM 20(10), pg 762-                Collection Techniques. In Proceedings of
+        772 (1977).                                              International Workshop on Memory
+[5]     B. Calder, P. Feller, and A. Eustace. Value              Management. Springer-Verlag. Saint-Malo,
+        Profiling and Optimization. Journal of                   France. 1992.
+        Instruction Level Parallelism, Mar. 1999.
+[6]     J.-D. Choi, M. Gupta, M. Serrano, V. C.
+        Sreedhar, and S. Midkiff. Escape Analysis for    Trademarks
+        Java. In ACM SIGPLAN Conference on               AIX, CICS, IBM, PowerPC, pSeries, WebSphere,
+        Object-Oriented     Programming       Systems,   xSeries, and zSeries are registered trademarks of
+        Languages, and Applications.           Denver,   International Business Machines Corporation in the
+        Colorado. Nov. 1999.                             United States, other countries, or both.
+[7]     P. Diniz and M. Rinard. Lock Coarsening:
+        Eliminating lock overhead in automatically       Microsoft and Windows are registered trademarks of
+        parallelized object-based programs.         In   Microsoft Corporation in the United States, other
+        Proceedings of the Ninth Workshop on             countries, or both.
+        Languages and Compilers for Parallel
+        Computing. San Jose, CA, Aug 1996.               Intel, Pentium, and Xeon are registered trademarks of
+[8]     J. Gosling, B. Joy, and G. Steele. The Java      Intel Corporation in the United States, other
+        Language Specification. Addison Wesley,          countries, or both.
+        1996.
+[9]     D. Grove, J. Dean, C. Garrett, and C.            Java and all Java-based trademarks are trademarks of
+        Chambers. Profile-guided receiver class          Sun Microsystems Inc., in the United States, other
+        prediction. In ACM Conference on Object-         countries, or both.
+        Oriented Programming Systems, Languages,
+        and Applications, pages 108-123, Oct 1995.       Other company, product, and service names may be
+[10]    U. Holzle, C. Chambers, and D. Ungar.            trademarks or service marks of others.
+        Optimizing dynamically-typed object-oriented
+        languages with polymorphic inline caches. In
+        P. America, editor, Proceedings ECOOP'91,
+        LNCS 512, pages 21-38, Geneva, Switzerland,
+        July 15-19 1991. Springer-Verlag.
+

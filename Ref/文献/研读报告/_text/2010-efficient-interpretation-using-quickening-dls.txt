@@ -1,0 +1,886 @@
+                                   Efficient Interpretation using Quickening
+
+                                                                             Stefan Brunthaler
+                                                                    Institute of Computer Languages
+                                                                    Vienna University of Technology
+                                                                           Argentinierstrasse 8
+                                                                          1040, Vienna, Austria
+                                                                   brunthaler@complang.tuwien.ac.at
+
+
+
+
+Abstract                                                                                    this huge impact on resources by trying to leverage ex-
+Just-in-time compilers offer the biggest achievable payoff                                  isting virtual machine infrastructures [YWF09, BCFR09],
+performance-wise, but their implementation is a non-trivial,                                thus supporting the re-use of existing just-in-time compil-
+time-consuming task—affecting the interpreter’s mainte-                                     ers similarly to the front-end/back-end abstraction in tra-
+nance for years to come, too. Recent research addresses this                                ditional compilers. Increasing the efficiency of interpreters
+issue by providing ways of leveraging existing just-in-time                                 without violating their main characteristics, ease of imple-
+compilation infrastructures.                                                                mentation and portability, is an interesting and important
+   Though there has been considerable research on im-                                       problem. The optimization of interpreters is interesting be-
+proving the efficiency of just-in-time compilers, the area                                  cause often simple techniques have a huge impact—for
+of optimizing interpreters has gotten less attention—as                                     example changing the instruction dispatch from the com-
+if the implementation of a dynamic translation system                                       mon switch-based dispatch technique to the more advanced
+was the “ultima ratio” for efficiently interpreting program-                                threaded-code1 [Bel73] dispatch techniques results in re-
+ming languages. We present optimization techniques for                                      ported speedups of up to 2.02 [EG03b]. Furthermore, we
+improving the efficiency of interpreters without requiring                                  are convinced that exploring the design space for efficient
+just-in-time compilation—thereby maintaining the ease-of-                                   interpretation techniques is important, because it provides
+implementation characteristic that brought many people to                                   language implementers with attractive options to optimize
+implementing an interpreter in the first place.                                             their interpreters without having to spend their scarce re-
+                                                                                            sources on a dynamic translation sub-system. Without hav-
+Categories and Subject Descriptors D.3.4 [Programming                                       ing their resources committed to implementing a just-in-time
+Languages]: Processors—Interpreters, Optimization, Mem-                                     compiler, they are free to focus on continuing innovation on
+ory Management                                                                              their programming languages.
+                                                                                                In 2003, Ertl and Gregg identified a set of optimization
+General Terms Design, Languages, Performance
+                                                                                            techniques that achieve significant speedup for virtual ma-
+Keywords Python, interpreter, quickening, reference count-                                  chines [EG03b]. In addition to the aforementioned threaded-
+ing, instruction format                                                                     code dispatch optimization, the paper suggests several other
+                                                                                            optimization techniques, for example using superinstruc-
+1.     Motivation                                                                           tions [EG03a, EG04]. Most of these virtual machine opti-
+                                                                                            mization techniques focus on eliminating the overhead in
+The implementation and maintenance of just-in-time com-
+                                                                                            instruction dispatch, i.e., getting from one bytecode instruc-
+pilers requires a lot of resources—probably too much for
+                                                                                            tion to its successor. These instruction dispatch costs are
+many projects in their early beginnings, i.e., without finan-
+                                                                                            very high for interpreters where the native machine pro-
+cial resources, or popularity/visibility to get enough atten-
+                                                                                            vides for most of the operation implementation, e.g., by
+tion from the open source world. Recent research addresses
+                                                                                            re-using the native machine integer addition instruction to
+                                                                                            implement the virtual machine integer addition. However,
+                                                                                            these dispatch costs are disproportionally lower for inter-
+Permission to make digital or hard copies of all or part of this work for personal or       preters with a much higher abstraction level than for these
+classroom use is granted without fee provided that copies are not made or distributed       low abstraction-level virtual machines. Therefore, optimiz-
+for profit or commercial advantage and that copies bear this notice and the full citation
+on the first page. To copy otherwise, to republish, to post on servers or to redistribute
+to lists, requires prior specific permission and/or a fee.                                  1 Threaded-code should not to be confused with multi-threaded code: We
+
+DLS 2010, October 18, 2010, Reno/Tahoe, Nevada, USA.                                        use threaded-code to identify the optimized interpreter instruction dispatch
+Copyright c 2010 ACM 978-1-4503-0405-4/10/10. . . $10.00                                    technique.
+ing away the dispatch costs for interpreters where they do         use of more than 255 instructions, our new regular instruc-
+not constitute the primary bottleneck yields proportion-           tion format allows for more efficient instruction decoding.
+ally lower speedups. As demonstrated in 2009 [Bru09], the          Instead of using an opcode byte plus optionally two adja-
+virtual machine abstraction-level has considerable effects         cent bytes carrying its argument, we encode the instruction
+on the performance potential of several optimization tech-         opcode and its argument in one native machine word. To en-
+niques. Subsequent research on more suitable optimization          able further optimization, our previous instruction format in-
+techniques for high abstraction-level virtual machines in-         terleaves these instruction words with additional native ma-
+dicates that promising optimizations need to cut down the          chine words.
+costs implied by operation implementation to achieve sig-              The change of the instruction format, requires a separate
+nificant speedups. Our previous work focuses on enabling           dispatch loop with different instruction decoding. We use a
+efficient inline caching in interpreters without just-in-time      simple profiling technique to decide when to use this opti-
+compilers [Bru10a, Bru10b], resulting in speedups of up to         mized interpreter routine [Bru10b]. This profiling technique
+1.71.                                                              involves counting the invocations of each function. Once the
+    This paper presents our results of extending this line of      invocation count reaches a pre-definable threshold, we start
+research, specifically our contributions are:                      using the optimized interpreter dispatch routine. At the be-
+                                                                   ginning of the first optimized execution, we allocate memory
+ • We describe several advanced quickening-based opti-
+                                                                   for the new instruction format and re-encode the sequence
+     mization techniques to improve the performance of an
+                                                                   of bytecode instructions. We use quickening to rewrite in-
+     interpreter (Section 3). Among others, we describe a
+                                                                   structions from most-generic implementations to their opti-
+     technique to cache local variables of the host language in
+                                                                   mized derivatives. This describes our starting point for the
+     the stack frame of the executing language (Section 3.4).
+                                                                   additional optimizations we describe in this paper. Though
+ • We introduce a novel technique to eliminate reference           most of these techniques can be applied without this basis,
+     count operations in interpreters (Section 4).                 our evaluation builds on the improvements upon this earlier
+ • We present results of our careful and detailed evaluation,      work.
+     demonstrating the effectiveness of our techniques (Sec-
+     tion 5). We are able to identify and eliminate up to two      3.    Advanced Quickening-based
+     thirds of increment, and up to half of the decrement refer-         Optimizations
+     ence count operations (Section 5.4). We report speedups
+                                                                   Section 2 briefly explains the foundation of our previous
+     of up to 2.18 when combined with the threaded code dis-
+                                                                   work [Bru10b], whereupon we will subsequently add sev-
+     patch technique (Section 5.5).
+                                                                   eral new optimization techniques in the remaining part
+                                                                   of the paper. First, we provide details for adding inline
+2.     Background                                                  caching to the comparison instruction of the Python inter-
+Many of our target high abstraction-level virtual machines         preter (COMPARE OP); which our old interpreter did not do
+feature dynamic typing. Therefore, we investigated the im-         and therefore provides an important link to our previous
+plementation of efficient inline caching techniques for inter-     work [Bru10b]. Second, we present a simple quickening-
+preters without a dynamic translation sub-system [Bru10a,          based technique to unfold code (Section 3.2). Next, we in-
+Bru10b]. The primary research vehicle we use to demon-             troduce a new instruction format together with two new op-
+strate our optimizations is the Python 3.1 interpreter. We re-     timizations using it (Section 3.3). Finally, we describe a new
+port our results in the context of the Python 3.1 source code,     technique to cache local variables of the host language in the
+however, the techniques themselves are general and can be          stack frame of the executing language (Section 3.4).
+applied to many interpreters with similar characteristics.
+   By using a code generator to generate instruction deriva-       3.1   Inline Caching the Comparison Instruction
+tives at pre-compile time in combination with quickening at        The regular comparison instruction relies on its argument
+run-time to incorporate the type feedback, we were able to         to decide which comparison operation to execute. Because
+achieve a speedup of up to 1.71 [Bru10b]. Since this tech-         of its rich set of types, and possible ad-hoc polymorphism
+nique focuses on optimizing the operation implementation           using the comparison instruction, most of the invocations
+of interpreter instructions, they are orthogonal to optimiza-      end up invoking a type-dependent comparison function. Fig-
+tion techniques focusing on instruction dispatch. Thus, when       ure 1 shows the changes necessary for constructing an inline
+combined with the threaded-code optimization technique,            cached version of the comparison instruction: the implemen-
+the maximum speedup we reported is 1.92 [Bru10b].                  tation on the right side contains the changes necessary to
+   In order for the interpreter to be able to use the new opti-    create an optimized derivative of the standard COMPARE OP
+mized instruction derivatives, the instruction format needs to     instruction. The optimized derivative provides an inline
+be changed. This change removes the limit of 255 possible          cache for Python’s integer type, PyLong Type. The lines
+instructions available to the interpreter. Besides enabling the    marked with > represent unchanged copies from the stan-
+                                                                    3.2   Unfolding with Quickening
+TARGET(COMPARE_OP)             TARGET(INCA_CMP_LONG)                Several instructions within the Python 3.1 interpreter have
+  w = POP();                   >                                    different behavior depending on their argument. While it
+  v = TOP();                   >                                    is convenient to encode multiple behaviors into just one
+                               /* check for misses */               instruction, it is sub-optimal with respect to the perfor-
+                               if (v->ob_type                       mance of this instruction. If we take a look at the follow-
+                                   != w->ob_type)                   ing BUILD TUPLE instruction, we see that the loop-body
+  x = cmp_outcome(                 goto COMPARE_OP_MISS;            depends on the instruction argument oparg:
+      oparg, v, w);            if (v->ob_type
+                                   != &PyLong_Type)                 TARGET(BUILD_TUPLE)
+                                   goto COMPARE_OP_MISS;                x = PyTuple_New(oparg);
+                                                                        if (x != NULL) {
+                        /* inline cached call */                            for (; --oparg >= 0;) {
+                        x= PyLong_Type                                          w = POP();
+                           .tp_richcompare(                                     PyTuple_SET_ITEM(x, oparg, w);
+                           v, w, oparg);                                    }
+  Py_DECREF(v);         >                                                   PUSH(x);
+  Py_DECREF(w);         >                                                   DISPATCH();
+                        >                                               }
+  SET_TOP(x);           >                                               break;
+  if (x == NULL) break; >                                              Results of a dynamic bytecode frequency analysis on our
+  DISPATCH();           >                                           benchmark programs as well as some other Python programs
+                                                                    find that the argument is most often either 2 or 3. Therefore
+                                                                    we construct optimized BUILD TUPLE instructions with their
+ Figure 1. Implementation of COMPARE OP on the left, an             argument fixed, for example with opcode := 3, the imple-
+ optimized derivative on the right.                                 mentation can be optimized like this:
+                                                                    TARGET(BUILD_TUPLE_THREE)
+ dard operation implementation on the left side. As we have
+                                                                        x= PyTuple_New( 3 );
+ briefly described in Section 2, the function resolving the
+                                                                        if (x != NULL) {
+ dynamic types (do richcompare) quickens the instruction
+                                                                            PyTuple_SET_ITEM(x, 2, TOP());
+ from the generic COMPARE OP instruction to the optimized
+                                                                            PyTuple_SET_ITEM(x, 1, SECOND());
+ INCA CMP LONG instruction.
+                                                                            PyTuple_SET_ITEM(x, 0, THIRD());
+    At this point we introduce some internals of the Python
+                                                                            STACKADJ(-2);
+ interpreter. The source code example for the standard COMPARE OP
+                                                                            SET_TOP(x);
+ contains several macros which we explain here for the con-
+                                                                            DISPATCH();
+ venience of the reader:
+                                                                        }
+  • TARGET: This macro is an auxiliary macro for helping to
+                                                                        break;
+    weave in the necessary instruction decoding when using              This manual unrolling of interpreter instructions enables
+    threaded-code dispatch. It defines a label, that can be         the compiler to perform more optimizations on this block.
+    used as a jump target on compilers that support the label       Further examples for unfolding with quickening are not
+    as value feature (TARGET COMPARE OP).                           limited to loops, but rather to straightening cascaded con-
+  • POP/TOP, PUSH/SET TOP: These macros manipulate the              ditional blocks that solely depend on the instruction ar-
+    operand stack. The difference between the POP/PUSH and          gument. This corresponds directly to an optimization for
+    TOP/SET TOP macros is that the latter do not change the         Smalltalk 80 interpreters, suggested by Allen Wirfs-Brock
+    stack pointer.                                                  in 1982 [WB82]. We apply this optimization to several in-
+                                                                    structions: BUILD TUPLE, BUILD LIST, UNFOLD SEQUENCE.
+  • Py DECREF: Decreases the reference count of its argu-
+    ment, if the reference count drops to zero, this macro in-      3.3   Reduced Instruction Format
+    vokes the reclamation procedure. Incrementing the refer-
+                                                                    Our instruction format of [Bru10b] contains interleaved
+    ence count is done via Py INCREF.
+                                                                    words for storing pointers (cf. Figure 2(a)). We use these
+  • DISPATCH, FAST DISPATCH: These macros take care of              pointers to either cache addresses of functions or data ob-
+    jumping to the next instruction when threaded-code dis-         jects. Though we found sufficient uses for justifying these in-
+    patch is enabled.                                               terleaved words, some were always being empty, i.e., NULL,
+because there was just no use for them in the instruction im-
+                                                                                           PyObject Pointer                 OPCODE
+plementation. Some of the optimizations we use this pointer
+cache for, was to significantly speed up the implementation
+of the LOAD GLOBAL instruction [Bru10b].                                            63                        32 31                           0
+
+
+                                                                                              Figure 4. Inlining a PyObject pointer.
+         ARGUMENT                            OPCODE                      2n
+
+                     INLINE CACHE PTR                                    2n + 1
+
+ 63                           32 31                                  0
+          (a) Old instruction format requiring two words [Bru10b].
+                                                                                         Figure 5. Inlining a load cache elem t pointer.
+
+                                                                                      A similar optimization applies to the LOAD GLOBAL in-
+                                                                                  struction. However, things are not quite as easy as in the
+                                                                                  LOAD CONST case: Since there exists a corresponding de-
+           (b) New instruction format using just one word.
+                                                                                  structive update instruction (STORE GLOBAL), any execution
+                                                                                  of that instruction can invalidate the inline cached instruction
+                                                                                  argument. Therefore, we have to use another level of indirec-
+        Figure 2. Changing the instruction format.                                tion involving a dedicated cache. First, we allocate an array
+                                                                                  of n elements of the following data structure in the lower
+    We propose a new instruction format that removes the in-                      memory area, below 32 bits.
+terleaved inline cache pointer words, such that the instruc-
+tion words are adjacent (cf. Figure 2(b)). Thus we require                        typedef struct {
+only half as much native machine words as before (cf. Fig-                            bytecode_t *ip;
+ure 2). However, since we do not want to interpret without                            PyObject *elem;
+our optimizations, we describe alternative implementation                         } load_cache_elem_t;
+approaches.                                                                       The ip field in the load cache elem t record holds the
+                                                                                  corresponding instruction pointer of the LOAD GLOBAL in-
+Inlining Data Object References                                                   struction for which the elem field holds the cached data
+We evenly divide the native machine word into two sec-                            object pointer. By construction we ensure that this element
+tions, one for the instruction opcode, and another for the                        fits into the 32 bits length restriction of the instruction ar-
+corresponding instruction argument. So, for 64 bit systems,                       gument section of the instruction word. Therefore, we can
+there are 32 bits for each segment. Many LOAD CONST in-                           replace the integer argument by the address of one of the n
+struction occurrences load objects that have been allocated                       load cache elem t elements (cf. Figure 5). The following
+in the lower memory area below 32 bits. Consequently, for                         optimized instruction derivative can be used instead of the
+all constant objects where this observation holds, we can ac-                     much more complicated LOAD GLOBAL implementation:
+tually replace the array indirection by a direct push of the
+                                                                                  TARGET(INCA_LOAD_GLOBAL)
+instruction argument. Figure 3 shows how we implement the
+                                                                                    if (PyLoadCache_IsValid(oparg, INSTR_PTR()) {
+optimized derivative (right side) and which lines remain un-
+                                                                                        x= PyLoadCache_GetElem(oparg);
+changed from the standard implementation (left side). Fig-
+                                                                                        Py_INCREF(x);
+ure 4 shows the effect of inlining a small object pointer into
+                                                                                        PUSH(x);
+an occurrence of the INCA LOAD CONST instruction.
+                                                                                        FAST_DISPATCH();
+TARGET(LOAD_CONST)                    TARGET(INCA_LOAD_CONST)                       }
+    x = GETITEM(                        x= (PyObject*) oparg;                       oparg= get_oparg(codeobject, INSTR_PTR());
+        consts, oparg);                                                             goto TARGET_LOAD_GLOBAL_SKIP_DECODE;
+                                                                                     PyLoadCache IsValid and PyLoadCache GetElem
+      Py_INCREF(x);                   >                                           are auxiliary macros hiding the details of the load cache elem t
+      PUSH(x);                        >                                           definition. Additionally, we see that we need to recover the
+      FAST_DISPATCH();                >                                           original instruction argument from the old list of bytecode
+                                                                                  instructions in case we have a cache miss. Whenever we
+Figure 3. Implementation of LOAD CONST and its optimized                          quicken an instruction from LOAD GLOBAL to INCA LOAD GLOBAL,
+derivative.                                                                       we need to use an element from the array of n elements.
+                                                                                  A simple and effective strategy is to use this list as a ring
+buffer, where we maintain a pointer to the next free element
+and reset it to zero whenever it points to n + 1.
+   As with any other cache, we have to take care of prop-
+erly invalidating it to maintain correctness. Whenever we
+execute a STORE GLOBAL instruction, our implementation
+clears the ip field of all n load cache elem t records. This
+causes cache misses in all sub-sequent INCA LOAD GLOBAL
+instructions. These cache misses lead to invocation of the
+LOAD GLOBAL instruction, which updates the cache and re-
+quickens the instruction back to INCA LOAD GLOBAL.
+
+3.4   Partial Stack Frame Caching of Local Variables
+In any stack-based interpreter, load instructions are usually
+among the most frequently executed instructions. In Python,
+two kinds of load instructions are usually among the most        Figure 6. Calculating scores in the presence of multiple
+frequent ones: a) the LOAD CONST instruction for loading         loops.
+constants, and b) the LOAD FAST instruction for loading local
+variables. We already took care of optimizing the first case     TARGET(LOAD_FAST_A)
+in Section 3.3. Now, we turn our attention to the LOAD FAST          Py_INCREF(fast_slot_a);
+instruction:                                                         PUSH(fast_slot_a);
+                                                                     FAST_DISPATCH();
+TARGET(LOAD_FAST)
+    x = fastlocals[oparg];                                           As we can see, we create a new variable fast slot a,
+    if (x != NULL) {                                             which holds the contents of some variable of the stack frame.
+        Py_INCREF(x);                                            This directly points us to the next technicality: Which local
+        PUSH(x);                                                 Python variables do we cache with fast slot a? A very
+        FAST_DISPATCH();                                         naive strategy would be to just allocate the first n of total m
+    }                                                            local variables of the Python stack frame to our additional n
+    /* omitted rest of implementation */                         caching variables. This only makes sense when the number
+                                                                 of total variables m is actually lower than or equal to the
+   Fastlocals is a pointer to a field inside the Python stack    number of available additional caching variables n. In cases
+frame, where enough memory has been allocated to hold ref-       where the number of local variables of the Python stack
+erences for all local variables. Every LOAD FAST instruction     frame exceeds the number of available caching variables,
+uses an array indirection, and, while not expensive by itself,   i.e., n < m, we can surely do better.
+this accrues considerable time during the execution of any           An optimal solution to this problem is when we allocate
+program, because the interpreter executes these load instruc-    the most frequently executed LOAD FAST instructions to the
+tions very frequently. On the other hand, since these instruc-   n available additional local caching variables. Therefore, we
+tions execute that often (early measurements indicate that       want to estimate which LOAD FAST and STORE FAST instruc-
+about a third of all instructions are loads), even small opti-   tions will be executed most often. One heuristic is to just
+mizations will pay off quickly. We propose to partially cache    rank LOAD FAST and STORE FAST instructions according to
+variables from the Python stack frame in the interpreter’s C     their number of occurrences within a given sequence of in-
+stack frame. The optimization technique requires the follow-     structions. However, we can improve this heuristic signifi-
+ing steps:                                                       cantly: In the presence of loops, it is reasonable to assume
+                                                                 that the load and store instructions within the loop-body will
+1. Declare additional variables in the C stack frame of the
+                                                                 be executed more often. This assumption is recursive, i.e.,
+   interpreter.
+                                                                 the deeper the loops are nested, the more often we assume
+2. Generate instruction derivatives that use the additional      the load and store instructions in their bodies to be executed.
+   local variables.                                              We use this heuristic to select the candidates among the lo-
+3. Promote contents of the local variables of the Python         cal variables of the Python stack frame. In addition to being
+   stack frame to the local variables of the C stack frame       reasonable, this heuristic can be efficiently implemented: In
+   before entering the interpreter main loop.                    only one linear pass we can calculate a score for each local
+                                                                 variable. Whenever we find an occurrence of a local variable,
+4. Write back contents of the local variables after leaving
+                                                                 we increase its score by the current nesting level (cf. Fig-
+   the main loop.
+                                                                 ure 6). To give occurrences inside loops higher scores, we
+   Our implementation of such an optimized derivative is:        multiply the nesting level by 100 whenever we enter a loop,
+and divide it by 100 whenever we leave a loop. Thus, an oc-      TARGET(LOAD_FAST)                 TARGET(BINARY_MULTIPLY)
+currence within a loop equals 100 occurrences outside of that     x = GETLOCAL(oparg);              w= POP();
+loop. We arrived at this value by experimentation, for exam-      Py_INCREF(x); /* A */             v= TOP();
+ple using a nesting level weight of just 10 does not lead to      PUSH(x);                          x= PyNumber_Multiply(
+optimal local variable selection in some of our benchmarks.       FAST_DISPATCH();                     v, w);
+Among all scores we select the n highest and rewrite their                                          Py_DECREF(v); /* B */
+occurrences to the optimized instruction derivatives.                                               Py_DECREF(w); /* B */
+                                                                                                    SET_TOP(x);
+4.    Reference Counting meets Quickening                                                           if (x != NULL)
+Section 3 deals with optimizing various load instructions,                                              DISPATCH();
+primarily using a combination of caching and quickening.                                            break;
+Unfortunately, the operation implementation of Python 3.1
+instructions is still sub-optimal with respect to maximum ef-    Figure 8. Implementation of LOAD FAST instruction on the
+ficiency. We find additional overheads in two respects: a) all   left and of BINARY MULTIPLY the right.
+operands are objects that require (un-)boxing, and b) refer-
+ence counting. Among those two, we choose to optimize ref-          Figure 8 shows the corresponding implementations of
+erence counting.                                                 our sequence of instructions. The mark A in the left imple-
+    Measurements on the overheads accrued by reference           mentation of LOAD FAST in Figure 8 shows the Py INCREF
+counting during execution of Smalltalk programs by Ungar         operation for the object x. The mark B in the right im-
+and Patterson [UP82] indicate that a reduction of reference      plementation of BINARY MULTIPLY in Figure 8 shows the
+count operations is highly beneficial for a stack-based in-      corresponding Py DECREF operations for the operands v
+terpreter. Further measurements of the Berkeley Smalltalk-       and w. In our sequence of bytecode instructions, however,
+80 system using deferred reference counting as suggested         the first BINARY MULTIPLY—at position 3—is directly ex-
+by Deutsch and Bobrow in 1976 [DB76] indicate that using         ecuted after two LOAD FAST instructions—at positions 1,
+this optimization removes up to 90% of reference count op-       and 2 respectively. Therefore, the two increment reference
+erations [Bad82]. Based on these promising prior results, we     count operations of the first and second LOAD FAST result
+expect that focusing on optimizations of reference counting      object—x1 , and x2 respectively—are immediately decre-
+will be beneficial.                                              mented in the first BINARY MULTIPLY occurrence. Exactly
+    The original problem with reference counting, viz., the      this arrangement of redundant increment-decrement refer-
+massive amount of reference count operations accrued by          ence count operations constitutes a big part of the overhead
+the local operand stack modifications presents a bottleneck.     in local operand stack modifications mentioned by Deutsch
+First, we investigate what the nature of these operand stack     and Bobrow in 1976 [DB76].
+modifications is: whenever a stack-based interpreter exe-           Next, we present a way to optimize away these conserva-
+cutes an n-ary operation, it expects its operands to be the      tive reference count operations, which consequently allows
+top-most n entries on the operand stack. These operands are      us to significantly improve the efficiency of our interpreter.
+either the results of previous computations or pushed onto       Our solution consists of two steps:
+the operand stack by a corresponding load operation.
+                                                                 1. We eliminate the reference count operations from the
+     Instr. Pos. Instruction        Operand Stack                   operation implementation,
+         1        LOAD_FAST         x1                           2. We identify sequences of instructions where reference
+        2         LOAD_FAST          x1       x2                    count operations are too conservative, and can, therefore,
+                                                                    be safely optimized away.
+         3        BINARY_MULT        x3
+                                                                     Using systematic pre-generation of optimized derivatives
+        4         LOAD_FAST          x3       x4                 allows us to remove the redundant reference count opera-
+        5         BINARY_MULT        x5                          tions from operation implementation. Until now, we have
+                                                                 only described the case where all reference count operations
+                                                                 in a sequence are explicit. But, in fact, only one of the two
+Figure 7. Sequence of instructions and effect on the             operands for the second occurrence of BINARY MULTIPLY
+operand stack.                                                   is loaded explicitly by the third LOAD FAST instruction—
+                                                                 x4 . The other operand is the result of executing the first
+   Figure 7 shows a sequence of bytecode instructions and        BINARY MULTIPLY instruction—x3 . Examining the imple-
+their effect on the operand stack, i.e., after executing the     mentation of BINARY MULTIPLY again (cf. Figure 8, right
+LOAD FAST instruction at position 1, the operand stack con-      side), we notice that there is no explicit increment reference
+tains its result—x1 —as the top-of-stack element.                count operation for the result object x3 . Since there is an
+explicit decrement reference count operation in the second                             To find these redundant reference count operations, it is
+BINARY MULTIPLY instruction—at position 5, this means                              necessary that we simulate the operand stack of the actual in-
+that there has to be an implicit increment reference count                         terpreter by using a simplified abstract interpreter. Similar to
+operation hidden within PyNumber Multiply. If we want                              Xavier Leroy’s description of the first step in Java bytecode
+to eliminate such implicit reference count operations, we                          verification [Ler03], we use an abstract interpreter over the
+have to provide our own version of PyNumber Multiply,                              reference count operations occurring in operation implemen-
+which eliminates these hidden increment reference count op-                        tations. We do this in a linear pass over a sequence of instruc-
+erations. While this is certainly possible, and would allow us                     tions. Since there is no data-flow analysis involved, our op-
+to eliminate such implicit reference count operations, too,                        timization is restricted to basic block boundaries. Whenever
+we avoid doing so for illustrative purposes—our basic ap-                          our simple abstract interpreter finds matching pairs of redun-
+proach can be adapted to this scenario as well. Instead, we                        dant reference count operations, it uses quickening to rewrite
+focus on the removal of explicit reference count operations                        the occurrences of these instructions to their more aggressive
+only, which necessitates that we account for reference count                       derivative. Going back to our previous example, our simple
+operations being either explicit or implicit. Next, we elimi-                      abstract interpreter would be able to detect that all refer-
+nate redundant reference count operations from a sequence                          ence count operations are conservative, except the implicit
+by quickening its instructions from their most generic imple-                      reference count operation from the first BINARY MULTIPLY
+mentations to their optimized derivatives.                                         instruction to the second BINARY MULTIPLY. Figure 9 con-
+                                                                                   tains an illustrative implementation of this simple abstract
+                                                                                   interpreter. Therefore, our systematic pre-generation of op-
+/* data type d e f i n i t i o n s */
+typedef struct {
+                                                                                   timized derivatives needs to account for selective generation
+  signed char imp ; /* i m p l i c i t rc ops */                                   of reference count operation optimized derivatives, e.g., for
+  signed char exp ; /* e x p l i c i t rc ops */
+  /* value > 0: no of i n c r e m e n t rc ops */
+                                                                                   binary operations the following four optimized derivatives
+  /* value < 0: no of d e c r e m e n t rc ops */                                  are possible:
+} tuple_t ;
+                                                                                    • both reference count operations can be removed,
+typedef struct {
+  bytecode_t * instrPtr ;                                                           • the top-of-stack operand’s reference count operations can
+  tuple_t effect ;
+} e f f e c t _ s t a ck _ e l e m _ t ;                                              be removed,
+/* local v a r i a b l e s */
+                                                                                    • the reference count operations of the second element on
+bytecode_t * instrPtr = codeobject - > co_opt_code ;                                  the operand stack can be removed,
+bytecode_t * cur = instrPtr ;
+e f f e c t_ s t a c k _ e l e m _ t * stackPtr = stack ;                           • no reference count operations can be removed (this cor-
+tuple_t effect ;
+opcode_t opcode ;                                                                     responds to the standard implementation).
+int i = 0 , n = 0 , size = Py_SIZE ( codeobject - > co_code );
+                                                                                   The creation of reference count operation optimized deriva-
+/* simple abstrac t i n t e r p r e t e r */                                       tives leads to increased requirements for the instruction
+while ( i < size ) {
+  cur = instrPtr ;                                                                 cache, because the dispatch loop size increases. While this
+  opcode = decodeInstr ();                                                         holds also true for our approach of [Bru10b], it is much more
+  i ++;
+                                                                                   expensive when creating the reference count operation op-
+    if ( basicBlockB o r d e r ( opcode ))                                         timized derivatives: for every case in our previous enumer-
+      clearStack ();
+                                                                                   ation, we require a new derivative. This invariably leads to
+    if ( rotateInstr ( opcode )) {                                                 instruction cache misses and we need to ensure that the im-
+      rotateStackEl e m s ( stackPtr , opcode );
+      continue ;                                                                   plied cache penalties do not over-compensate for our gains
+    }                                                                              in efficiency. So, we perform an analysis to make informed
+    if ( refcountEffect ( opcode , & effect )) {                                   decisions. This analysis uses an instrumented interpreter that
+      if ( effect . exp < 0) {                                                     prints the current instruction in addition to the results we ob-
+         n = - effect . exp ;
+         stackPtr -= n ;                                                           tain by running our simple abstract interpreter. We use a
+                                                                                   separate program to accumulate the results we obtain when
+          /* a d d i t i o n a l quickening , e . g . , f u n c t i o n calls */
+          if ( n <= 2 && isMarkable ( opcode )) {                                  running our benchmarks on this instrumented interpreter.
+            if ( n == 2)                                                           Thus we can quantify the dynamic instruction frequency as
+               quicken B in ar y Op (& cur , & stackPtr );
+            else if ( n == 1)                                                      well as the number of optimization scenarios for reference
+               quickenUnary Op (& cur , & stackPtr );                              count quickening. According to our results, the first two of
+          }
+        }                                                                          our four cases occur most often, therefore, we create deriva-
+        pushOpnds (& cur , & stackPtr , & effect );                                tives for almost all operations. Exceptions are infrequently
+    }
+}                                                                                  occurring instructions, such as Python’s floor divide instruc-
+                                                                                   tion, and the logical operator instructions. Only for the most
+Figure 9. Implementation of our simple abstract interpreter.                       frequent instructions, we provide the optimized derivatives
+for our third case, i.e., the elimination of reference count      line caching via quickening, i.e., it is merely a matter of prac-
+operations for the second operand on the stack. Our analysis      ticality.
+identifies the BINARY ADD and BINARY MULTIPLY instruc-               The following two sections of this paper describe tech-
+tions as candidates here—we omit the generation of opti-          niques in general using variables without giving concrete
+mized derivatives for all other instructions in that scenario.    values. We use the following configuration:
+   So far, we only described the situation for interpreter in-     • Section 3.3: Our load cache in the lower memory area
+structions for host-level language operations. In addition to           uses 128 elements.
+those operations, however, a typical Python program relies
+on numerous function calls. Therefore, it is only natural to       • Section 3.4: We promote 4 local variables to their dedi-
+apply this optimization to the call instruction of the Python           cated slots.
+interpreter, too. Using our dynamic bytecode frequency anal-      All in all, our optimized interpreter has 395 instructions.
+ysis together with our simple abstract interpreter over the
+amount of reference count operations in an instruction, we        5.2     Systems
+find that the following cases occur most often:                   We use several benchmarks from the computer language
+ • all reference count operations necessary to load the argu-
+                                                                  benchmark game [Ful]. We would like to give results of pop-
+                                                                  ular real-world Python applications, such as Zope, Django,
+      ments of a function/method call can be safely eliminated,
+                                                                  and twisted. Unfortunately, however, the adoption of Python
+ • all but the top-most reference count operation can be          3.x in the community is rather slow, and there are currently2
+      safely eliminated.                                          no ports of these applications available. We ran the bench-
+                                                                  marks on the following system configurations:
+We can easily add the quickening code for both of the func-
+tion/method call optimizations to our simple abstract in-          • Intel i7 920 with 2.6 GHz, running Linux 2.6.28-15 and
+terpreter: Since we properly simulate the stack behavior,               gcc version 4.3.3. (Please note that we have turned off
+we just iterate over all arguments for any given occur-                 Intel’s Turbo Boost Technology to have a common hard-
+rence of a CALL FUNCTION instruction and check that all                 ware baseline performance without the additional vari-
+operands have explicit Py INCREF operations. If this holds,             ances immanently introduced by it [Int08].) Instruction
+we quicken the instruction and all of its operands to their             cache size is 32 KB.
+optimized derivatives. If it does not hold, we check that for a    • IBM PowerPC 970 with 2.0 GHz, running Linux 2.6.18-4
+function call of n arguments, n − 1 have explicit Py INCREF             and gcc version 4.1.2. Instruction cache size is 64 KB.
+operations, and only the top-most operand has an implicit
+Py INCREF—this indicates quickening potential for our sec-        We used a modified version of the nanobench program
+ond case.                                                         of the computer language benchmark game [Ful] to mea-
+                                                                  sure the running times of each benchmark program. The
+                                                                  nanobench program uses the UNIX getrusage system call
+5.      Evaluation                                                to collect usage data, for example the elapsed user and sys-
+5.1     Interpreter Configuration                                 tem times as well as memory usage of a process. We use
+                                                                  the sum of both timing results, i.e., elapsed user and system
+Since all of our new techniques can be applied together, we
+                                                                  time as the basis for our benchmarks. In order to account for
+briefly explain how we do this. First, we allocate memory
+                                                                  proper measurement, cache effects, and unstable timing re-
+and re-encode the word-code as previously described in Sec-
+                                                                  sults for benchmarks with only little running time, we ran
+tion 2—with the notable exception of using our changed in-
+                                                                  each program 100 successive times and use arithmetic aver-
+struction format as described in Section 3.3. Because our
+                                                                  ages over these repetitions for our evaluation.
+new instruction format changes the instruction position, we
+have to relocate the jump offsets subsequently. Next, we use      5.3     Code Generator Statistics
+our abstract interpreter over the number of reference count       We measured the lines of code using the sloccount pro-
+operations per instruction over the list of bytecodes to find     gram of David Wheeler [Whe10]. Our code generator pro-
+sequences with redundant reference count operations. Once         duces 6178 lines of C code that is to be included in the
+we find a such a sequence, we quicken its instructions to         main interpreter. The Python code of our generator amounts
+their more aggressive derivatives. We do this before actually     to 2739 lines of code, however, out of those 2739 lines of
+executing any of the instructions, hence, a compiler could        code, 1700 lines of code are consumed by our type-data
+already emit optimized instructions. Finally, we start inter-     file generated by raw-data from gdb. Therefore, the actual
+preting and quicken instructions to their optimized deriva-       amount of Python code without the master data needed to
+tives based on acquired type feedback. The reason we do           generate the C code is 1039 lines of code. In addition to
+reference count operation quickening before inline caching        the generator and its product, we have manually coded 1759
+is that the reference count operation optimized instruction
+set is smaller than the type-dependent instruction set for in-    2 As of May 2010.
+lines of code. These are 400 lines of code for quickening
+the CALL FUNCTION instruction and supplying our own ver-
+                                                                                 binarytrees−10
+sion of unicode concatenate, 347 lines of code for our                           binarytrees−12
+simple abstract interpreter to rewrite the reference count op-                   binarytrees−14
+
+erations, 272 lines of code for the creating and manipulating                       fannkuch−8
+                                                                                    fannkuch−9
+the new instruction format (including the scoring heuristic),                        fasta−050k
+and 87 lines of code that implements the load cache that we                          fasta−100k
+
+described in Section 3.3. The remaining lines of code are                            fasta−150k
+                                                                                     fasta−200k
+
+
+
+
+                                                                   Benchmark
+mostly externalized interpreter macros from the original dis-                   mandelbrot−200
+patch loop and smaller auxiliary files.                                         mandelbrot−400
+
+   Using ‘cat * | wc -l‘ to calculate the number of C-                          mandelbrot−500
+                                                                                    nbody−050k
+code markup inside the Mako templates adds another 1385                             nbody−100k
+lines of code. Here, we cannot use the sloccount program,                           nbody−150k
+
+since it does not understand the Mako template language.                       spectralnorm−100
+                                                                               spectralnorm−200
+
+5.4   Reference Count Operations Eliminated                                    spectralnorm−300
+                                                                               spectralnorm−400
+Figure 10 illustrates the effect of eliminating explicit refer-
+ence count operations, broken down by increment (cf. Fig-                                         0.0e+00    5.0e+07        1.0e+08
+                                                                                                                       Amount
+                                                                                                                                           1.5e+08             2.0e+08
+
+ure 10(a)) and decrement (cf. Figure 10(b)) operations. We
+notice that for all benchmarks, the number of decrement op-                              (a) Number of increment reference count operations.
+erations exceed the number of increment operations. This is                                                            Interpreters
+due to the fact that we only counted occurrences of explicit                                                                Std 3.1
+reference count operations, i.e., our figures do not include                                                                DLS’10
+the implicit increment reference count operations, such as
+those occurring when we allocate new objects, or within op-
+eration implementations that do not use these macros to up-                      binarytrees−10
+                                                                                 binarytrees−12
+date the reference count for an object.                                          binarytrees−14
+   Regarding the actual results, we notice that for some                            fannkuch−8
+
+benchmarks, such as mandelbrot and spectralnorm, our                                fannkuch−9
+                                                                                     fasta−050k
+technique finds and eliminates substantial amounts of redun-                         fasta−100k
+dant reference count operations. The mandelbrot bench-                               fasta−150k
+
+mark benefits particularly from this optimization: we elim-                          fasta−200k
+                                                                   Benchmark
+
+
+
+
+                                                                                mandelbrot−200
+inate more than two thirds of all increment reference count                     mandelbrot−400
+operations, and about half of all decrement reference count                     mandelbrot−500
+
+operations. Our technique achieves good elimination rates                           nbody−050k
+                                                                                    nbody−100k
+on all other benchmarks—with the fasta benchmark be-                                nbody−150k
+ing the only exception: while we are able to reduce both,                      spectralnorm−100
+
+increment and decrement reference count operations, the re-                    spectralnorm−200
+                                                                               spectralnorm−300
+duction rates are not nearly as impressive as with the other                   spectralnorm−400
+benchmarks. This is due to the benchmark containing several
+occurrences of the BUILD SLICE instruction, for which we                                          0.0e+00   5.0e+07      1.0e+08      1.5e+08        2.0e+08
+                                                                                                                       Amount
+do not provide reference count operation optimized deriva-
+tives. As we will see in the next section, this has implications                         (b) Number of decrement reference count operations.
+on the performance, too.
+5.5   Benchmarks                                                                 Figure 10. Reference count operations occurring per bench-
+                                                                                 mark.
+We present the results running our benchmarks in Figure 11.
+The actual speedups are arithmetic averages over all repe-                       true on both architectures (cf. Figure 11(a), and Figure 11(b)
+titions for one benchmark, and we normalize by the stan-                         respectively). In addition to the mandelbrot benchmark,
+dard Python 3.1 interpreter without the threaded-code dis-                       the binarytrees benchmark performs noticeably better us-
+patch optimization. Because of our previous experience, we                       ing our new optimizations, too. While our optimizations
+are not surprised to find the spectralnorm benchmark to be                       fare particularly well on the Intel i7-920 Nehalem architec-
+particularly amenable to our optimizations (cf. Figure 11(a)).                   ture, we note that on the PowerPC 970, for the nbody and
+Surprisingly, however, we find that the mandelbrot bench-                        spectralnorm benchmarks, our new optimizations actually
+mark benefits most from our new optimizations—this holds                         reduce the maximum possible speedup by a small amount.
+               binarytrees−10
+
+               binarytrees−12
+                                                                                                       2.0
+               binarytrees−14
+
+                  fannkuch−8
+
+                  fannkuch−9
+
+                   fasta−050k                                                                          1.8
+
+
+
+
+                                                                                             Speedup
+                   fasta−100k
+
+                   fasta−150k
+
+                   fasta−200k
+Benchmarks
+
+
+
+
+                                                                                                       1.6
+
+              mandelbrot−200
+
+              mandelbrot−400
+
+              mandelbrot−500
+                                                                                                       1.4
+                  nbody−050k
+
+                  nbody−100k
+
+                  nbody−150k
+
+             spectralnorm−100                                                                                DLS'10           ECOOP'10    Std. 3.1 with Threaded Code
+                                                                                                                           Interpreters
+             spectralnorm−200
+
+             spectralnorm−300                                                                                          (a) Intel i7 920
+             spectralnorm−400
+
+
+                                1.0   1.2         1.4        1.6   1.8         2.0   2.2
+                                                   Speedup
+                                                                                                       1.5
+
+                                              (a) Intel i7 920
+                                            Interpreters
+                                                                                                       1.4
+                                                Threaded Code
+                                                ECOOP’10
+                                                                                             Speedup
+
+
+
+
+                                                DLS’10                                                 1.3
+
+
+
+
+               binarytrees−10                                                                          1.2
+
+               binarytrees−12
+
+               binarytrees−14
+
+                  fannkuch−8
+                                                                                                       1.1
+                  fannkuch−9
+
+                   fasta−050k
+
+                   fasta−100k                                                                                DLS'10           ECOOP'10    Std. 3.1 with Threaded Code
+                                                                                                                           Interpreters
+                   fasta−150k
+
+                   fasta−300k                                                                                         (b) PowerPC 970
+Benchmarks
+
+
+
+
+              mandelbrot−200
+                                                                                           Figure 12. Overall speedup relative to standard Python 3.1
+              mandelbrot−400
+
+              mandelbrot−500
+                                                                                           interpreter.
+              mandelbrot−700
+
+                  nbody−050k
+                                                                                           erPC 970 has double the amount of resources here, i.e., 64
+                  nbody−100k
+                                                                                           KB instruction cache size for the PowerPC 970 as compared
+                  nbody−150k                                                               to the 32 KB of the Intel i7. Thus, we need further research
+             spectralnorm−100                                                              to investigate what is actually causing the slowdowns. As
+             spectralnorm−200                                                              noted in Section 5.4, our technique does not cover some im-
+             spectralnorm−300
+                                                                                           portant parts of the fasta benchmark. In consequence, our
+             spectralnorm−400
+                                                                                           technique is not able to deliver its full potential here.
+                                1.0                1.2                   1.4                   To further assess the benefits of our optimizations, we
+                                                   Speedup                                 compare all possible speedups using standard box plots in
+                                             (b) PowerPC 970
+                                                                                           Figure 12. The upper, middle, and bottom line of the box cor-
+                                                                                           respond to the 75th , 50th , and 25th percentile respectively.
+                 Figure 11. Benchmark speedups relative to standard Python
+                                                                                           The ends of the whiskers represent the maximum and mini-
+                 3.1 interpreter.
+                                                                                           mum measured results.
+                 First, we assumed that these results are due to differences in                Interestingly, we see that the optimized dispatch using
+                 instruction cache size. It turns out, however, that the Pow-              the threaded-code dispatch technique performs considerably
+worse on the PowerPC architecture: the median speedup in          of the standard library, their by-need compilation approach
+our benchmarks is below the factor of 1.1, compared to a me-      is able to optimize code regardless of provenience.
+dian speedup factor of more than 1.4 on the Intel i7-920. Us-         Using quickening to unfold loop bodies is a modern inter-
+ing the techniques presented in this paper, we are able to sig-   pretation of a technique mentioned in Allen Wirfs-Brock’s
+nificantly improve the performance of the Python interpreter      excellent article on the design decisions of Smalltalk inter-
+on Intel architectures (cf. Figure 12(a)): While the median       preters [WB82] in “Smalltalk 80: Bits of History, Words of
+speedup improves from about 1.7 to about 1.8, the maximum         Advice” [Kra84]. When we generalize the notion that his
+possible speedup improvement is more impressive: from a           technique eliminates the necessity of instruction argument
+previously possible speedup of about 1.9, we now reach a          decoding, we can basically subsume all of our optimizations
+maximum speedup of over 2.1. Our performance results for          by noting that we increase the amount of information that is
+the PowerPC are not directly comparable. In comparison to         attached to an interpreter instruction jump. For example, af-
+our inline-caching-only work [Bru10b], we already noted           ter our technique has finished incorporating type feedback,
+that using the new optimization techniques actually reduces       every instruction jump from one instruction to another one
+the maximum possible speedup on some benchmarks. That             not only indicates which operation we want to call, but im-
+notwithstanding, however, applying the new techniques vis-        plicitly contains information for the type we expect and the
+ibly improves the median speedup. Consequently, we argue          amount of reference count operations we need.
+in favor of applying our techniques despite possibly lower            There exist several optimizations that rely on changing
+maximum speedups.                                                 the instruction format. In 1982, Pemberton and Daniels [PD82]
+    Unfortunately, all of our benchmarks measure the im-          describe how the Pascal P4 system uses the 60 bit native
+pact of combining all optimizations. Yet, we are interested       machine words of a CDC 6000 series computer to accom-
+in how each optimization performs on its own, in order to         modate two 30 bit interpreter instructions with operands. As
+allow implementers to choose among them. Therefore, we            a recent example, we refer to the instruction formats avail-
+did preliminary benchmarks on our first system, i.e., the         able in Google’s Android Dalvik VM [dal07]. The Dalvik
+Intel i7 920, with our reference counting optimization of         virtual machines defines multiple instruction formats for
+Section 4 turned off, resulting in an interpreter with just       optimized interpretation. Particularly close to our work is
+214 instructions. While the interpreter with all optimiza-        the instruction set of the Inferno virtual machine, called
+tions of Section 3 achieves a higher speedup of almost            Dis [WP97]. Dis’ instruction set provides three-operand
+2.31 on the spectralnorm benchmark, its overall perfor-           memory-to-memory operations, where every instruction can
+mance is significantly below the interpreter that removes         directly operate on the memory addresses referred to by its
+redundant reference count operations. On three benchmarks         operands. This is reminiscent of register based virtual ma-
+(fannkuch, fasta, nbody) the interpreter without reference        chine architecture [SCEG08], with the notable exception of
+count quickening delivers only negligible performance im-         not using registers. In comparison with our work presented
+provements over our previous interpreter [Bru10b], whereas        in Section 3.3, however, we note that our technique does not
+enabling reference count quickening adds up to 7% on top of       change the machine architecture of the Python interpreter,
+those results. For the remaining benchmarks, the reduced in-      i.e., it remains a stack-based virtual machine. The use of
+terpreter adds 5% (binarytrees) and 16% (mandelbrot)              quickening allows us to offset any additional complex in-
+performance over our previous interpreter, enabling refer-        struction decoding logic machinery that is inherently neces-
+ence count quickening adds another 5% on top of those re-         sary in the Dis interpreter—since most of the encoded infor-
+sults.                                                            mation is static, we expect that using our combination with
+                                                                  quickening would be able to eliminate much of the overhead
+                                                                  of the instruction decoding in Dis. We are not aware of any
+6.   Related Work
+                                                                  prior publication of an optimization technique that combines
+The inline caching of the comparison instruction extends          data object reference inlining with quickening.
+our work on inline caching for high abstraction-level inter-          Concerning the caching of host language local variables
+preters. In 2010, Williams, McCandless, and Gregg from the        in the stack frame of the executing language (Section 3.4),
+Trinity College Dublin presented similar work for optimiz-        we find that Ertl briefly describes how this could work for
+ing dynamic typing of the Lua interpreter [WMG10]. The            register based virtual machines [Ert95], and notes that this
+biggest difference between both our approaches is that we         invariably leads to explosion of specialized instructions for
+pre-generate optimized instruction derivatives, while their       all possible combinations of instructions and registers. The-
+work uses a background thread that generates optimized in-        oretically, this corresponds to our optimization when a com-
+structions on a by-need basis using a separate compiler. This     piler decides to promote our caching variables to dedicated
+compiled representation of a typed Lua instruction is then        registers. However, we use this technique to optimize load
+linked into the running interpreter for future use. Their ap-     instructions of a stack based interpreter architecture and pro-
+proach has an advantage over ours: while our pre-generated        vide details of choosing which variables to cache for maxi-
+derivatives target only optimizations of types and functions
+mizing payoff. Finally, there are presentational issues: While   elimination rate of reference count operations, it is certainly
+Ertl presents his idea in assembly, we show our implementa-      not easily realizable in our setting. Our approach does not
+tion in C.                                                       require any kind of data flow analysis or fix-point compu-
+    Regarding our second contribution, the elimination of ref-   tation, but on the other hand can not possibly eliminate as
+erence count operations, we cite the following related work.     many reference count operations. To the best of our knowl-
+Introduced by Collins in 1960 [Col60], Deutsch and Bo-           edge, there is no similar work for elimination of reference
+brow found in 1976 [DB76] that while reference counting          count operations in interpreters.
+has its advantages, the amount of reference count operations
+caused by local stack modifications, i.e., load and store op-    7.   Conclusions
+erations, have a considerable negative impact on the perfor-     We presented a set of optimization techniques to further im-
+mance of such systems. Hence, Deutsch and Bobrow sug-            prove our maximum speedup up to 2.18, which is an addi-
+gest to remove the immediate processing of reference count       tional speedup of up to 1.14 from our previous maximum
+operations from the mutator and defer them to a dedicated        speedup of 1.92 [Bru10b]. Since our presented optimiza-
+processing phase—similar to the explicit garbage collection      tion techniques aim at improving the efficiency of instruction
+phase of other automatic memory management techniques.           implementation, they can be freely combined with orthogo-
+Because of their introduction of deferred reference counting,    nal optimization techniques targeting instruction dispatch—
+the original reference counting approach is often described      which our combination with threaded-code dispatch clearly
+as immediate or non-deferred reference counting. As early        demonstrates. We expect to further improve the efficiency
+as 1977, just a year after the deferred reference counting       of our techniques by combining them with the dynamic su-
+approach described by Deutsch and Bobrow [DB76], Barth           perinstructions optimization, as described by Ertl and Gregg
+described a technique to eliminate reference count opera-        [EG03a, EG04].
+tions using a global data-flow analysis in a compiler [Bar77].       Another starting point for future work is to use parts of
+In addition to what we describe, Barth’s description is able     our optimizations to attack the last remaining part of ineffi-
+to eliminate more reference count operations than our ap-        ciency of the Python interpreter: optimizing the (un-) box-
+proach. While our approach works for stack-based inter-          ing of Python objects. A simple strategy would be to pre-
+preters, Barth’s description optimizes a derivative of Pascal    generate instructions working on native machine integers,
+that uses reference counting for automatic memory manage-        floats, etc. and use a simple abstract interpreter to find se-
+ment. Unfortunately, he does not give any evaluation we          quences of instructions that could safely use native machine
+could use for comparison purposes. Much of the follow-           primitives instead of the Python objects. We estimate that
+ing research on optimizing reference counting focuses on         such optimizations would have a big performance impact,
+deferred reference counting as suggested by Deutsch and          particularly on numerical benchmarks.
+Bobrow [DB76]. Ungar and Patterson [UP82] describe a                 Finally, our techniques enable a compiler to do further in-
+set of optimization techniques to eliminate redundant refer-     lining, which has consistently shown to be crucial for inter-
+ence count operations from the implementation of standard        preters. Unfortunately, gcc is currently not able to do cross-
+Smalltalk instructions, such as eliminating an increment and     module inlining, which prevents this optimization from be-
+decrement reference count operation by directly copying a        ing applied. Future work will address this issue to enhance
+value from the callee stack frame to the caller stack frame      performance even further.
+and nilling out the source. These optimization techniques
+are static and do not take dynamic instruction sequences         Acknowledgments
+into account, which is precisely what allows us to eliminate
+large amounts of reference count operations. As recently as      I am very grateful to Anton Ertl and Andreas Krall for pro-
+2006, however, Joisha took up the basic idea of Barth—with       viding valuable hints concerning the related work of inter-
+much more comprehensive goals [Joi06]. The basic idea is         preter instruction formats and the caching of host language
+to use data-flow analysis to optimize a research version of a    variables. Furthermore, the author is deeply indebted to Jens
+C] compiler that generates code with reference counting for      Knoop for his many suggestions and ideas on clarifying and
+automatic memory management. Joisha uses liveness prop-          improving the presentation and organization of the material.
+erties of objects to remove way more reference count op-         Finally, many thanks go to the anonymous reviewers, who
+erations than our simple approach is able to recognize. His      provided constructive comments and detailed feedback for
+work addresses the “coalescing” of reference count opera-        additional polishing of rough edges and correcting unfortu-
+tions that basically corresponds to our approach—but it is       nate mishaps.
+only a minor part in his work. His subsequent work of 2008
+describes ways to eliminate reference count operations in        References
+the presence of modern object-oriented constructs, such as         [Bad82] Scott B. Baden. High performance storage reclamation
+exceptions [Joi08]. While his work achieves a much higher                  in an object-based memory system. Technical report,
+                                                                           Berkeley, CA, USA, 1982.
+  [Bar77] Jeffrey M. Barth. Shifting garbage collection over-            [Ful] Brent Fulgham. The computer language benchmarks
+          head to compile time. Communications of the ACM,                     game. http://shootout.alioth.debian.org/.
+          20(7):513–518, July 1977.                                    [Int08] Intel. Intel turbo boost technology in Intel core microar-
+[BCFR09] Carl Friedrich Bolz, Antonio Cuni, Maciej Fijalkowski,                chitecture (nehalem) based processors. online, Novem-
+         and Armin Rigo. Tracing the meta-level: PyPy’s tracing                ber 2008.
+         JIT compiler. In Proceedings of the 4th Workshop              [Joi06] Pramod G. Joisha. Compiler optimizations for nonde-
+         on the Implementation, Compilation, Optimization of                   ferred reference counting garbage collection. In Pro-
+         Object-Oriented Languages and Programming Systems                     ceedings of the 5th International Symposium on Mem-
+         (ICOOOLPS ’09), Lecture Notes in Computer Science,                    ory Management (ISMM ’06), pages 150–161, New
+         pages 18–25. Springer, 2009.                                          York, NY, USA, 2006. ACM.
+  [Bel73] James R. Bell. Threaded code. Communications of the          [Joi08] Pramod G. Joisha. A principled approach to non-
+          ACM, 16(6):370–372, 1973.                                            deferred reference-counting garbage collection. In
+  [Bru09] Stefan Brunthaler. Virtual-machine abstraction and op-               Proceedings of the 4th ACM SIGPLAN/SIGOPS In-
+          timization techniques. In Proceedings of the 4th In-                 ternational Conference on Virtual Execution Environ-
+          ternational Workshop on Bytecode Semantics, Verifica-                ments (VEE ’08), pages 131–140, New York, NY, USA,
+          tion, Analysis and Transformation (BYTECODE ’09),                    March 2008. ACM.
+          volume 253(5) of Electronic Notes in Theoretical Com-       [Kra84] Glenn Krasner, editor. Smalltalk-80: Bits of History,
+          puter Science, pages 3–14, Amsterdam, The Nether-                   Words of Advice. Addison-Wesley Longman Publish-
+          lands, December 2009. Elsevier.                                     ing Co., Inc., Boston, MA, USA, 1983, reprinted with
+                                                                              corrections 1984.
+ [Bru10a] Stefan Brunthaler. Efficient inline caching without dy-
+          namic translation. In Proceedings of the 2010 ACM           [Ler03] Xavier Leroy. Java bytecode verification: Algorithms
+          Symposium on Applied Computing (SAC ’10), pages                     and formalizations. Journal of Automated Reasoning,
+          2155–2156, New York, NY, USA, March 2010. ACM.                      30(3-4):235–269, 2003.
+ [Bru10b] Stefan Brunthaler. Inline caching meets quicken-            [PD82] Steven Pemberton and Martin Daniels. Pascal Imple-
+          ing. In Proceedings of the 24th European Conference                mentation: The P4 Compiler and Interpreter. Ellis Hor-
+          on Object-Oriented Programming, Maribor, Slovenia,                 wood, 1982.
+          June 21-25, 2010 (ECOOP ’10), volume 6183/2010 of         [SCEG08] Yunhe Shi, Kevin Casey, M. Anton Ertl, and David
+          Lecture Notes in Computer Science, pages 429–451.                  Gregg. Virtual machine showdown: Stack versus regis-
+          Springer, 2010.                                                    ters. ACM Transactions on Architecture and Code Op-
+                                                                             timization, 4(4):1–36, 2008.
+  [Col60] George E. Collins. A method for overlapping and era-
+          sure of lists. Communications of the ACM, 3(12):655–        [UP82] David M. Ungar and David A. Patterson. chapter
+          657, December 1960.                                                11, Berkeley Smalltalk: Who Knows Where the Time
+                                                                             Goes?, pages 189–206. September 1982.
+   [dal07] Dalvik VM Instruction Formats. Online, (checked: May
+           2010) 2007.                                                [WB82] Allen Wirfs-Brock. Smalltalk-80: Bits of History,
+                                                                             Words of Advice, chapter 4, Design Decisions for
+  [DB76] L. Peter Deutsch and Daniel G. Bobrow. An efficient,                Smalltalk-80 Implementors, pages 41–56. In Krasner
+         incremental, automatic garbage collector. Communica-                [Kra84], 1982.
+         tions of the ACM, 19(9):522–526, 1976.
+                                                                     [Whe10] David Wheeler. sloccount. http://www.dwheeler.
+ [EG03a] M. Anton Ertl and David Gregg. Optimizing indi-                     com/sloccount/, May 2010.
+         rect branch prediction accuracy in virtual machine in-
+                                                                    [WMG10] Kevin Williams, Jason McCandless, and David Gregg.
+         terpreters. In Proceedings of the SIGPLAN ’03 Con-
+                                                                            Dynamic interpretation for dynamic scripting lan-
+         ference on Programming Language Design and Imple-
+                                                                            guages. In Proceedings of the 8th annual IEEE/ACM
+         mentation (PLDI ’03), pages 278–288, New York, NY,
+                                                                            SIGMICRO/SIGPLAN International Symposium on
+         USA, 2003. ACM.
+                                                                            Code Generation and Optimization (CGO ’10), pages
+ [EG03b] M. Anton Ertl and David Gregg.           The structure             278–287, April 2010.
+         and performance of efficient interpreters. Journal of        [WP97] Phil Winterbottom and Rob Pike. The design of the
+         Instruction-Level Parallelism, 5:1–25, November 2003.               Inferno virtual machine. In Proceedings of the 42nd
+  [EG04] M. Anton Ertl and David Gregg. Combining stack                      IEEE Computer Society International Conference, San
+         caching with dynamic superinstructions. In Proceed-                 Jose, California, US (COMPCON ’97), pages 241–244,
+         ings of the 2004 Workshop on Interpreters, virtual ma-              1997.
+         chines and emulators (IVME ’04), pages 7–14, New           [YWF09] Alexander Yermolovich, Christian Wimmer, and
+         York, NY, USA, 2004. ACM.                                          Michael Franz. Optimization of dynamic languages
+   [Ert95] M. Anton Ertl. Stack caching for interpreters. In                using hierarchical layering of virtual machines. In Pro-
+           Proceedings of the SIGPLAN ’95 Conference on                     ceedings of the 5th Symposium on Dynamic Languages
+           Programming Language Design and Implementation                   (DLS ’09), pages 79–88, New York, NY, USA, 2009.
+           (PLDI ’95), pages 315–327, 1995.                                 ACM.
+

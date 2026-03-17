@@ -1,0 +1,1206 @@
+ Don’t Get Caught in the Cold, Warm-up Your JVM:
+Understand and Eliminate JVM Warm-up Overhead
+             in Data-Parallel Systems
+  David Lion and Adrian Chiu, University of Toronto; Hailong Sun, Beihang University;
+          Xin Zhuang, University of Toronto; Nikola Grcevski, Vena Solutions;
+                          Ding Yuan, University of Toronto
+          https://www.usenix.org/conference/osdi16/technical-sessions/presentation/lion
+
+
+          This paper is included in the Proceedings of the
+       12th USENIX Symposium on Operating Systems Design
+                  and Implementation (OSDI ’16).
+                        November 2–4, 2016 • Savannah, GA, USA
+                                     ISBN 978-1-931971-33-1
+
+
+
+                                                Open access to the Proceedings of the
+                                            12th USENIX Symposium on Operating Systems
+                                                    Design and Implementation
+                                                      is sponsored by USENIX.
+            Don’t Get Caught In the Cold, Warm-up Your JVM
+   Understand and Eliminate JVM Warm-up Overhead in Data-parallel Systems
+
+        David Lion, Adrian Chiu, Hailong Sun*, Xin Zhuang, Nikola Grcevski†, Ding Yuan
+                   University of Toronto, *Beihang University, †Vena Solutions
+
+
+
+                       Abstract                              SQL [10, 64, 65], Hive on Tez [37], and Impala [36].
+   Many widely used, latency sensitive, data-parallel dis-      Numerous improvements have been made to the per-
+tributed systems, such as HDFS, Hive, and Spark choose       formance of these systems. These works mostly fo-
+to use the Java Virtual Machine (JVM), despite debate        cused on scheduling [2, 4, 31, 38, 56, 84], shuffling
+on the overhead of doing so. This paper analyzes the ex-     overhead [17, 19, 40, 45, 81], and removing redundant
+tent and causes of the JVM performance overhead in the       computations [61]. Performance characteristics stud-
+above mentioned systems. Surprisingly, we find that the      ies [44, 46, 55, 57] and benchmarks [18, 23, 34, 80]
+warm-up overhead, i.e., class loading and interpretation     have been used to guide the optimization efforts. Most
+of bytecode, is frequently the bottleneck. For example,      recently, some studies analyzed the performance impli-
+even an I/O intensive, 1GB read on HDFS spends 33%           cations of the JVM’s garbage collection (GC) on big data
+of its execution time in JVM warm-up, and Spark queries      systems [24, 47, 48, 59].
+spend an average of 21 seconds in warm-up.                      However, there lacks an understanding of the JVM’s
+   The findings on JVM warm-up overhead reveal a con-        overall performance implications, other than GC, in
+tradiction between the principle of parallelization, i.e.,   latency-sensitive data analytics workloads. Conse-
+speeding up long running jobs by parallelizing them          quently, almost every discussion on the implications of
+into short tasks, and amortizing JVM warm-up overhead        the JVM’s performance results in heated debate [35,
+through long tasks. We solve this problem by designing       41, 42, 43, 58, 69, 83]. For example, the developers of
+HotTub, a new JVM that amortizes the warm-up over-           Hypertable, an in-memory key-value store, use C++ be-
+head over the lifetime of a cluster node instead of over     cause they believe that the JVM is inherently slow. They
+a single job by reusing a pool of already warm JVMs          also think that Java is acceptable for Hadoop because
+across multiple applications. The speed-up is significant.   “the bulk of the work performed is I/O” [35]. In addi-
+For example, using HotTub results in up to 1.8X speed-       tion, many believe that as long as the system “scales”,
+ups for Spark queries, despite not adhering to the JVM       i.e., parallelizes long jobs into short ones, the overhead
+specification in edge cases.                                 of the JVM is not concerning [69]. It is clear that given
+                                                             its dynamic nature, the JVM’s overhead heavily depends
+1 Introduction                                               on the characteristics of the application. For example,
+                                                             whether an interpreted method is compiled to machine
+A large number of data-parallel distributed systems are      instructions by the just-in-time (JIT) compiler depends
+built on the Java Virtual Machine (JVM) [25]. These sys-     on how frequently it has been invoked. With all these dif-
+tems include distributed file systems such as HDFS [28],     ferent perspectives, a clear understanding of the JVM’s
+data analytic platforms such as Hadoop [27], Spark [64],     performance when running these systems is needed.
+Tez [62, 76], Hive [32, 77], Impala [13, 36], and key-         This research asks a simple question: what is the per-
+value stores such as HBase [29] and Cassandra [15]. A        formance overhead introduced by the JVM in latency-
+recent trend is to process latency-sensitive, interactive    sensitive data-parallel systems? We answer this by pre-
+queries [37, 65, 75] with these systems. For example, in-    senting a thorough analysis of the JVM’s performance
+teractive query processing is one of the focuses for Spark   behavior when running systems including HDFS, Hive
+
+
+
+
+USENIX Association                 12th USENIX Symposium on Operating Systems Design and Implementation            383
+on Tez, and Spark. We drove our study using represen-         not require a centralized component, and it selects the
+tative workloads from recent benchmarks. We also had          “best” JVM that will likely result in the highest re-usage
+to carefully instrument the JVM and these applications        of loaded classes and compiled code.
+to understand their performance. Surprisingly, after mul-        Evaluating HotTub shows that it can significantly
+tiple iterations of instrumentation, we found that JVM        speed-up latency sensitive queries. It reduces Spark’s
+warm-up time, i.e., time spent in class loading and in-       query latency on 100GB by up to 29 seconds, and speeds
+terpreting bytecode, is a recurring overhead, which we        up HDFS reads on 1MB data by a factor of 30.08. In ad-
+made the focus of this study. Specifically, we made the       dition to warm-up time, the large speed up comes from
+following three major findings.                               more efficient use of cache, TLB, and branch predictor
+   First, JVM warm-up overhead is significant even in         with up to 36% of miss rate reductions.
+I/O intensive workloads. We observed that queries from           This paper makes the following contributions.
+BigBench [23] spend an average of 21 seconds in warm-
+up time on Spark. Reading a 1GB file on HDFS from             • It is the first analysis on the JVM’s performance over-
+a hard drive spends 33% of its time in warm-up. We              head in latency sensitive, data-parallel workloads. We
+consider bytecode interpretation as an overhead because         are also the first to identify and quantify the warm-up
+there is a huge performance discrepancy compared with           overhead on such workloads.
+JIT-compiled code (simply referred as compiled code in        • It presents HotTub, the first system that eliminates
+this paper) [39, 73]. For instance, we find that CRC            warm-up overhead while maintaining consistency.
+checksum computation, which is one of the bottlenecks
+in HDFS read, is 230x faster when executed by compiled        • It also implements a set of improved JVM performance
+code rather than interpretation.                                counters that measure the warm-up overhead. In par-
+   In addition, the warm-up time does not scale. Instead,       ticular, it is the first to provide fine-grained measure-
+it remains nearly constant. For example, the warm-up            ment of interpretation time.
+time in Spark queries remains at 21 seconds regardless        The source code of HotTub and our JVM instrumen-
+of the workload scale factor, thus affecting short running    tations in OpenJDK’s HotSpot JVM are publicly avail-
+jobs more. The broader implication is the following:          able 1 .
+   There is a contradiction between the principle of             This paper has the following limitations. First, HotTub
+   parallelization, i.e., speeding up long running jobs       is less useful in long running workloads as the warm-up
+   by parallelizing them into short tasks, and amortiz-       time is amortized by the long job completion time. In
+   ing JVM warm-up overhead through long tasks.               addition, HotTub does not completely comply with the
+                                                              Java Virtual Machine Specification [25] with regards to
+   Finally, the use of complex software stacks aggravates     applications that use static variables whose initialization
+warm-up overhead. A Spark client loads 19,066 classes         is timing dependent, which is rare and well-known to be
+executing a query, which is 3 times more than Hive de-        a bad programming practice [1, 70].
+spite Spark’s overall latency being shorter. These classes       This paper is organized as follows. Section 2 de-
+come from a variety of software components needed by          scribes the instrumentations to the JVM used to measure
+Spark. In practice, applications using more classes also      its warm-up overhead. Section 3 presents the analysis of
+use more unique methods, which are initially interpreted.     JVM performance. Section 4 and Section 5 describe Hot-
+This results in increased interpretation time.                Tub’s design, implementation, and limitations. We eval-
+   To solve the problem, our key observation is that          uate HotTub in Section 6. We survey the related work in
+the homogeneity of parallel data-processing jobs enables      Section 7 before we conclude.
+significant reuse rate of warm data, i.e., loaded classes
+and compiled code, when shared across different jobs.
+We designed HotTub, a new JVM that eliminates warm-           2 Measure Warm-up Overhead
+up overhead by reusing JVMs from prior runs. It has the
+following advantages. First, it is a drop-in replacement of   In this section we discuss how we instrument the JVM
+existing JVMs, abstracting away the JVM reuse, without        to measure its class loading and bytecode interpretation
+needing users to modify their applications. In addition, it   time with per-thread granularity. Section 3 describes how
+maintains consistency of an application’s execution, i.e.,    we use these instrumentations to study JVM overhead
+the behavior is equivalent to the application being exe-      in data-parallel systems. We use OpenJDK’s HotSpot
+cuted by an unmodified JVM except for the performance
+benefit [26]. Finally, it has a simple design that does          1 https://github.com/dsrg-uoft/hottub
+
+
+
+
+384   12th USENIX Symposium on Operating Systems Design and Implementation                         USENIX Association
+addr.    JVM's call stack              0x670: ret_handler
+                              3                                           tion ret_handler (0x670). (3) When B returns, it first
+0x2a0 parameters                   1 push %rax
+                                   2 ..
+                                                save                      jumps to ret_handler, which saves the registers that it
+0x2a8 ret. addr.: 0x670                         regs.
+ 2                                 3 push %rdx                            is going to use. It records the mode change back to A,
+                                   4 callq _record_mode_change            and pops the original return address (0x8f0) (step (4)).
+                             4     5 callq _pop_ret_addr
+                                   6 movq %rax, %r11
+                                                                          It then restores the saved registers, and in step (5) jumps
+    return addr. stack
+     (thread local)                7 pop %rdx                             to the original return address in A. ret_handler is im-
+                                                restore
+                                   8 ..
+                                                regs.                     plemented in 15 assembly instructions.
+  stack addr. ret addr.            9 pop %rax
+      .. ..    .. ..              10 jmp %r11
+                                                                             We have to carefully handle a few edge cases where
+ 1                                              5
+      0x2a8    0x8f0                                                      the return address is used for special purposes. For GC,
+                              0x8f0: original ret. addr.                  the JVM needs to walk each Java thread’s stack to find
+        Figure 1: Intercepting mode changing returns.                     live objects. Each frame’s return address is used to iden-
+                                                                          tify its caller. Therefore we cannot leave the address of
+                                                                          ret_handler on the stack; at the start of a GC pause,
+JVM, version 1.8.0 build 25.66. HotSpot is the primary                    we restore the original return address. To quickly locate
+reference Java Virtual Machine implementation [47].                       the original return address, we also save the address of
+   Measuring per-thread class loading time is relatively                  the return address on the call stack (0x2a8 in Figure 1).
+straightforward. HotSpot already provides per-JVM                         Similarly, the JVM uses the return address to propagate
+class loading counters. We simply change the counter                      exceptions to caller methods. Therefore we restore the
+data structures to be thread local.                                       original return address upon throwing an exception.
+   Measuring bytecode interpretation time is challeng-                       The instrumentation incurs negligible overhead.
+ing. The JVM may be interpreting bytecode, execut-                        When both class loading and interpreter counters are en-
+ing JIT-compiled methods, or executing C/C++ compiled                     abled on a range of HDFS workloads we used, the over-
+“native” code (referred as native execution). It requires                 head is always less than 3.3%.
+us to instrument every mode change, i.e., transitions be-                    Note that class loading and interpreter times overlap,
+tween interpreter execution and compiled/native execu-                    but our counter identifies this overlap. Therefore when-
+tion. (We are not concerned with the transitions between                  ever we report JVM warm-up overhead as a single num-
+compiled execution and native execution as our goal is                    ber, it is the sum of class loading and interpreter time
+to measure interpretation time.) If a mode change occurs                  subtracted by their overlap. However, we found only a
+via call, e.g., an interpreted method calls a compiled                    small portion (14.8% in HDFS workload) of them over-
+method or vice versa, it is straightforward to instrument,                lap because class loading methods are quickly being JIT-
+as it must first go through fixed program points known as                 compiled due to their frequent invocations.
+adapters in HotSpot. Adapters are necessary because the
+interpreter uses a different stack layout from compiled
+or native execution. However, if a mode change occurs                     3 Analysis of Warm-up Overhead
+via ret, it is extremely difficult to instrument because
+the callee merely pops its stack frame, regardless of its                 This section presents an in-depth analysis on JVM warm-
+caller. There is no one program point for ret that allows                 up overhead in data-parallel systems. We first describe
+us to instrument the change back to the caller’s mode.2                   the systems used and our analysis method before pre-
+                                                                          senting the analysis result. We also discuss existing in-
+   We instrument mode changing returns by replacing
+                                                                          dustry practices that address the warm-up overhead and
+the original return address on the call stack with the ad-
+                                                                          their limitations.
+dress of our instrumented code. Figure 1 shows how it
+works in 5 steps: (1) when a mode changing call is
+executed, e.g., interpreter method A calls a compiled or                  3.1 Methodology
+native method B, we instrument this transition and also
+save the return address back to A (0x8f0) into a sepa-                    We study HDFS, Hive running on Tez and YARN, and
+rate, thread local stack. (2) We replace the original re-                 Spark SQL running with Spark in standalone mode.
+turn address with the address of our instrumented func-                   HDFS is a distributed file system. It is the default file sys-
+                                                                          tem for many data parallel systems, including Spark and
+    2 The interpreter can also directly jump into compiled code via on-
+                                                                          Hive. Both Spark and Hive process user queries by par-
+stack-replacement (OSR) [22, 33], a technique that immediately allows
+a hot loop body to run with compiled code during execution of the
+                                                                          allelizing them into short tasks, and are designed specif-
+method. OSR also has to go through adapters, which we instrument, as      ically for interactive queries [37, 65, 75]. They differ
+the stack layout needs to be changed.                                     in how they parallelize the tasks: each Spark job runs
+
+
+
+
+USENIX Association                         12th USENIX Symposium on Operating Systems Design and Implementation                    385
+in only one JVM on each host (known as an executor),
+                                                                                   cl seq. read              int par. read
+and utilizes multiple threads where each task runs in sin-                3       int seq. read                   cl write
+                                                                                   cl par. read                  int write
+gle thread (a JVM is a single process). In contrast, Hive
+
+
+
+
+                                                                Seconds
+on Tez runs each task in a separate JVM process known                     2
+
+as YARN container. The versions we used are Hadoop-
+                                                                          1
+2.6.0, Spark-1.6.0, Hive-1.2.1, and Tez-0.7.0.
+   We benchmark Spark and Hive using BigBench [23].                       0
+                                                                              0        2          4               6          8      10
+It consists of 30 queries ranging over structured, semi-
+                                                                                                      Size (GB)
+structured, and unstructured data that are modeled af-
+ter real-world usage [23]. Its queries on structured data
+are selected from TPC-DS [79], which is widely used             Figure 2: JVM warm-up time in various HDFS workload. “cl”
+by SQL-on-Hadoop vendors like Cloudera [53], Horton-            and “int” represent class loading and interpretation time respec-
+                                                                tively. The x-axis shows the input file size.
+works [54], Databricks [21, 66], and IBM [12] to drive
+their optimization efforts.
+   All experiments are performed on an in-house cluster         time, and then simulates the scheduling of these tasks
+with 10 servers. Four of them have 2 Xeon E5-2630V3,            with the reduced execution time. We implemented a sim-
+16 virtual core, 2.4GHz CPUs with 256GB DDR4 RAM.               ple scheduling simulator with 500 LOC in Perl and sim-
+The others have a single Xeon E5-2630V3 CPU with                ulated the original tasks with an accuracy of over 96%.
+128GB DDR4 RAM. Each server has two 7,200 RPM                   Limitations. Our measurement of JVM overhead is a
+hard drives, is connected via 10Gbps interconnect, and          conservative underestimate. First, we do not measure
+runs Linux 3.16.0. The server components are long run-          the effect of the background threads that are used to JIT-
+ning and fully warmed-up for weeks and have serviced            compile bytecode. Similarly, we only measure the stop-
+thousands of trial runs before measurement runs.                the-world GC pause, ignoring background GC activities.
+   We run the queries on seven scale factors on Spark:          This background work will compete with the application
+100, 300, 500, 700, 1K, 2K, 3K, and five scale factors on       for CPU resources. In addition, our instrumentation may
+Hive: 100, 300, 500, 700, 1K. Each scale factor corre-          not cover all threads. For example, some libraries can
+sponds to the size of input data in GB (a scale factor 100      create their own threads which we do not instrument. We
+uses 100GB as input size, whereas 3K uses 3TB). For             use our best effort to address this problem: we instru-
+each scale factor, we repeat each query 10 times and take       mented the JVM thread constructor to observe the cre-
+result from the fastest run in order to eliminate trials that   ation of every application thread, and instrument those
+might have been perturbed by other background work-             that at least load classes. However, there are still threads
+loads. In addition, we only analyze the 10 queries with         that are not instrumented.
+the fastest job completion time out of the total 30 queries
+in BigBench, because of our focus on latency sensitive
+queries. (These queries are query 1, 9, 11, 12, 13, 14, 15,
+                                                                3.2 HDFS
+17, 22, and 24.) BigBench is designed to be comprehen-          We implement three different HDFS clients: sequential
+sive, therefore many queries are long, batch processing         read, parallel read with 16 threads, and sequential write.
+queries instead of interactive queries. In addition, we         We flush the OS buffer cache on all nodes before each
+found that at least 8 queries lead to heavy swapping at         measurement to ensure the workload is I/O bound. Note
+large data sizes, indicating that our system is not repre-      that interpreter time does not include I/O time because
+sentative to run these queries.                                 I/O is always performed by native libraries.
+   We instrument each thread in the system with the per-           Figure 2 shows the class loading and interpreter time
+thread class loading, interpreter, and GC performance           under different work loads. The average class loading
+counters to measure the JVM overhead of each parallel           times are 1.05, 1.55, and 2.21 seconds for sequential
+task. However, understanding the overall slow down of           read, parallel read, and sequential write, while their av-
+the entire job is non-trivial as the JVM overhead of multi-     erage interpreter times are 0.74, 0.71, and 0.92 seconds.
+ple tasks can overlap. We borrow the blocked time analy-        The warm-up time does not change significantly with dif-
+sis from Ousterhout et al. [55] to estimate the slow down       ferent data sizes. The reason that HDFS write takes the
+to the entire job from per-task measurement. It works           JVM longer to warm-up is that it exercises a more com-
+by first subtracting the time each task spends in the mea-      plicated control path and requires more classes. Parallel
+sured event (e.g., class loading) from its total execution      read spends less time in the interpreter than sequential
+
+
+
+
+386   12th USENIX Symposium on Operating Systems Design and Implementation                                            USENIX Association
+                      90%
+                                                               seq. read                                              Datanode        Class loading
+Warm-up (% Runtime)
+                      80%                                                                          ack
+                                                              seq. write                     sendfile 1                               Interpreter
+                      70%                                      par. read                                                              Compiled/native
+                                                                                         sendfile 2-38
+                      60%                                                                         wait
+                      50%                                                              sendfile 39-109
+                      40%                                                                                                 Client
+                      30%                                                                parse DN ack
+                      20%                                                                  read pckt. 1
+                      10%                                                                  read pckt. 2
+                                                                                           read pckt. 3
+                       0%
+                            0   1   2       4           6            8           10         Time (ms) 0          10         20         30        40           50
+                                            Size (GB)
+                                                                                      Figure 5: Breakdown of the processing of data packets by
+                                                                                      client and datanode.
+Figure 3: The JVM warm-up overhead in HDFS workloads
+measured as the percentage of overall job completion time.
+                                                                                                          Read   Search      Define      Other        Total
+                                                                                        Time (ms)         170    276         411         171          1,028
+                                                            Class loading
+ Client init                                                Interpreter                         Table 1: Breakdown of class loading time.
+ File open                                                  Compile/native
+      Read
+          Time (s)          0           1       2               3            4        sendfile takes noticeably longer than subsequent ones as
+Figure 4: Breakdown of sequential HDFS read of 1GB file.                              the data is read from the hard drive. However, the client
+                                                                                      takes even longer (15ms) to process the ack because it
+                                                                                      is bottlenecked by warm-up time. By the time the client
+read because its parallelism allows the JVM to identify                               finishes parsing the ack, the datanode has already sent
+the “hot spot” faster.                                                                11 data packets, thus the I/O time is not even on the
+   Figure 3 further shows the significance of warm-up                                 critical path. The client takes another 26ms to read the
+overhead within the entire job. Short running jobs are                                first packet, where it again spends a majority of the time
+more significantly affected. When the data size is under                              loading classes and interpreting the computation of the
+1GB, warm-up overhead accounts for more than 33%,                                     CRC checksum. By the time the client finishes process-
+48%, and 30% of the client’s total execution time in se-                              ing the first three packets, the datanode has already sent
+quential read, parallel read, and sequential write. Se-                               109 packets. In fact, the datanode is so fast that the Linux
+quential write suffers the least from warm-up overhead,                               kernel buffer becomes full after the 38th packet, and it
+despite its higher absolute warm-up time, because it has                              had to block for 14ms so that kernel can adaptively in-
+the longest run time. In contrast, parallel read suffers                              crease its buffer size. The client, on the other hand, is
+the most from warm-up overhead because of its short la-                               trying to catch up the entire time.
+tency. According to a study [82] published by Cloudera,                                  Figure 5 also shows the performance discrepancy be-
+a vast majority of the real-world Hadoop workloads read                               tween interpreter and compiled code. Interpreter takes
+and write less than 1GB per-job as they parallelize a big                             15ms to compute the CRC checksum of the first packet,
+job into smaller ones. The study further shows that for                               whereas compiled code only takes 65µ s per-packet.
+some customers, over 60% of their jobs read less than                                 Break down class loading. The HDFS sequential read
+1MB from HDFS, whereas 1MB HDFS sequential read                                       takes a total of 1,028 ms to load 2,001 classes. Table 1
+spends over 60% of its time in warm-up.                                               shows the breakdown of class loading time. Reading the
+   Next we break down class loading and interpreter time                              class files from the hard drive only takes 170ms. Because
+using the 1GB sequential read as an example. Figure 4                                 Java loads classes on demand, loading 2,001 classes is
+shows the warm-up time in the entire client read. A ma-                               broken into many small reads. 276ms are spent searching
+jority of the class loading and interpreter execution oc-                             for classes on the classpath, which is a list of filesystem
+curs before a client contacts a datanode to start reading.                            locations. The JVM specification requires the JVM to
+   Further drilling down, Figure 5 shows how warm-up                                  load the first class that appears in the classpath in the case
+time dwarfs the datanode’s file I/O time. When the datan-                             of multiple classes with identical names. Therefore it
+ode first receives the read request, it sends a 13 bytes                              has to search the classpath linearly when loading a class.
+ack to the client, and immediately proceeds to send data                              Another 411ms is spent in define class, where the JVM
+packets of 64KB using the sendfile system call. The first                             parses a class from file into an in-memory data structure.
+
+
+
+
+USENIX Association                                  12th USENIX Symposium on Operating Systems Design and Implementation                                 387
+            200
+            180 Compiled/native
+                            GC
+            160      Interpreter
+            140   Class loading
+ Time (s)
+
+
+
+
+            120
+            100
+             80
+             60
+             40
+             20
+              0
+                100 300 500        700 1000 2000 3000         100                 300              500        700          1000
+                                   Spark         Scale Factor (GB)                                 Hive
+Figure 6: JVM overhead on BigBench. Overhead breakdown of BigBench queries across different scale factors. The queries are
+first grouped by scale factor and then ordered by runtime. Note that Hive has larger query time compared with Spark.
+
+
+3.3 Spark versus Hive                                                                   Class loading
+                                                                                           Interpreter
+                                                                                      Compiled/native
+Figure 6 shows the JVM overhead on Spark and Hive.
+Surprisingly, each query spends an average of 21.0 and                 Executor
+12.6 seconds in warm-up time on Spark and Hive respec-
+tively. Similar to HDFS, the warm-up time in both sys-
+                                                                         Client
+tems does not vary significantly when data size changes.
+                                                                                  0
+
+
+
+                                                                                              6.
+
+
+
+                                                                                                          12
+                                                                                                          46
+
+
+
+
+                                                                                                                               59
+                                                                                                                                    61
+
+
+
+                                                                                                                                            68
+                                                                                               3
+
+
+
+                                                                                                             .4
+                                                                                                             .9
+
+
+
+
+                                                                                                                                  .2
+                                                                                                                                       .5
+Software layers aggravate warm-up overhead. The
+                                                                                                              Time (s)
+difference in the warm-up times between Spark and
+Hive is explained by the difference in number of loaded
+                                                                   Figure 7: Breakdown of Spark’s execution of query 13. It only
+classes. The Spark client loads an average of 19,066               shows one executor (there are a total of ten executors, one per
+classes, compared with Hive client’s 5,855. Conse-                 host). Each horizontal row represents a thread. The executor
+quently, Spark client takes 6.3 seconds in class loading           uses multiple threads to process this query. Each thread is used
+whereas the Hive client spends 3.7 seconds. A majority             to process three tasks from three different stages.
+of the classes loaded by Spark client come from 10 third-
+party libraries, including Hadoop (3,088 classes), Scala
+(2,328 classes), and derby (1,110 classes). Only 3,329 of
+the loaded classes are from Spark packaged classes.
+   A large number of loaded classes also results in a large        are spent on the client while the other 12.2 seconds come
+interpreter time. The more classes being loaded leads to           from the executors. Note that a majority of executors’
+an increase in the number of different methods that are            class loading time is not on the critical path because ex-
+invoked, where each method has to be interpreted at the            ecutors are started immediately after the query is sub-
+beginning. On average, a Spark client invokes 242,291              mitted, which allows executors’ class loading time to be
+unique methods, where 91% of them were never com-                  overlapped with the client’s warm-up time. However, at
+piled by JIT-compiler. In comparison, a Hive client only           the beginning of each stage the executor still suffers from
+invokes 113,944 unique methods, while 96% of them                  significant warm-up overhead that comes primarily from
+were never JIT-compiled.                                           interpreter time.
+Breaking down Spark’s warm-up time. We further
+drill down into to one query (query 13 on SF 100) to               Hive. Hive parallelizes a query using different JVM pro-
+understand the long warm-up time of Spark. While dif-              cesses, known as containers, whereas each container uses
+ferent queries exhibit different overall behaviors and dif-        only one computation thread. Therefore within each con-
+ferent runtime, the pattern of JVM warm-up overhead is             tainer the warm-up overhead has a similar pattern with
+similar, as evidenced by the stable warm-up time. Fig-             the HDFS client shown earlier. Hive and Tez also reuses
+ure 7 shows the breakdown of this query. The query com-            containers to process tasks of the same query, therefore
+pletion time is 68 seconds, and 24.6 seconds are spent on          the JVM warm-up overhead can be amortized across the
+warm-up overhead. 12.4 seconds of the warm-up time                 lifetime of a query.
+
+
+
+
+388         12th USENIX Symposium on Operating Systems Design and Implementation                                         USENIX Association
+3.4 Summary of Findings                                       the same JVM.3 However, it requires domain expertise to
+                                                              determine whether such reuse is safe. One must consider
+Our analysis reveals that the JVM warm-up time is com-        what static data should be re-initialized or which threads
+monly the bottleneck of short running jobs, even when         need to be killed. The use of third-party libraries further
+the job is I/O intensive. For example, 33% of the time        exacerbate the problem as they may contain stale static
+in an HDFS 1GB sequential read is spent in warm-up,           data and create additional threads. This is perhaps the
+and 32% of the Spark query time on 100GB data size            reason that these systems do not allow JVM to be reused
+is on warm-up. The warm-up time stays nearly con-             across different jobs unless the client is specifically de-
+stant, indicating that its overhead becomes more signif-      signed to process multiple jobs. Nailgun [52] maintains
+icant in well parallelized short running jobs. In prac-       a long-running JVM, and allows a client to dynamically
+tice, many workloads are short running. For example,          run different applications on it. However, it does not take
+90% of Facebook’s analytics jobs have under 100GB in-         any measure to ensure that the reuse is consistent and the
+put size [3, 9], and majority of the real-world Hadoop        burden is on the users to decide whether a reuse is safe.
+workloads read and write less than 1GB per-task [82].         In fact, naively reuse (unmodified) JVM does not even
+Furthermore, Ousterhout et al. [56] show a trend of in-       work when running the same Hive query twice, as the
+creasingly short running jobs with latency in the hun-        second run will crash because some static data in YARN
+dreds of milliseconds. This shows that both the data size     needs to be properly reinitialized.
+and latency of data-parallel workloads are trending to be        There are also a few solutions that change the JVM to
+smaller. We also observe that multi-layered systems ex-       address the warm-up overhead. The most advanced ones
+acerbates the warm-up overhead, as they tend use more         are perhaps on mobile platforms. The previous version of
+classes and methods, increasing class loading and inter-      the Android runtime (ART) [6] (Android Marshmallow)
+pretation times.                                              would compile the entire app when it is first downloaded
+                                                              to gain native performance, but it suffered from the var-
+                                                              ious limitations including large binary size and slow up-
+3.5 Industry Practices                                        dates [5]. The latest version of ART (Nougat) [6] uses
+                                                              a new hybrid model. It first runs an app with an inter-
+While JVM performance has been actively studied over          preter and JIT-compiles hot methods, similar to Open-
+the last 20 years, most of the improvements focused on        JDK’s HotSpot JVM. However, ART also stores profiling
+GC [24, 47, 48, 59] and JIT [39, 71, 73, 72, 74] instead of   data after the app’s run, allowing a background process
+warm-up. One reason is that it is assumed that workloads      to compile the select methods into native code guided
+are using long-running JVMs. For example, traditional         by the profile. These methods now no longer suffer the
+JVM benchmarks, such as DayTrader [7] and SpecJB-             warm-up overhead the next time this app is used. ART
+B/SpecJVM [67, 68], all assume the use of long run-           also statically initializes selected classes during the com-
+ning JVMs. This study has shown that this paradigm has        pilation and stores them in the application image to re-
+changed on data-parallel systems, and efforts to address      duce class loading time.
+warm-up overhead should be increased moving forward.
+                                                                 The Excelsior JET [20], which is a proprietary JVM,
+   Nevertheless, there exists some industry practices to      compiles the bytecode statically into x86 native code be-
+address warm-up overhead. Despite the study showing           fore running the application, similar to older versions of
+clear overhead issues in Spark and Hive on Tez, both in       ART. This eliminates both class loading and interpreted
+fact already implement measures to reduce JVM warm-           overhead, but this is at the cost of losing the performance
+up overhead at the application layer. Both reuse the          benefit provided by profile-guided JIT compiler.
+same JVM on each host to process the different tasks of
+                                                                 Other programming methods exist to reduce warm-up
+each job (query in our case), thus amortizing the warm-
+                                                              time. One can try to make JIT-compile more aggressively
+up overhead across the life-time of a job. Spark runs
+                                                              by changing the threshold with -XX:CompileThreshold.
+one JVM or executor on each node that has the same
+                                                              It is also possible to trigger class loading manually be-
+life time as the job. Hive on Tez runs each task on
+                                                              fore classes are actually needed by either referencing the
+a separate JVM (i.e., YARN container) and will try to
+                                                              class or directly loading it. This is only useful if done off
+keep reuse containers for new tasks. (Container reuse is
+                                                              of the critical path. An example is that Spark’s executor
+the key feature introduced in Tez compared to Hadoop
+MapReduce.) A client could be designed to take multi-             3 The container reuse in Tez is less predictable and cannot be taken
+ple jobs from users and run them seemingly as one long        advantage of by a smart user unlike with Spark, as there is a threshold
+job, which would allow multiple jobs to continue to use       for how long a container will be kept.
+
+
+
+
+USENIX Association                 12th USENIX Symposium on Operating Systems Design and Implementation                          389
+   $ java                       JVM pool
+                                                               1  struct sockaddr_un add; // create unix sock.
+                                           JVM
+                                                               2  char* sum = md5(classpath);
+               rue reinit. before reuse                         3 while (true) {
+if (reusable t                             app. run   reset     4   for (int i = 0; i < POOL_SIZE; i++) {
+  JVM exists) fals
+                   e start new JVM                              5     strcpy(add.sun_path,strcat(sum,itoc(i)));
+                                                                6     if (connect(fd, add, sizeof(add))==0)
+             Figure 8: Architecture of HotTub.                  7       return reuse_server_and_wait(fd);
+                                                                8     if (server_busy(i))
+                                                                9       continue;
+is created before it actually receives any work allowing       10     /* No JVM/server created. */
+it to load classes. Similarly, one could potentially trigger   11     if (fork() == 0) // spawn new jvm in child
+JIT-compilation manually by invoking a method many             12       exec("/HotTub/java", args);
+times. Not only is this only useful if done off the critical   13     /* else, parent, go back to find server */
+                                                               14   }
+path, but there are also other limitations. One has to en-     15 }
+sure that the invocation has no side effects to the program
+                                                                               Figure 9: HotTub’s client algorithm.
+state. Furthermore, one must also be wary of the param-
+eters and path the method takes because the JIT-compiler
+is heavily guided by run-time profile, and unrealistic in-         code to the client allowing the client to return normally
+vocations could result in code less optimized for cases a          to the user. The server will then run garbage collection,
+developer cares about.                                             and reset the JVM state in preparation for the next client.
+                                                                      Next we discuss HotTub’s client algorithm as shown
+                                                                   in Figure 9. First, an important consideration is the reuse
+4 Design of HotTub                                                 policy, i.e., which applications are allowed to share the
+                                                                   same JVM. In order to gain the most benefit from an ex-
+The design goal for HotTub is to allow applications to             isting JVM it is ideal to run as similar a workload as pos-
+share the “warm” data, i.e., loaded classes and compiled           sible on it. An application that performs similar logic and
+code, thus eliminating the warm-up overhead from their             traverses the same code paths will reuse the same classes
+executions. We considered two design choices: explic-              and compiled code. However, if the new application is
+itly copy data among JVMs, or reuse the same JVMs                  significantly different from the previous one, then these
+after properly resetting states. We began implementa-              benefits are reduced. In HotTub, a client first computes
+tion of the first design, trying to save class metadata and        a checksum of the classpath and every file containing
+JIT-compiled code to disk for reuse in the next JVM                classes, which are generally JAR (Java Archive) files, on
+process, similar to Android runtime [6]. We were able              the classpath. Only the servers with the same checksum
+to share loaded classes, but eventually rejected this de-          are candidates for reuse. While this limits reuse poten-
+sign because it is too complicated to maintain the consis-         tial, it ensures large overlap of warm data. It also ensures
+tency of all the pointers between the JVM address spaces.          that clients always uses the same classes, avoiding incon-
+For example, the JIT-compiler does not produce relocat-            sistency problems.
+able code; a compiled method may directly jump to an-                 In addition, the client appends an integer between 0
+other compiled method. To maintain consistency, we ei-             and POOL_SIZE to the checksum (line 5 in Figure 9),
+ther have to allocate all the loaded classes and compiled          creating an ID to use as an address to contact a specific
+methods at the exact same addresses, which is inflexi-             server. The client tries to connect to each ID in this range,
+ble, or fix all the pointer values, which is impractical as        and reuses the first connected server. If connect fails be-
+we have to interpret every memory address in compiled              cause the server is currently busy the client tries the next
+code. We chose the “reuse” design, which proved to be              server. If connect fails because no server exists, or all
+simpler, and we can leverage existing JVM features, such           servers are busy, the client forks a child process to cre-
+as garbage collection, to properly throw out stale data.           ate the server (line 11-12). The reason that we need to
+   Figure 8 shows the architecture of HotTub. It is a              fork and exec java in the child, instead of directly exec
+drop-in replacement – users simply replace java with               java without fork, is that the user could be waiting for
+HotTub and can run their Java application with normal              the java command to finish. Forking allows the parent to
+command. Running java will spawn a HotTub client,                  return after the application finishes, while the child pro-
+which attempts to contact a warmed-up JVM, known as                cess, which is now a warmed-up JVM, waits for reuse.
+a HotTub server, to run on. We refer to a reusable JVM                This design has a number of benefits. First, it is
+as server because it is designed to be long running. Af-           simple. The clients and servers on each node do not
+ter a server has completed a run, it will send the return          require a central coordinator, avoiding a potential bot-
+
+
+
+
+390   12th USENIX Symposium on Operating Systems Design and Implementation                               USENIX Association
+tleneck or central point of failure. In addition, it se-       execution. Therefore HotTub needs to reinitialize them
+lects the longest running server that will likely result in    first to their default type value and then reinitialize them
+the highest reusage of warm data. This is because the          with their class initialization code. HotTub uses a simple
+longest running server has had the most time to warm-          policy. When the server is about to be reused, it reinitial-
+up, JIT-compiling the most methods and loading the most        izes the static variables all at once by invoking the static
+classes. Finally, reusing the same JVM process across          initializer, namely <clinit>, of each class.
+applications also offers caching benefits – between con-          HotTub needs to maintain the correct order of the invo-
+secutive application runs the warm data stays in CPU           cations to <clinit> of different classes. For example,
+caches because its memory address remains the same,            class A’s initialization may depend on class B having al-
+and the OS does not need to flush the TLB.                     ready been initialized. HotTub maintains the correct or-
+                                                               der by recording the order of class initializations when
+                                                               they are first initialized, and replaying the initializations
+4.1 Maintain Consistency                                       in the same order before each reuse.
+The main challenge to HotTub’s design is to ensure that           Unfortunately, reinitializing all the static data before
+the application’s execution on HotTub is consistent with       the start of application is not consistent with the JVM
+the execution on an unmodified JVM. Data on stack and          specification [25] when the initialization of static vari-
+heap does not impose inconsistency problem, because at         ables have timing dependencies. Consider the following
+the end of a JVM application’s execution, all of the ap-       Java example:
+plication’s stack frames have naturally ended. HotTub          1 Class A {
+further garbage collects the heap objects with root refer-     2   static int a = 0;
+                                                               3   void foo () { a++; }
+ences from the stack, therefore all of the heap objects that   4 }
+are application specific are also cleared. The remaining       5 Class Bad { // bad practice
+
+items, namely the loaded classes, compiled code, static        6   static int b = A.a;
+                                                               7 }
+variables, and file descriptors, need to be shared between
+reuse. Next we describe how HotTub maintains their             According to the JVM specification, the value of variable
+consistency between reuse.                                     b in class Bad depends on when class A gets initialized.
+Class consistency. HotTub must ensure that any class           For example, if foo() has been called 3 times before Bad
+it reuses is the same as what would be loaded by an un-        is referenced, then b will be initialized to 3. HotTub will
+modified JVM, as classes could potentially change in be-       initialize it to 0 in this case.
+tween runs, or during runs. Maintaining class consis-             However, it is worth noting that static initialization
+tency also ensures the consistency of compiled code as         that has timing depedency is a well known bad program-
+it is compiled from the class bytecode. The checksum           ming practices [1, 70]. It makes programs hard to reason
+mechanism used by the client only ensures the consis-          about and difficult to test. Furthermore, multi-threading
+tency of classes on the application classpath, which are       makes the matter worse as foo() in the previous exam-
+loaded by the default class loader. While this accounts        ple can be executed concurrently. In our experiments,
+for the majority of loaded classes, an application can also    we carefully examined the static initializers of the exper-
+implement a custom class loader, which has user-defined        imented systems, and none of them use such practice.
+searching semantics, or dynamically generate a class.             Another potential issue is when there exists a depen-
+   Fortunately, any classes loaded by a custom class           dence cycle in the class initialization code of multiple
+loader will not impose inconsistency issues for HotTub         classes, HotTub could lead to inconsistent behavior. For
+because a custom class loader must be instantiated by          example, consider the following code snippet:
+user code. This makes reuse impossible as every run will       1 Class A {
+create a new instance of the class loader with no data         2   static int a = 10;
+from the previous run, causing it to load any class nor-       3   static int b = B.b;
+                                                               4 }
+mally. Similarly, classes that are dynamically generated
+                                                               5 Class B {
+are loaded by custom class loaders in practice and are         6   static int a = A.a; // set to 10 in
+not an issue for consistency. However, there is no perfor-             HotSpot; 0 in HotTub
+mance gained from reusing any classes that are loaded          7   static int b = 12;
+                                                               8 }
+by custom class loaders as they are simply not reused.
+Static variable consistency. At the end of application         There exists a circular dependency between class A and
+execution, static variables have values from the previous      B in their static variables. Assume class A begins initial-
+
+
+
+
+USENIX Association                  12th USENIX Symposium on Operating Systems Design and Implementation               391
+ization first. Under HotSpot, it will first initialize A.a to    4.2 Limitations
+10 (line 2), and starts to initialize class B because A.b de-
+pends on it. When executing line 6, HotSpot detects that         HotTub cannot handle SIGKILL. Therefore, if the user
+there is a circular dependency, and it will proceed to fin-      sends kill -9 to a HotTub server we will lose it for
+ish the initialization of the current class (class B), setting   future reuse. However, it is most likely that the user
+B.a to 10 and B.b to 12, before continuing the initial-          only wants to kill the client java process, which will not
+ization of class A. HotTub, however, will run each static        cause us to lose the server because the server and client
+initializer from beginning to the end before moving on to        are in different processes.
+the next one. Therefore in this case, it will first initial-        Unfortunately, this use of separate processes can raise
+ize class B because B’s initialization finished before A’s       problems if a user expects the application to run in the
+in the initial run. Since class A has not been initialized       same process as java. For example, YARN terminates
+yet, HotTub will set B.a to the initial value of A.a, which      a container by first sending SIGTERM to the process
+is 0, leading to an inconsistent value on B.a. Note that         identified by a PID file, followed by SIGKILL. This
+circular dependence in static initializers is also a known       would not cause HotTub to violate consistency, as the
+bad practice, and the JVM specification explicitly warns         server will be killed and the client subsequently exits on
+about its dangers and discourages its use [25].                  a closed connection. However, this will disable HotTub
+                                                                 from reusing the server. Therefore we had to modify the
+File descriptor consistency. HotTub will close the file          management logic in YARN to disable “kill -9”.
+descriptors (fd) opened by the application at the reset             The use of HotTub raises privacy concerns. HotTub
+phase so that they will not affect the next client run. The      limits reuse to the same Linux user, as cross user reuse
+only remaining open fds are those opened by the JVM              allows a different user to execute code with the privi-
+itself, mostly for JAR files. HotTub also closes stdin,          leges of the first user. However, our design still violates
+stdout, and stderr at the end of an application’s execution      the principle “base the protection mechanisms on per-
+in the reset stage. After the client selects a server JVM        mission rather than exclusion” [63]. Although we care-
+for reuse, the client first sends all fds it has opened to       fully clear and reset data from the prior run, an attacker
+the server, including stdin, stdout, and stderr, so that the     could still reconstruct the partial execution path of the
+server can inherit these file descriptors and have the same      prior run via timing channel. For example, by measur-
+same open files as the client.                                   ing the execution time of the first time invocation of a
+                                                                 method the attacker can infer whether this method has
+   However, it is possible that a file descriptor opened by
+                                                                 been executed, and thus JIT-compiled, in the prior run.
+the client conflicts with an open file descriptor used by
+                                                                 In our current implementation we are not zeroing out the
+the server JVM. For example, if the user invokes Hot-
+                                                                 heap space after GC. This allows malicious users to use
+Tub with the command $ java 4>file, HotTub can-
+                                                                 native libraries to read the heap data from prior runs.
+not reuse a server with fd 4 in use. Therefore when
+selecting a server for reuse, HotTub also checks if the             HotTub cannot maintain consistency if the application
+server has open fds that conflict with a client’s redirected     rewrites the bytecode or compiled code of a class on the
+fd, and only reuse servers that do not have such a conflict.     classpath after it has been loaded, and does not write the
+                                                                 modifications back to the class file. In such cases, the
+Handling signals and explicit exit. HotTub has to han-           in-memory bytecode or compiled code will be different
+dle signals such as SIGTERM and SIGINT and explicit              from the checksum computed by HotTub. It is difficult to
+exit by the application, otherwise it will lose the tar-         detect the bytecode rewriting because the application can
+get server process from our pool. If application regis-          always bypass the JVM using a native library to modify
+ters its own signal handler, HotTub forwards the signal.         any memory locations in the address space. However,
+Otherwise, HotTub handles signals and application exits          modifying the bytecode of a loaded class is undefined
+by unwinding the stack of non-daemon Java threads and            behavior as the JVM may be already using a compiled
+killing them. Java “daemon” threads are not normally             method, thus the changes to bytecode will have no effect.
+cleaned at JVM exit as they simply exit with the pro-            In practice we have never encountered such cases. Note
+cess. However, for consistency, HotTub must kill these           that the HotSpot JVM performs its own form of bytecode
+threads. This sets the JVM to the same state as if the ap-       rewriting, which is not a problem for HotTub as this is
+plication finishes normally. The server then closes con-         only done for performance optimizations and preserves
+nection to client, so the client exits normally. However,        the original semantic.
+if the application calls _exit in a native library, HotTub          HotTub currently only targets the Java Virtual Ma-
+cannot save this server process from being terminated.           chine runtime. Other runtimes such as Microsoft’s Com-
+
+
+
+
+392   12th USENIX Symposium on Operating Systems Design and Implementation                            USENIX Association
+mon Runtime Language (CLR) [51] also exhibits similar                          Completion time (s)      Unmod.     HotTub     Speed-up
+warm-up overhead properties. Similar to class loading                          HDFS read 1MB               2.29      0.08       30.08x
+done by the JVM, CLR must load portable executable                             HDFS read 10MB              2.65      0.14       18.04x
+                                                                               HDFS read 100MB             2.33      0.41        5.71x
+(PE) file, which is similar to a Java classfile, that con-
+                                                                               HDFS read 1GB               7.08      4.26        1.66x
+tains metadata required at runtime such as type defini-
+                                                                               Spark 100GB best            65.2      36.2        1.80x
+tions and member signatures. To the best of our knowl-                         Spark 100GB median          57.8      35.2        1.64x
+edge CLR operates similar to typical JVMs, where an                            Spark 100GB worst           74.8      54.4        1.36x
+interpreter will execute bytecode or an intermediate lan-                      Spark 3TB best              66.4      41.4        1.60x
+guage, until a JIT-compiler can produce native code for                        Spark 3TB median            98.4      73.6        1.34x
+the method. Having these properties should exhibit simi-                       Spark 3TB worst            381.2     330.0        1.16x
+lar warm-up overhead of class loading and interpretation                       Hive 100GB best             29.0      16.2        1.79x
+in CLR, so implementing HotTub for CLR could poten-                            Hive 100GB median           38.4      25.0        1.54x
+tially produce similar speed-ups.                                              Hive 100GB worst           206.6     188.4        1.10x
+
+                                                                             Table 2: Performance improvements by comparing the aver-
+5 Implementation of HotTub                                                   age job completion time of an unmodified JVM and HotTub.
+                                                                             For Spark and Hive we report the average times of the queries
+The client is implemented as a stand-alone program with                      with the, best, median, and worst speed-up for each data size.
+800 lines of C code, and the server is implemented on top
+of OpenJDK’s HotSpot JVM by adding approximately
+                                                                             each class in Java there exists a java.lang.Class ob-
+800 lines of C/C++ code. We use Unix domain sockets
+                                                                             ject that contains information about the class, such as the
+to connect a client with servers. A nice feature of Unix
+                                                                             methods and fields it contains, so that it can be queried
+domain socket is that it allows processes to send file de-
+                                                                             for reflection inspections. For enumeration classes, this
+scriptors. Therefore the client simply send its open file
+                                                                             object contains a mapping of each enumeration constant
+descriptors, including stdin, stdout, stderr together with
+                                                                             string name to its object. Because after reinitialization
+other redirected ones, to the server. This avoids sending
+                                                                             there will be new objects allocated for each enumeration
+the actual input and output data across processes. Next
+                                                                             constant, HotTub also has to update the mapping in this
+we discuss the implementation details of HotTub.
+                                                                             java.lang.Class object in each class.
+Threads management. HotTub does not use any addi-                               Another challenge is the JIT-compiler’s inlining of
+tional thread in JVM for its management task. Instead,                       static final references, i.e., a compiled method could di-
+it uses the Java main thread. At the end of the applica-                     rectly reference the address of a static final object. How-
+tion execution after the main() method finishes, we do                       ever, after reinitialization, a new object will be created so
+not terminate the Java main thread. Instead we uses it                       that the old reference is no longer valid. HotTub solves
+to perform the various reset tasks including (1) kill other                  this by disabling the inlining of static final references.
+Java threads, (2) set all static variables to their default
+type value, (3) garbage collect the heap, (4) optionally
+unload native libraries.4 It then waits for a client connec-                 6 Performance of HotTub
+tion. When it receives another client connection, it reini-
+tializes the static variables, sets up the file descriptors                  We conduct a variety of experiments on HotTub to eval-
+properly, sets any Java properties, sets any environment                     uate its performance on the following dimensions: (1)
+variables, and finally invokes the main() method.                            speed-up over an unmodified JVM repeating the same
+   Complication arises when the JVM receives a signal                        workload; (2) speed-up when running different work-
+or a thread calls System.exit. In these cases, we                            loads; (3) management overhead imposed by HotTub
+need to use the thread that receives the signal or calls                     (e.g., reset, client/server management). All experiments
+System.exit to clean up the all Java threads.                                are performed on the same environment and settings as
+Static reinitialization. HotTub handles a few technical                      described in Section 3.
+challenges when implementing the replay of class initial-
+ization. One challenge is with enumeration classes. For                      6.1 Speed-up
+   4 Theoretically we should unload native libraries because HotTub
+
+does not verify their consistencies. However we observe that native li-
+                                                                             Table 2 shows HotTub’s speed-up compared with un-
+braries typically do not impose inconsistency issues, e.g., they typically   modified HotSpot JVM. We run the same workload five
+do not use static data. Therefore we make unloading them optional.           times on an unmodified JVM and six times on HotTub.
+
+
+
+
+USENIX Association                          12th USENIX Symposium on Operating Systems Design and Implementation                      393
+                                                    Executor                                                                Client
+  Perf. counter
+                               U          H     U/H    U Rate     H Rate   Rate Diff.                    U      H    U/H      U Rate       H Rate    Rate Diff.
+  L1-dcache-misses          171M        81M     2.1x 1.839%      1.994%     -8.416%                   154M    21M    7.3x    6.254%       6.115%       2.218%
+  L1-icache-misses           40M        13M     3.1x         -         -            -                  44M     6M    7.3x          -            -             -
+  page faults               543K       122K     4.4x         -         -            -                 851K   227K    3.7x          -            -             -
+  dTLB-load-misses        4,431M     3,087M     1.4x 0.080%      0.051%     36.418%                 2,999M   375M    8.0x    0.327%       0.295%       9.894%
+  iTLB-load-misses          704M       228M     3.1x 3.424%      3.294%      3.805%                   755M    97M    7.8x    3.359%       3.054%       9.078%
+  branch-misses           1,158M       597M     1.9x 0.913%      0.646%     29.234%                   974M   119M    8.2x    3.270%       2.971%       9.141%
+
+Table 3: Comparing cache, TLB, and branch misses between HotTub (H) and an unmodified JVM (U) when running query 11 of
+BigBench on Spark with 100GB data size. The numbers are taken from the average of five runs. All page faults are minor faults.
+“Rate diff.” is calculated as (U Rate - H Rate)/(U Rate), which shows the improvement of HotTub on the miss rate. Perf cannot
+report the number of L1-icache loads or memory references to know the corresponding rates.
+
+
+                                                                                              200
+           350      Unmodified                Interpreter                                     180
+                 Compiled/native           Class loading                                      160
+           300
+
+
+
+
+                                                                               Runtime (ms)
+                                                                                              140
+           250                                                                                120
+Time (s)
+
+
+
+
+           200                                                                                100
+                                                                                               80
+           150                                                                                 60
+           100                                                                                 40
+                                                                                               20
+           50
+                                                                                                0
+            0                                                                                          2     4   6    8      10     12     14   16     18    20
+                          100                          3000
+                                                                                                                            Iteration
+                                   Scale Factor (GB)
+
+                                                                             Figure 11: HotTub iterative runtime improvement. A Sequen-
+Figure 10: HotTub successfully eliminates warm-up over-                      tial 1MB HDFS read performed repeatedly by HotTub. Itera-
+head. Unmodified query runtime shown against a breakdown of                  tion 0 is the application runtime of a new JVM, while iteration
+a query with reuse. There are 10 queries run on 2 scale factors              N is the Nth reuse of this JVM.
+for BigBench on Spark. Interpreter and class loading overhead
+are so low they are unnoticeable making up the difference.
+
+                                                                                Figure 11 shows how the runtime decreases over the
+We compare the average runtime of the five unmodified                        number of reuses. While the significant speedup comes
+runs with the five reuse HotTub runs, excluding the ini-                     from the first time reuse, it also shows that for this par-
+tial warm-up run. For Spark and Hive, we run the same                        ticular short running job the JVM will not be completely
+10 queries that we used in our study. Note that in this ex-                  warm by the end of the first run and require multiple it-
+periment the systems we run are unmodified, unlike the                       erations before reaching peak performance. Figure 11
+ones we used in Section 3 that had to be instrumented.                       also shows that it takes 12 iterations before the JVM be-
+Therefore the unmodified systems’ runtimes are slightly                      comes fully warmed-up. This further suggests that short
+faster than the ones in Section 3.                                           running jobs cannot even reach max JVM performance
+   The results shows that HotTub significantly speeds up                     by the end of its execution, which further emphasizes the
+the total execution time. For example, HotTub reduces                        necessity of reusing JVMs on short jobs. Long running
+the average job completion time of the Spark query with                      jobs, however, will likely fully warm up the JVM before
+the highest speed-up by 29 seconds on 100GB data, and                        their execution ends on first run.
+can speed-up HDFS 1MB read by a factor of 30.08.                                To understand HotTub’s performance behavior in de-
+Amongst nearly 200 pairs of trials, a job running in a                       tail, we further compare the hardware performance coun-
+reused HotTub JVM always completed faster compared                           ters. Table 3 shows the result. HotTub already signifi-
+to an unmodified JVM.                                                        cantly reduces the number of memory accesses because
+   Enabling our performance counters, we observe that                        the classes are already loaded and bytecode compiled.
+indeed HotTub eliminates the warm-up overhead. In all                        For the Spark executor there are almost half as many
+the experiments, the server JVM spends less than 1%                          cache references reported by perf and the Spark client
+of the execution time in class loading and interpreter.                      shows an even higher reduction, up to 9x. The reduction
+Figure 10 shows Spark queries running on HotTub with                         in accesses appears large, but is consistent with the 1.74x
+nearly zero warm-up overhead.                                                speed-up experienced by running this query on HotTub.
+
+
+
+
+394         12th USENIX Symposium on Operating Systems Design and Implementation                                                        USENIX Association
+                                      Testing                    the training and testing queries are the same. The other
+                        q11    q14     q15      q09    q01       queries observe best speed-up when running on a JVM
+       Training   q11   1.78   1.67    1.51     1.49   1.55      trained from a different query. This is due to the large
+                  q14   1.64   1.65    1.47     1.49   1.50
+                                                                 variance observed in our experiment. All of the mea-
+                  q15   1.72   1.67    1.62     1.54   1.62
+                                                                 sured runtime of testing queries fall into the range of
+                  q09   1.57   1.59    1.55     1.53   1.53
+                  q01   1.76   1.74    1.65     1.54   1.74      (mean − variance, mean + variance), where mean and
+                                                                 variance are of the five measured runs where the train-
+Table 4: Speed-up sensitivity to workload differences using      ing and testing queries are the same. This also indicates
+the five fastest BigBench queries on Spark with 100GB data.      that different queries use many similar classes and code.
+
+
+It further reduces the number of various cache misses.           6.3 Management Overhead
+The reduction comes from multiple sources. First, Hot-           Compared with an unmodified JVM, HotTub adds over-
+Tub results in less memory accesses and smaller foot-            head in three phases: when a client connects to a server,
+print because some data is no longer needed to be ac-            when the server runs class initialization, and when the
+cessed (e.g., bytecode that are already compiled will not        server resets the static data. The first two are on the criti-
+be accessed). Second, because the applications run in the        cal path of the application latency while the third merely
+same JVM process, warm data does not need to be real-            affects how early this JVM can be reused again. The
+located between the runs, therefore the cached data can          overhead for connecting to a server when there are no
+be reused and the number of cold misses get reduced.             servers in the pool is 81ms. Once servers are available
+The OS also does not need to flush the TLB between               for re-use, the connection overhead drops to 300µ s. The
+the runs. Finally, the reduction of instruction cache and        overhead added to the critical path from class reinitial-
+iTLB misses is likely afforded by eliminating interpreter        ization is, on average, 350ms for Hive on Tez contain-
+execution and JIT-compiler’s instruction cache usage op-         ers, 400ms for Spark executors, and 720ms for Spark
+timization. For example, JIT-compiler will arrange the           clients. The time taken to reset static data is dominated
+basic blocks in the order of frequently taken branches.          by garbage collection and only takes no more than 200ms
+   The numbers in Table 3 also show that HotTub reduces          because the application’s stack frames have ended, thus
+the accesses and misses in the Spark client much more            there are few roots from which GC has to search from.
+than the executor. This is likely due to the nature of the       Root objects are objects assumed to be reachable, such
+work each component does. The executor is processing             as static variables or variables in live stack frames.
+large amounts of data, taking the majority of time and              HotTub also adds overhead on the memory usage of
+memory references, even in a reused run, while the client        the system as the server processes remain alive after the
+performs much less work. Since the warm-up overhead              application finishes. The number of servers to be left
+reduction is constant, it follows that the executor should       alive on a node can be configured by the user, for our
+be less affected, while the client will be heavily affected      evaluation we arbitrarily chose 5. An unused server takes
+as it spent more of its time performing warm-up.                 up approximately 1GB of memory.
+
+6.2 Sensitivity to Difference in Workload                        7 Related Work
+Table 4 compares HotTub’s performance sensitivity to
+the workload differences between training and testing            We discuss prior studies on the performance of the JVM
+runs. We warm up the JVM by repeatedly run a sin-                and data-parallel distributed systems. Commercial and
+gle “training query” four times, and apply it once on the        industry solutions have been discussed in Section 3.5.
+“testing query”. Note that we cannot apply the test run          Our work distinguishes itself as it the first to study the
+more than once for this experiment because the JVM will          performance implications of JVM warm-up overhead on
+then be warming up with the testing query. We repeat this        data-parallel systems.
+process five times and take the average runtime of the           Performance of garbage collection (GC). Recently, a
+testing queries, and then report the speed-up of this av-        few proposals are made to improve the GC performance
+erage runtime over the runtime of unmodified JVM run-            for big data systems [24, 47, 48, 59]. Gog et al. ob-
+ning the testing query. The result shows that, for our           serve that objects often have clearly defined lifetimes in
+tests, HotTub can achieve at least 1.47 speed-up.                big data analytics systems [24]. Therefore they propose
+   Query 11 and 1 observe the largest speed-up when              a region-based memory management [78] system where
+
+
+
+
+USENIX Association                        12th USENIX Symposium on Operating Systems Design and Implementation            395
+developers can annotate the objects with the same life-       Sherry et al. [50] surveyed the existing literature on data-
+time. Maas et al. [47, 48] observe that different JVMs        parallel systems and their experimental workload, and
+running the same job often pause to garbage collect at        concluded that many of the workloads use small data in-
+the same time given the homogeneous nature of their ex-       put sizes that can be well handled by a single threaded
+ecutions, therefore they propose a system named Tau-          implementation. This has similar implications as the
+rus that coordinates the GC pauses among different JVM        other studies on real-world analytic jobs where most jobs
+processes. Our work is complementary as we focus on           are short running because of the small input size [82],
+studying the JVM warm-up overhead, while Broom and            where the JVM warm-up time is even more significant.
+Taurus only focused on GC. HotTub can also be inte-               Other works on improving data-parallel systems per-
+grated together with Broom and Taurs to provide com-          formance focused on scheduling [2, 4, 31, 38, 56, 84],
+prehensive speed-up of the JVM runtime. Comparing             high performance interconnect [17, 19, 40, 45, 81], op-
+the design of Taurus and HotTub also reveals interest-        timization for multi-cores [16, 49, 60], and removing re-
+ing trade-offs. Taurus does not modify the JVM itself,        dundant operations [61]. Our work is complementary as
+therefore users will have less reliability concerns in de-    it focuses on JVM-level improvements.
+ployment. However, its capability to control the JVM
+is restricted to the interfaces JVM exposed. Taurus re-
+quires the JVMs in the network to coordinate via a con-
+sensus protocol, whereas HotTub uses a simpler design         8 Concluding Remarks
+that makes it standalone and does not require network
+communication. Consequently HotTub can also benefit           We started this project with the curiosity to understand
+non-distributed applications.                                 the JVM’s overhead on data-parallel systems, driven
+   Other papers studied GC performance on non-                by the observation that systems software is increasingly
+distributed workload. Appel [8] uses theoretical anal-        built on top of it. Enabled by non-trivial JVM instrumen-
+ysis to argue that when physical memory is abundant,          tations, we observed the warm-up overhead, and were
+GC can achieve high performance comparable to other           surprised by the extent of the problem. We then pivoted
+memory management techniques. Hertz et al. further            our focus on to the warm-up overhead by first presenting
+validated this via more thorough experimental evalua-         an in-depth analysis on three real-world systems. Our
+tion [30], but they also found that the performance of GC     result shows the warm-up overhead is significant, and
+deteriorate quickly when free memory becomes scarce.          can be exacerbated as jobs become more parallelized and
+Others have compared the performance of general GC al-        short running. We further designed HotTub, a drop-in re-
+gorithms (e.g., generational GC) versus customized ones       placement of the JVM that can eliminate warm-up over-
+and concluded that general algorithms achieve good per-       head by amortizing it over the lifetime of a host. Eval-
+formance in most cases [11, 14, 85].                          uation shows it can speed-up systems like HDFS, Hive,
+                                                              and Spark, with a best case speed-up of over 30.08X.
+Performance studies on data-parallel systems. A
+handful of works have thoroughly analyzed the perfor-
+mance of data-parallel systems [44, 46, 55, 57]. However
+they did not study the JVM performance impact. Ouster-        Acknowledgements
+hout et al. comprehensively studied the performance of
+Spark [55], and revealed that network and disk I/O are no     We greatly appreciate the insightful feedbacks from the
+longer the bottleneck. Interestingly, they found that CPU     anonymous reviewers and our shepherd Andrea Arpaci-
+is often the bottleneck, and a large amount of CPU time       Dusseau. We thank Yu Luo, Serhei Makarov, Michael
+is spent in data deserialization and decompression. How-      Stumm, Jenny Ren, Kirk Rodrigues, Guangji Xu, Yon-
+ever, because they only analyzed Spark itself, they did       gle Zhang, and Xu Zhao for the useful and thought stim-
+not further drill down to provide a low level understand-     ulating discussions. We thank Yu Luo for setting up and
+ing of such high CPU time. Using the same workload,           maintaining the server cluster environment used in our
+our study suggests that the class loading and bytecode        experiments. His help was invaluable. This research is
+interpretation are likely the main cause of deserialization   supported by NSERC Discovery grant, NetApp Faculty
+and decompression. Pavlo et al. [57] compared Hadoop          Fellowship, and an NSERC USRA award. Hailong Sun
+MapReduce with DBMS, and found that data shuffling            is supported by National Key Research and Development
+is often the bottleneck for MapReduce. Jiang et al. [44]      Program of China (2016YFB1000804) and National Nat-
+analyzed the performance of Hadoop MapReduce. Mc-             ural Science Foundation of China (61370057).
+
+
+
+
+396   12th USENIX Symposium on Operating Systems Design and Implementation                          USENIX Association
+References                                                         [13] M. K. A. B. V. Bittorf, T. Bobrovytsky, C. C. A. C. J.
+                                                                        Erickson, M. G. D. Hecht, M. J. I. J. L. Kuff, D. K. A.
+ [1] A case against static initializers. http://                        Leblang, N. L. I. P. H. Robinson, D. R. S. Rus, J. R. D.
+     sensualjava.blogspot.com/2008/12/case-                             T. S. Wanderman, and M. M. Yoder. Impala: A modern,
+     against-static-initializers.html.                                  open-source sql engine for hadoop. In Proceedings of
+ [2] F. Ahmad, S. T. Chakradhar, A. Raghunathan, and T. N.              the 7th Biennial Conference on Innovative Data Systems
+     Vijaykumar. Tarazu: Optimizing mapreduce on hetero-                Research, CIDR ’15, 2015.
+     geneous clusters. In Proceedings of the Seventeenth In-       [14] S. M. Blackburn, P. Cheng, and K. S. McKinley. Myths
+     ternational Conference on Architectural Support for Pro-           and realities: The performance impact of garbage collec-
+     gramming Languages and Operating Systems, ASPLOS                   tion. In Proceedings of the Joint International Confer-
+     XVII, 2012.                                                        ence on Measurement and Modeling of Computer Sys-
+ [3] G. Ananthanarayanan, A. Ghodsi, A. Wang,                           tems, SIGMETRICS ’04/Performance ’04, 2004.
+     D. Borthakur, S. Kandula, S. Shenker, and I. Sto-             [15] Cassandra. http://cassandra.apache.org.
+     ica. Pacman: Coordinated memory caching for parallel
+     jobs. In Proceedings of the 9th USENIX Conference             [16] R. Chen, H. Chen, and B. Zang. Tiled-mapreduce: Op-
+     on Networked Systems Design and Implementation,                    timizing resource usages of data-parallel applications on
+     NSDI’12, 2012.                                                     multicore with tiling. In Proceedings of the 19th Interna-
+                                                                        tional Conference on Parallel Architectures and Compi-
+ [4] G. Ananthanarayanan, S. Kandula, A. Greenberg, I. Sto-             lation Techniques, PACT ’10, 2010.
+     ica, Y. Lu, B. Saha, and E. Harris. Reining in the outliers
+     in map-reduce clusters using mantri. In Proceedings of        [17] T. Condie, N. Conway, P. Alvaro, J. M. Hellerstein,
+     the 9th USENIX Conference on Operating Systems De-                 K. Elmeleegy, and R. Sears. Mapreduce online. In Pro-
+     sign and Implementation, OSDI ’10, 2010.                           ceedings of the 7th USENIX Conference on Networked
+                                                                        Systems Design and Implementation, NSDI ’10, 2010.
+ [5] Android ART Just-In-Time (JIT) Compiler. https://
+     source.android.com/devices/tech/                              [18] B. F. Cooper, A. Silberstein, E. Tam, R. Ramakrishnan,
+     dalvik/jit-compiler.html.                                          and R. Sears. Benchmarking cloud serving systems with
+                                                                        YCSB. In Proceedings of the 1st ACM Symposium on
+ [6] Android runtime (ART). https://source.
+                                                                        Cloud Computing, SoCC ’10, 2010.
+     android.com/devices/tech/dalvik/index.
+     html.                                                         [19] P. Costa, A. Donnelly, A. Rowstron, and G. O’Shea. Cam-
+ [7] Apache Geronimo DayTrader Benchmark. http://                       doop: Exploiting in-network aggregation for big data ap-
+     geronimo.apache.org/GMOxDOC20/                                     plications. In Proceedings of the 9th USENIX Conference
+     daytrader.html.                                                    on Networked Systems Design and Implementation, NSDI
+                                                                        ’12, 2012.
+ [8] A. W. Appel. Garbage collection can be faster than stack
+     allocation. Inf. Process. Lett., 25(4).                       [20] Excelsior JET - Java Virtual Machine (JVM) and Native
+                                                                        Code Compiler. https://www.excelsiorjet.
+ [9] R. Appuswamy, C. Gkantsidis, D. Narayanan, O. Hodson,              com/.
+     and A. Rowstron. Scale-up vs scale-out for hadoop: Time
+     to rethink? In Proceedings of the 4th Annual Symposium        [21] Exciting performance improvements on the horizon
+     on Cloud Computing, SOCC ’13, 2013.                                for spark sql.      https://databricks.com/
+                                                                        blog/2014/06/02/exciting-performance-
+[10] M. Armbrust, R. S. Xin, C. Lian, Y. Huai, D. Liu, J. K.
+                                                                        improvements-on-the-horizon-for-
+     Bradley, X. Meng, T. Kaftan, M. J. Franklin, A. Ghodsi,
+                                                                        spark-sql.html.
+     and M. Zaharia. Spark SQL: Relational data processing in
+     spark. In Proceedings of the 2015 ACM SIGMOD Inter-           [22] S. J. Fink and F. Qian. Design, implementation and eval-
+     national Conference on Management of Data, SIGMOD                  uation of adaptive recompilation with on-stack replace-
+     ’15, 2015.                                                         ment. In Proceedings of the International Symposium on
+                                                                        Code Generation and Optimization: Feedback-directed
+[11] E. D. Berger, B. G. Zorn, and K. S. McKinley. Reconsid-
+                                                                        and Runtime Optimization, CGO ’03, 2003.
+     ering custom memory allocation. In Proceedings of the
+     17th ACM SIGPLAN Conference on Object-oriented Pro-           [23] A. Ghazal, T. Rabl, M. Hu, F. Raab, M. Poess,
+     gramming, Systems, Languages, and Applications, OOP-               A. Crolotte, and H.-A. Jacobsen. Bigbench: Towards
+     SLA ’02, 2002.                                                     an industry standard benchmark for big data analyt-
+                                                                        ics. In Proceedings of the 2013 ACM SIGMOD Inter-
+[12] Big SQL 3.0: Hadoop-DS benchmark-Performance
+     isn’t everything. https://developer.ibm.com/                       national Conference on Management of Data, SIGMOD
+     hadoop/blog/2014/12/02/big-sql-3-0-                                ’13, 2013.
+     hadoop-ds-benchmark-performance-isnt-                         [24] I. Gog, J. Giceva, M. Schwarzkopf, K. Vaswani, D. Vytin-
+     everything/.                                                       iotis, G. Ramalingam, M. Costa, D. G. Murray, S. Hand,
+
+
+
+
+USENIX Association                    12th USENIX Symposium on Operating Systems Design and Implementation                   397
+      and M. Isard. Broom: Sweeping out garbage collection        [39] K. Ishizaki, M. Takeuchi, K. Kawachiya, T. Suganuma,
+      from big data systems. In 15th Workshop on Hot Topics            O. Gohda, T. Inagaki, A. Koseki, K. Ogata, M. Kawahito,
+      in Operating Systems, HotOS ’15, 2015.                           T. Yasue, T. Ogasawara, T. Onodera, H. Komatsu, and
+[25] J. Gosling, B. Joy, G. Steele, G. Bracha, and A. Buck-            T. Nakatani. Effectiveness of cross-platform optimiza-
+     ley. The Java R Virtual Machine specification - Java SE           tions for a java just-in-time compiler. In Proceedings of
+     8 Edition. https://docs.oracle.com/javase/                        the 18th Annual ACM SIGPLAN Conference on Object-
+     specs/jvms/se8/html/.                                             oriented Programing, Systems, Languages, and Applica-
+                                                                       tions, OOPSLA ’03, 2003.
+[26] C. Gray and D. Cheriton. Leases: An efficient fault-
+                                                                  [40] N. S. Islam, M. W. Rahman, J. Jose, R. Rajachandrasekar,
+     tolerant mechanism for distributed file cache consistency.
+                                                                       H. Wang, H. Subramoni, C. Murthy, and D. K. Panda.
+     In Proceedings of the Twelfth ACM Symposium on Oper-
+                                                                       High performance rdma-based design of hdfs over infini-
+     ating Systems Principles, SOSP ’89, 1989.
+                                                                       band. In Proceedings of the International Conference on
+[27] Hadoop. https://hadoop.apache.org.                                High Performance Computing, Networking, Storage and
+[28] Hadoop Distributed File System (HDFS). http://                    Analysis, SC ’12, 2012.
+     hadoop.apache.org/docs/stable/hdfs_                          [41] Quora: In what cases is Java faster than C. https://
+     design.html.                                                      www.quora.com/In-what-cases-is-Java-
+[29] Hbase. http://hbase.apache.org/.                                  faster-if-at-all-than-C.
+                                                                  [42] Quora: In what cases is Java slower than C by a big
+[30] M. Hertz and E. D. Berger. Quantifying the performance
+                                                                       margin.   https://www.quora.com/In-what-
+     of garbage collection vs. explicit memory management.
+                                                                       cases-is-Java-slower-than-C-by-a-big-
+     In Proceedings of the 20th Annual ACM SIGPLAN Con-
+                                                                       margin.
+     ference on Object-oriented Programming, Systems, Lan-
+     guages, and Applications, OOPSLA ’05, 2005.                  [43] StackOverflow: Why do people still say Java is slow?
+                                                                       http://programmers.stackexchange.com/
+[31] B. Hindman, A. Konwinski, M. Zaharia, A. Ghodsi, A. D.
+                                                                       questions/368/why-do-people-still-
+     Joseph, R. Katz, S. Shenker, and I. Stoica. Mesos: A plat-
+                                                                       say-java-is-slow.
+     form for fine-grained resource sharing in the data center.
+     In Proceedings of the 8th USENIX Conference on Net-          [44] D. Jiang, B. C. Ooi, L. Shi, and S. Wu. The performance
+     worked Systems Design and Implementation, NSDI ’11,               of mapreduce: An in-depth study. Proc. VLDB Endow.,
+     2011.                                                             3(1-2).
+
+[32] Hive. http://hive.apache.org.                                [45] MapReduce-4049: Plugin for generic shuffle ser-
+                                                                       vice.   https://issues.apache.org/jira/
+[33] U. Hölzle and D. Ungar. A third-generation self im-               browse/MAPREDUCE-4049.
+     plementation: Reconciling responsiveness with perfor-
+                                                                  [46] K.-H. Lee, Y.-J. Lee, H. Choi, Y. D. Chung, and B. Moon.
+     mance. In Proceedings of the Ninth Annual Confer-
+                                                                       Parallel data processing with mapreduce: A survey. SIG-
+     ence on Object-oriented Programming Systems, Lan-
+                                                                       MOD Rec., 40(4).
+     guage, and Applications, OOPSLA ’94, 1994.
+                                                                  [47] M. Maas, K. Asanović, T. Harris, and J. Kubiatowicz.
+[34] S. Huang, J. Huang, Y. Liu, L. Yi, and J. Dai. Hibench:           Taurus: A Holistic Language Runtime System for Co-
+     A representative and comprehensive hadoop benchmark               ordinating Distributed Managed-Language Applications.
+     suite. In Proc. ICDE Workshops, 2010.                             In Proceedings of the Twenty-First International Con-
+[35] hypertable: why we chose CPP over Java. https://                  ference on Architectural Support for Programming Lan-
+     code.google.com/p/hypertable/wiki/                                guages and Operating Systems, ASPLOS ’16, 2016.
+     WhyWeChoseCppOverJava.                                       [48] M. Maas, T. Harris, K. Asanović, and J. Kubiatowicz.
+[36] Impala – Cloudera. http://www.cloudera.com/                       Trash day: Coordinating garbage collection in distributed
+     content/www/en-us/products/apache-                                systems. In 15th Workshop on Hot Topics in Operating
+     hadoop/impala.html.                                               Systems, HotOS ’15, 2015.
+[37] Interactive query with apache hive on apache                 [49] Y. Mao, R. Morris, and M. F. Kaashoek. Optimizing
+     tez.        http://hortonworks.com/hadoop-                        mapreduce for multicore architectures. Technical report,
+     tutorial/supercharging-interactive-                               Massachusetts Institute of Technology, 2010.
+     queries-hive-tez/.                                           [50] F. McSherry, M. Isard, and D. G. Murray. Scalability!
+[38] M. Isard, V. Prabhakaran, J. Currey, U. Wieder, K. Tal-           But at what COST? In 15th Workshop on Hot Topics in
+     war, and A. Goldberg. Quincy: Fair scheduling for dis-            Operating Systems, HotOS ’15, 2015.
+     tributed computing clusters. In Proceedings of the ACM       [51] Microsoft Common Language Runtime (CLR).
+     SIGOPS 22Nd Symposium on Operating Systems Princi-                https://msdn.microsoft.com/en-us/
+     ples, SOSP ’09, 2009.                                             library/8bs2ecf4(v=vs.110).aspx.
+
+
+
+
+398    12th USENIX Symposium on Operating Systems Design and Implementation                              USENIX Association
+[52] Nailgun:  Insanely fast Java.  http://                     [64] Spark. http://spark.apache.org.
+     www.martiansoftware.com/nailgun/                           [65] Spark will offer interactive querying of live data.
+     background.html.                                                https://www.linux.com/news/spark-20-
+[53] New benchmarks for sql-on-hadoop: Impala 1.4 widens             will-offer-interactive-querying-live-
+     the performance gap. http://blog.cloudera.                      data.
+     com/blog/2014/09/new-benchmarks-for-
+                                                                [66] Spark SQL performance test. https://github.
+     sql-on-hadoop-impala-1-4-widens-the-
+                                                                     com/databricks/spark-sql-perf.
+     performance-gap/.
+                                                                [67] Specjbb2015.            https://www.spec.org/
+[54] New benchmarks for sql-on-hadoop: Impala 1.4 widens
+                                                                     jbb2015/.
+     the performance gap. http://blog.cloudera.
+     com/blog/2014/09/new-benchmarks-for-                       [68] SPECjvm2008.            https://www.spec.org/
+     sql-on-hadoop-impala-1-4-widens-the-                            jvm2008/.
+     performance-gap/.                                          [69] StackOverflow: Is Java really slow? http://
+[55] K. Ousterhout, R. Rasti, S. Ratnasamy, S. Shenker, and          stackoverflow.com/questions/2163411/
+     B.-G. Chun. Making sense of performance in data an-             is-java-really-slow.
+     alytics frameworks. In Proceedings of the 12th USENIX      [70] Static initializers will murder your family. http://
+     Conference on Networked Systems Design and Implemen-            meowni.ca/posts/static-initializers/.
+     tation, NSDI ’15, 2015.
+                                                                [71] T. Suganuma, T. Ogasawara, M. Takeuchi, T. Yasue,
+[56] K. Ousterhout, P. Wendell, M. Zaharia, and I. Stoica.           M. Kawahito, K. Ishizaki, H. Komatsu, and T. Nakatani.
+     Sparrow: Distributed, low latency scheduling. In Pro-           Overview of the IBM Java Just-in-time Compiler. IBM
+     ceedings of the Twenty-Fourth ACM Symposium on Oper-            Syst. J., 39(1).
+     ating Systems Principles, SOSP ’13, 2013.
+                                                                [72] T. Suganuma, T. Yasue, M. Kawahito, H. Komatsu, and
+[57] A. Pavlo, E. Paulson, A. Rasin, D. J. Abadi, D. J. De-          T. Nakatani. Design and evaluation of dynamic optimiza-
+     Witt, S. Madden, and M. Stonebraker. A comparison of            tions for a java just-in-time compiler. ACM Trans. Pro-
+     approaches to large-scale data analysis. In Proceedings         gram. Lang. Syst., 27(4).
+     of the 2009 ACM SIGMOD International Conference on
+     Management of Data, SIGMOD ’09, 2009.                      [73] T. Suganuma, T. Yasue, M. Kawahito, H. Komatsu, and
+                                                                     T. Nakatani. A dynamic optimization framework for a
+[58] Performance                comparison           -               java just-in-time compiler. In Proceedings of the 16th
+     c++/java/python/ruby/jython/jruby/groovy. http://               ACM SIGPLAN Conference on Object-oriented Program-
+     blog.dhananjaynene.com/2008/07/                                 ming, Systems, Languages, and Applications, OOPSLA
+     performance-comparison-c-java-python-                           ’01, 2001.
+     ruby-jython-jruby-groovy/.
+                                                                [74] T. Suganuma, T. Yasue, and T. Nakatani. A region-based
+[59] Project tungsten: Bringing spark closer to bare metal.
+                                                                     compilation technique for a java just-in-time compiler.
+     https://databricks.com/blog/2015/04/
+                                                                     In Proceedings of the ACM SIGPLAN 2003 Conference
+     28/project-tungsten-bringing-spark-
+                                                                     on Programming Language Design and Implementation,
+     closer-to-bare-metal.html.
+                                                                     PLDI ’03, 2003.
+[60] C. Ranger, R. Raghuraman, A. Penmetsa, G. Bradski,
+                                                                [75] Spark and Tez are successors of MapReduce. http://
+     and C. Kozyrakis. Evaluating mapreduce for multi-
+                                                                     blogs.gartner.com/nick-heudecker/
+     core and multiprocessor systems. In Proceedings of the
+                                                                     spark-tez-highlight-mapreduce-
+     2007 IEEE 13th International Symposium on High Per-
+                                                                     problems/.
+     formance Computer Architecture, HPCA ’07, 2007.
+                                                                [76] Tez. https://tez.apache.org/.
+[61] A. Rasmussen, V. T. Lam, M. Conley, G. Porter,
+     R. Kapoor, and A. Vahdat. Themis: An i/o-efficient         [77] A. Thusoo, J. S. Sarma, N. Jain, Z. Shao, P. Chakka,
+     mapreduce. In Proceedings of the Third ACM Symposium            S. Anthony, H. Liu, P. Wyckoff, and R. Murthy. Hive:
+     on Cloud Computing, SoCC ’12, 2012.                             A warehousing solution over a map-reduce framework.
+                                                                     Proc. VLDB Endow., 2(2).
+[62] B. Saha, H. Shah, S. Seth, G. Vijayaraghavan, A. Murthy,
+     and C. Curino. Apache tez: A unifying framework            [78] M. Tofte and J.-P. Talpin. Region-based memory manage-
+     for modeling and building data processing applications.         ment. Information and Computation, 132(2):109 – 176,
+     In Proceedings of the 2015 ACM SIGMOD Interna-                  1997.
+     tional Conference on Management of Data, SIGMOD            [79] Transaction Processing Performance Council (TPC)
+     ’15, 2015.                                                      BenchmarkTM DS (TPC-DS): The New Decision Sup-
+[63] J. H. Saltzer. Protection and the control of information        port Benchmark Standard. http://www.tpc.org/
+     sharing in Multics. Commun. ACM, 17(7).                         tpcds.
+
+
+
+
+USENIX Association                  12th USENIX Symposium on Operating Systems Design and Implementation                399
+[80] L. Wang, J. Zhan, C. Luo, Y. Zhu, Q. Yang, Y. He,
+     W. Gao, Z. Jia, Y. Shi, S. Zhang, C. Zheng, G. Lu,
+     K. Zhan, X. Li, and B. Qiu. Bigdatabench: A big data
+     benchmark suite from internet services. In Proceedings
+     of the 2014 IEEE 20th International Symposium on High
+     Performance Computer Architecture, 2014.
+[81] Y. Wang, X. Que, W. Yu, D. Goldenberg, and D. Sehgal.
+     Hadoop acceleration through network levitated merge. In
+     Proceedings of 2011 International Conference for High
+     Performance Computing, Networking, Storage and Anal-
+     ysis, SC ’11, 2011.
+[82] What do real-life apache hadoop workloads look like?
+     http://blog.cloudera.com/blog/2012/09/
+     what-do-real-life-hadoop-workloads-
+     look-like/.
+[83] Why Java will always be slower than C++. http://
+     www.jelovic.com/articles/why_java_is_
+     slow.htm.
+[84] M. Zaharia, A. Konwinski, A. D. Joseph, R. Katz, and
+     I. Stoica. Improving mapreduce performance in heteroge-
+     neous environments. In Proceedings of the 8th USENIX
+     Conference on Operating Systems Design and Implemen-
+     tation, OSDI ’08, 2008.
+[85] B. Zorn. The measured cost of conservative garbage col-
+     lection. Software – Practice & Experience, 23(7).
+
+
+
+
+400   12th USENIX Symposium on Operating Systems Design and Implementation   USENIX Association
+

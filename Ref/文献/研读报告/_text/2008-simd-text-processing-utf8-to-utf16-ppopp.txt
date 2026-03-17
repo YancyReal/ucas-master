@@ -1,0 +1,531 @@
+ A Case Study in SIMD Text Processing with Parallel Bit Streams
+                                                       UTF-8 to UTF-16 Transcoding
+
+                                                                        Robert D. Cameron
+                                                    School of Computing Science, Simon Fraser University
+                                                                   cameron@cs.sfu.ca
+
+
+
+
+Abstract                                                                              limited to a few variable-length comparison instructions, they do
+High performance SIMD text processing using the method of paral-                      reflect a demand for high performance string processing.
+lel bit streams is introduced with a case study of UTF-8 to UTF-16                        Consider instead a new approach to SIMD character processing
+transcoding. A forward transform converts byte-oriented character                     based on the concept of parallel bit streams. The idea is to transform
+stream data into eight parallel bit streams. Decoding, validation and                 byte-oriented character stream data into eight parallel bit streams,
+computation of UTF-8 indexed UTF-16 bit streams are performed                         each bit stream comprising one bit per character code unit. Code
+using bit-parallel logic and shifting operations. Conversion from                     units may be ASCII characters or UTF-8 bytes, for example, with
+UTF-8 indexing to UTF-16 indexing is performed using parallel                         one parallel bit stream defined for each of bit 0 through bit 7 of each
+bit deletion. The inverse transform is applied to yield high and low                  code unit. Given such a representation, the 128-bit SIMD registers
+UTF-16 byte streams which are then merged. Combined with op-                          of the SSE or Altivec registers can be used to process 128 code unit
+timization techniques for blocks of ASCII data, speed-ups of 3 to                     positions at a time. For example, given a set of parallel bit streams
+25 times are achieved on commodity processors compared with op-                       for UTF-8 code units, a single bitwise and operation applied to
+timized byte-at-a-time code. Further applications of the method of                    blocks of 128 bit values from the bit 0 and bit 1 streams produces a
+parallel bit streams to bulk text processing applications are briefly                 block classifying these 128 positions as UTF-8 prefix bytes (bytes
+discussed along with future prospects for the combination of in-                      in the range 0xC0 to 0xFF) or not.
+traregister and intrachip parallelism on multicore processors.                            Although there are many technical challenges and certain gaps
+                                                                                      in the capabilities of present-day SIMD instruction set architec-
+Categories and Subject Descriptors C.1.2 [Multiple Data Stream                        tures, the method of parallel bit streams can yield surprisingly good
+Architectures (Multiprocessors)]: Single-instruction-stream,                          results. This paper presents a case study of the problem of UTF-8
+multiple-data-stream processors (SIMD); D.1.3 [Concurrent Pro-                        to UTF-16 transcoding. This is a challenging problem for paral-
+gramming]: Parallel programming                                                       lel methods, involving conversion between two different variable-
+General Terms Algorithms, Performance                                                 length encoding schemes. It is also a practically significant prob-
+                                                                                      lem, widely cited as one of the principal bottlenecks in XML pro-
+Keywords SIMD text processing, parallel bit streams, UTF-8,                           cessing [6, 7, 8]. Even with Intel’s announced string-processing ex-
+UTF-16, transcoding                                                                   tensions, there seems little hope of a viable byte-oriented SIMD so-
+                                                                                      lution to this problem. Applying the techniques described in this pa-
+1.    Introduction                                                                    per, however, 3X to 25X speed-ups over byte-at-a-time processing
+                                                                                      can be achieved using MMX, SSE or Altivec technology, depend-
+Although the intraregister SIMD capabilities of commodity pro-
+                                                                                      ing on input data characteristics. These results are obtained with
+cessors (e.g., SSE on Intel, Altivec on Power PC) have proven
+                                                                                      the open source u8u16 software, implementing UTF-8 to UTF-16
+useful for graphics, audio, video, encryption and other applica-
+                                                                                      transcoding with an iconv-compatible interface [3].
+tions over the last decade, they have seen little application to high-
+                                                                                          The remainder of this paper is organized as follows. Section 2
+performance text processing. The mismatch between the fixed-size
+                                                                                      illustrates the nature of parallel bit stream programming with the
+data decompositions that work well with SIMD technology and the
+                                                                                      example of UTF-8 decoding and validation, the first stage of UTF-
+variable-length characters, tokens or words common to textual data
+                                                                                      8 to UTF-16 transcoding. Section 3 moves on to the calculation
+is one factor; another is that byte-at-a-time text processing perfor-
+                                                                                      of UTF-16 bit streams based on UTF-8 byte and scope classifica-
+mance is often judged to be “good enough” for most applications.
+                                                                                      tions. Section 4 then describes parallel bit deletion methods that can
+Nevertheless, there has been recent interest in the possibility of
+                                                                                      be applied to convert from bit streams indexed in parallel with the
+using SIMD techniques to address the performance challenges of
+                                                                                      UTF-8 byte representation to ones indexed in parallel with the de-
+XML parsing [1, 5]. New string-handling instructions have been
+                                                                                      sired UTF-16 code unit representation. Section 5 then describes the
+announced as part of the SSE4 extensions to Intel processor ar-
+                                                                                      essential transform and inverse transform pair that allow conversion
+chitecture [9]. Although the new string handling capabilities are
+                                                                                      between the byte stream domain and the corresponding parallel bit
+                                                                                      stream domain. Section 6 then briefly describes the block process-
+                                                                                      ing structure of the u8u16 transcoder and then Section 7 goes on
+                                                                                      to present performance results on existing commodity processors.
+Copyright 2008 Association for Computing Machinery. This is the author’s version
+                                                                                      Section 8 briefly describes further applications of bit stream tech-
+of the work. It is posted here by permission of ACM for your personal use. Not for    nology being investigated in ongoing research. Section 9 discusses
+redistribution. The definitive version was published in the Proceedings of the 2008   the open-source patent commercialization of this technology and
+SIGPLAN Symposium on Principles and Practice of Parallel Programming.                 Section 10 concludes the paper with a discussion of prospects for
+PPoPP’08, February 20–23, 2008, Salt Lake City, Utah, USA.                            further development of related technologies.
+Copyright c 2008 ACM 978-1-59593-960-9/08/0002. . . $5.00
+     Unicode                 Code Point                     UTF-8           processed in blocks of 128 bits at a time (bitblocks) and that
+      Range                    Pattern                      Pattern         u8bit0 through u8bit7 are the bitblocks for bit 0 (most signif-
+    0000–007F         00000 00000000 0tuvwxyz              0tuvwxyz         icant) through bit 7 of each code unit. Remember that each set
+                                                           110pqrst         of eight parallel bitblocks represents the UTF-8 byte data for 128
+    0080–07FF         00000 00000pqr stuvwxyz
+                                                           10uvwxyz         consecutive code units.
+                                                           1110jklm             Producing new UTF-8 classification bitblocks that identify each
+    0800–FFFF         00000 jklmnpqr stuvwxyz              10npqrst         of the 128 code units as single bytes (unibyte), prefix bytes or suffix
+                                                           10uvwxyz         bytes requires simple bitwise logic. The following code fragment
+                                                           11110efg         performs the relevant SIMD operations using function names con-
+                                                           10hijklm         sisting of the prefix simd and the name of the logical operation.
+  10000–10FFFF        efghi jklmnpqr stuvwxyz                               The simd andc operation performs “and-complement,” logically
+                                                           10npqrst
+                                                           10uvwxyz         negating its second argument before performing the bitwise con-
+                                                                            junction.
+         Table 1. The UTF-8 Encoding Form of Unicode                        u8unibyte = simd_not(u8bit0);
+                                                                            u8prefix = simd_and(u8bit0, u8bit1);
+                                                                            u8suffix = simd_andc(u8bit0, u8bit1);
+                                                                            u8prefix3or4 = simd_and(u8prefix, u8bit2);
+2. UTF-8 Byte Classification and Validation                                 u8prefix2 = simd_andc(u8prefix, u8bit2);
+                                                                            u8prefix3 = simd_andc(u8prefix3or4, u8bit3);
+As a first example of parallel bit stream manipulation, consider the
+                                                                            u8prefix4 = simd_and(u8prefix3or4, u8bit3);
+example of UTF-8 byte classification and validation. UTF-8 is a
+variable-length encoding form of Unicode in which one to four 8-                Given these byte classifications, the second step is to define
+bit code units (bytes) are used to represent each character. Unicode        scope bitblocks that represent expectations for suffix bytes in terms
+itself is a system for encoding all the world’s characters as integer       of preceding prefix bytes. These are formed using an operation that
+code point values having up to 21 significant bits. Table 1 shows           shifts forward an entire block of bits by a known immediate number
+the structure of UTF-8 byte sequences corresponding to ranges               of bit positions (bitblock sfli). The shift forward operation is
+of Unicode code points. The four rows of the table correspond               either a left or right shift operation depending on endianness of
+                                                                            the underlying processor architecture. For example, u8scope22
+to the four possible lengths of UTF-8 byte sequences. In each               represents the positions of expected second suffix bytes of two-byte
+row, the first column shows the Unicode code point range that               UTF-8 sequences.
+applies in hexadecimal notation. The second column shows the 21-
+bit pattern for values in the range, with letters standing for bit values   u8scope22 = simd_sfli(u8prefix2, 1);
+at particular positions. The third column shows the bit pattern of the      u8scope33 = simd_sfli(u8prefix3, 2);
+                                                                            u8scope44 = simd_sfli(u8prefix4, 3);
+corresponding UTF-8 byte sequence.
+                                                                            u8lastscope = simd_or(simd_or(u8scope22, u8scope33),
+    As shown in Table 1, the high-order bit (bit 0) of each UTF-                                  u8scope44);
+8 byte distinguishes whether the byte may occur as a single byte            u8scope32 = simd_sfli(u8prefix3, 1);
+sequence (row 1) or whether it may only occur within multibyte              u8scope42 = simd_sfli(u8prefix4, 1);
+sequences (rows 2 through 4). In the case of single byte sequences,         u8scope43 = simd_sfli(u8prefix4, 2);
+the byte values are in the range 0x00 –0x7F and correspond directly         u8anyscope = simd_or(simd_or(u8lastscope, u8scope32),
+to ASCII character codes. In the case of multibyte sequences, the                                simd_or(u8scope42, u8scope43));
+byte values are further partitioned by the value of the second bit              Overall classification of UTF-8 bytes and calculation of scope
+(bit 1) into the ranges 0xC0 –0xFF for UTF-8 prefix bytes and               streams requires 12 logical operations and 6 bitblock shifts. Work-
+0x80 –0xBF for UTF-8 suffix bytes. As shown, the first byte of a            ing with 128 code unit positions at a time, this represents less than
+multibyte sequence must be a prefix byte, while the remaining bytes         0.2 operations per byte.
+must be suffix bytes. Bits 2 and 3 of prefix bytes further partition            Given the classification and byte streams, the task of UTF-8
+the byte values into the range 0xC0 –0xDF for prefixes of two-              validation can now be tackled in accord with the constraints de-
+byte sequences, the range 0xE0 –0xEF for prefixes of three-byte             scribed above. Validation is carried out by computing an err mask
+sequences, and the range 0xF0 and above for four-byte sequences.            identifying those positions at which an error is positively identified.
+    Proper formation of UTF-8 byte sequences requires that the              Blocks are assumed to start with complete UTF-8 sequences; any
+correct number of suffix bytes always follow a UTF-8 prefix byte            suffix found at the beginning of a block is marked as an error. An
+and that certain illegal combinations are ruled out. For example,           incomplete sequence at the end of the block is not marked as an
+row 2 is used for encoding Unicode values only if at least one of the       error if it is possible to produce a legal sequence by adding one or
+pqrs bits is set; two-byte sequences with the prefix codes 0xC0 and         more bytes.
+0xC1 are hence considered illegal. Similarly, sequences beginning               The error mask is initialized by checking for prefix-suffix mis-
+with the prefix bytes 0xF5 through 0xFF are also illegal as they            matches using a simple xor operation.
+would represent code point values above 10FFFF. In addition, there
+are constraints on the first suffix byte following certain special          err_mask = simd_xor(u8anyscope, u8suffix);
+prefixes, namely that a suffix following the prefix 0xE0 must fall             Note that this will set a one bit in err mask whenever either a
+in the range 0xA0 –0xBF, a suffix following the prefix 0xED must            suffix byte does not occur when one is expected or when a suffix
+fall in the range 0x80 –0x9F, a suffix following the prefix 0xF0            byte does occur and one is not expected.
+must fall in the range 0x90 –0xBF and a suffix following the prefix            The error mask is then extended by checking for invalid prefix
+0xF4 must fall in the range 0x80 –0x8F. The task of ensuring that           bytes 0xC0, 0xC1 or 0xF5 through 0xFF.
+each of these constraints hold is known as UTF-8 validation.                C0C1 = simd_andc(u8prefix2,
+    Now consider how the tasks of UTF-8 byte classification and                              simd_or(simd_or(u8bit3, u8bit4),
+validation may be implemented using parallel bit streams, assum-                                     simd_or(u8bit5, u8bit6)));
+ing that the byte data has already been transformed to parallel             F5FF = simd_and(u8prefix4,
+bit stream form. For concreteness, assume that bit streams are                              simd_or(u8bit4,
+                        simd_and(simd_or(u8bit6,u8bit7),                              UTF-8                   UTF-16
+                                 u8bit5)));                                   Byte Class    Pattern    High Byte Low Byte
+err_mask = simd_or(err_mask(simd_or(C0C1, F5FF));                             u8unibyte 0tuvwxyz 00000000 0tuvwxyz
+   Finally, the special requirements on suffix bytes in the contexts          u8prefix2 110pqrst           -         -
+of 0xE0, 0xED, 0xF0 or 0xF4 prefix bytes must be checked.                     u8scope22 10uvwxyz 00000pqr stuvwxyz
+                                                                              u8prefix3 1110jklm           -         -
+E0ED = simd_andc(u8prefix3,
+                                                                              u8scope32 10npqrst           -         -
+                 simd_or(simd_or(u8bit6,
+                                 simd_xor(u8bit4,                             u8scope33 10uvwxyz jklmnpqr stuvwxyz
+                                          u8bit7)),                           u8prefix4 11110efg           -         -
+                         simd_xor(u8bit4, u8bit5)));                          u8scope42 10hijklm 110110ab cdjklmnp
+E0ED_reqt = simd_xor(simd_sfli(u8bit5, 1), u8bit2);                           u8scope43 10npqrst           -         -
+err_mask = simd_or(err_mask,                                                  u8scope44 10uvwxyz 110111qr stuvwxyz
+                   simd_andc(simd_sfli(E0ED, 1),                                         (where abcd = efghi - 1)
+                             E0ED_reqt));
+F0F4 = simd_andc(u8prefix4,
+                 simd_or(u8bit4,                                                      Table 2. UTF-8 to UTF-16 Mapping
+                         simd_or(u8bit6, u8bit7)));
+F0F4_reqt = simd_xor(simd_sfli(u8bit5, 1),
+                           simd_or(u8bit2, u8bit3));                   values, pairs of code units having particular bit patterns marked
+err_mask = simd_or(err_mask,                                           in the high byte of each code unit as shown in row 4 of Table 2.
+                   simd_andc(simd_sfli(F0F4, 1),                       Production of UTF-16 surrogate pairs from UTF-8 requires some
+                             F0F4_reqt));                              bit manipulation: the abcd bits of the first code unit of the pair
+    If the final value of err mask computed in this way contains       are determined by substracting 1 from the efghi bits taken from
+any one bit, a UTF-8 validation error has been identified at that      the UTF-8 representation (considering the efghi bit pattern as a
+position. If there are no such bits, then there are no UTF-8 errors    natural 5-bit binary quantity).
+within the block.                                                          As one may appreciate, implementation of byte-at-a-time vali-
+    As shown, 26 additional logic operations and 4 additional shift    dation and transcoding logic requires a number of operations per
+operations suffice to calculate err mask, for a total of 38 logic      byte to recognize the appropriate cases and decompose UTF-8 byte
+and 10 shift operations per 128 UTF-8 input bytes. As straight-line    data into appropriate bit fields, as well as to compose the appro-
+code without branching, this process requires less than 0.5 cycles     priate UTF-16 values. Now let us consider how this work may be
+per byte on commodity pipelined processors with 128-bit SIMD           sped up considerably by making use of parallelization in the form
+units. Assuming that transposition to parallel bit stream form is      of parallel bit streams.
+comparably fast, the overall cost of UTF-8 validation is about an          Given UTF-8 bit streams that have been validated in accord with
+order of magnitude less than byte-at-a-time processing.                the previous section, conversion to UTF-16 proceeds by first deter-
+    The u8u16 program performs UTF-8 validation using logic sub-       mining a parallel set of 16 bit streams that comprise a u8-indexed
+stantially as shown here. However, certain optimizations are ap-       representation of UTF-16. These are grouped into two sets u16hi0
+plied, based on the maximum UTF-8 sequence length found within         through u16hi7 for the high byte of each unit and u16lo0 through
+a block. If the block is confined to entirely ASCII, no validation     u16lo7 for the lwo byte. The u8-indexed representation defines
+is required. If the block contains multibyte sequences of at most      the correct UTF-16 bit values at the following UTF-8 positions: at
+two bytes in length (no u8prefix3or4 bit set), then logic for three    the single byte of a single-byte sequence (u8unibyte), at the sec-
+and four byte sequences is bypassed. Similarly, the logic for four     ond byte of a two-byte sequence (u8scope22), at the third byte of
+byte sequences is bypassed if there are no four byte sequences. The    a three byte sequence (u8scope33), and at the second and fourth
+optimizations are hardly worth applying for validation alone, but      bytes of a four-byte sequence (u8scope42 and u8scope44). Table
+become worthwhile when combined with other transcoding tasks.          2 reflects this structure by aligning the UTF-16 code units for each
+                                                                       type of sequence with the appropriate index bytes in UTF-8.
+                                                                           Using similar bitwise logic and shifting operations to those
+3.   U8-Indexed UTF-16 Bit Streams                                     shown for UTF-8 validation, the correct values of u16hi0 through
+Now we consider the problem of transcoding UTF-8 data to UTF-          u16hi7 and u16lo0 through u16lo7 are calculated at u8-indexed
+16, the Unicode encoding form based on 16-bit code units. UTF-         positions. The UTF-16 bit stream values at other positions (that is,
+16 is also a variable-length encoding form, requiring one or two       u8prefix2, u8prefix3, u8prefix4, u8scope32, u8scope43)
+code units (two or four bytes) per character. Table 2 shows how        are not significant; no UTF-16 output is to be generated from
+UTF-8 byte sequences translate to corresponding UTF-16 code unit       these positions. Prior to generation of output, data bits at these
+sequences, with each UTF-16 code unit being specified as a pair        positions are to be deleted using the parallel deletion operations
+consisting of a high byte and a low byte.                              of the subsequent section. These deletions produce the UTF-16 bit
+   As shown in the table, one-, two-, and three-byte UTF-8 se-         streams in u16-indexed form.
+quences always translate into a single UTF-16 code unit. In each           Potentially, each UTF-16 bit stream value involves a conditional
+                                                                       calculation depending on the various possible byte and scope clas-
+of these cases, the UTF-16 value is just the Unicode code point        sifications. However, common logic applies in several cases. For
+value represented as a sixteen bit quantity. The set of Unicode code   example, except for the first unit of a surrogate pair, bits 2 through
+points that may be represented in this way is known as the basic       7 of the low UTF-16 byte always correspond to bits 2 through 7
+multilingual plane of Unicode and contains most of the characters      of the last byte of a UTF-8 sequence. These are the bits labeled
+that are used in practice. As shown in the table, UTF-16 values in     uvwxyz in the four rows of Table 2.
+the basic multilingual plane may be produce by distributing bits       u8lastbyte = simd_or(u8unibyte, u8lastscope);
+taken directly from the UTF-8 byte representation.                     u16lo2 = simd_and(u8lastbyte, u8bit2);
+   Beyond the multilingual plane, code point values have more          u16lo3 = simd_and(u8lastbyte, u8bit3);
+than 16 signficant bits. In UTF-8, these values are represented by     u16lo4 = simd_and(u8lastbyte, u8bit4);
+four-byte sequences. UTF-16 uses surrogate pairs to represent such     u16lo5 = simd_and(u8lastbyte, u8bit5);
+u16lo6 = simd_and(u8lastbyte, u8bit6);                                     computations for three-, or four-byte sequences are typically by-
+u16lo7 = simd_and(u8lastbyte, u8bit7);                                     passed whenever it is established that a block is confined to multi-
+    Bit 1 of the low UTF-16 byte (bit t in the Table 2) differs            byte sequences of maximum length two or three, respectively.
+depending on whether the current UTF-8 byte is a singleton or the
+last suffix (u8lastscope) of a multibyte sequence. In the latter
+case, the bit value is shifted forward from the bit 7 position of the
+preceding UTF-8 byte.                                                      4.   Parallel Bit Deletion
+u16lo1 = simd_or(simd_and(u8unibyte, u8bit1),                              As identified in the previous section, the UTF-16 bit streams are
+                 simd_and(u8lastscope,                                     initially defined in u8-indexed form, that is, with sets of bits in one-
+                          simd_sfli(u8bit7, 1)));                          to-one correspondence with UTF-8 bytes. However, only one set
+    Again, except for the for the first unit of a surrogate pair, bits 5   of UTF-16 bits is required for encoding two or three-byte UTF-
+through 7 (bits pqr in the table) of the high UTF-16 byte and bit 0        8 sequences and only two sets are required for surrogate pairs
+of the low UTF-16 byte have a common pattern.                              corresponding to four-byte UTF-8 positions. The u8lastbyte and
+u16hi5 = simd_and(u8lastscope, simd_sfli(u8bit3, 1));
+                                                                           u8scope42 streams mark the positions at which the correct UTF-
+u16hi6 = simd_and(u8lastscope, simd_sfli(u8bit4, 1));                      16 bits are computed. The bit sets at other positions must be deleted
+u16hi7 = simd_and(u8lastscope, simd_sfli(u8bit5, 1));                      to compress the streams to u16-indexed form. A deletion mask
+u16lo0 = simd_and(u8lastscope, simd_sfli(u8bit6, 1));                      delmask is computed to identify these positions.
+                                                                               Three different inductive doubling algorithms can be used for
+    For blocks containing three-byte sequences in the basic multi-
+lingual plane, the high five UTF-16 bit streams only become sig-           performing parallel deletion. Each algorithm involves a preprocess-
+nificant at u8scope33 positions (bits jklmn in the table)                  ing phase in which deletion information is prepared to control the
+                                                                           deletion process. Preprocessing is applied only once, independent
+u16hi0 = simd_and(u8scope33, simd_sfli(u8bit4, 2));                        of the number of parallel bit streams to which deletion is applied.
+u16hi1 = simd_and(u8scope33, simd_sfli(u8bit5, 2));                        In each case, the main deletion algorithm is then applied to each
+u16hi2 = simd_and(u8scope33, simd_sfli(u8bit6, 2));
+u16hi3 = simd_and(u8scope33, simd_sfli(u8bit7, 2));
+                                                                           of the parallel bit streams in a process that successively computes
+u16hi4 = simd_and(u8scope33, simd_sfli(u8bit2, 1));                        the solution for a bit width parameter 2j+1 in terms of the solution
+                                                                           for bit width parameter 2j . Seven steps are needed for processing
+    Logic for 4-byte UTF-8 sequences is only applied when at least         the full 128 bit widths of SSE or Altivec registers. However, three
+one u8prefix4 byte is found within a block. In this case the high          steps suffice to solve the problem in parallel for each of the 8-bit
+six UTF-16 bits are set to a fixed bit pattern of 110110 or 110111
+for the respective surrogate pair positions.                               fields within a register; upon application of the inverse transform
+                                                                           this will ensure that each register full of UTF-16 doublebyte data is
+u16surrogate = simd_or(u8scope42, u8scope44);                              properly compressed.
+u16hi0 = simd_or(u16hi0, u8surrogate);                                         The parallel-prefix compress algorithm documented by Warren
+u16hi1 = simd_or(u16hi1, u8surrogate);                                     and attributed to Steele [10] uses only logic and shifts with a
+u16hi3 = simd_or(u16hi3, u8surrogate);
+u16hi4 = simd_or(u16hi4, u8surrogate);
+                                                                           constant parameter to carry out the deletion process. However, it
+u16hi5 = simd_or(u16hi5, u8scope44);                                       requires k2 preprocessing steps for a final field width parameter of
+                                                                           size 2k , as well as 4 operations per deletion step per stream.
+    The values for the low ten bit streams at u8scope44 positions              Two other algorithms have been developed to take advantage of
+have already been set according to the common patterns given               SIMD multiplication and SIMD rotation capabilities, respectively
+previously, so it is only necessary to extend the definitions of these
+ten bit streams with the logic for the first UTF-16 code unit of           [3]. The preprocessing phases for each of these algorithms is con-
+the surrogate pair at the u8scope42 position. The logic for the            siderably simpler, requiring only k steps for a final field width pa-
+most significant four of these bits is complicated somewhat by the         rameter of size 2k . The multiplicative process requires three oper-
+requirement that the UTF-16 bit pattern is formed by subtraction of        ations per deletion step per stream, while the rotation process re-
+1 from the corresponding fields of the UTF-8 pattern.                      quires only a single SIMD rotation operation per deletion step per
+s42lo1 = simd_not(u8bit3); /* subtract 1 */                                stream.
+u16lo1 = simd_or(u16lo1, simd_and(u8scope42, s42lo1));                         The multiplicative process produces left deletion results in each
+s42lo0 = simd_xor(u8bit2, s42lo1); /* borrow */                            inductive doubling step. A left deletion result is one in which all
+u16lo0 = simd_or(u16lo0, simd_and(u8scope42, s42lo0));                     nondeleted bits of a field are left-justified within the field and
+borrow1 = simd_andc(s42lo1, u8bit2);                                       the remaining bit positions are all zeroed out. Thus, for an initial
+s42hi7 = simd_xor(simd_sfli(u8bit7, 1), borrow1));                         8-bit data pattern abcdefgh and deletion mask 00110100, the
+u16hi7 = simd_or(u16hi7, simd_and(u8scope42, s42hi7));                     left deletion result is abegh000 and the updated deletion mask
+borrow2 = simd_andc(borrow1, simd_sfli(u8bit7, 1));                        is 00000111. Now consider the 16-bit packed pair of 8-bit left
+s42hi6 = simd_xor(simd_sfli(u8bit6, 1), borrow2));
+u16hi6 = simd_or(u16hi6, simd_and(u8scope42, s42hi6));
+                                                                           results abegh000jknp0000 in which the second 8-bit left result
+                                                                           arose by deletion from an initial data pattern ijklmnop and mask
+   The logic for the remaining six bits is straightforward.                10011010. A single addition suffices to produce the desired 16-
+u16lo2 = simd_or(u16lo2, simd_and(u8scope42, u8bit4));                     bit left result abeghjknp0000000. The quantity to be added is
+u16lo3 = simd_or(u16lo3, simd_and(u8scope42, u8bit5));                     simply the 16-bit unsigned product of the left 8-bit deletion mask
+u16lo4 = simd_or(u16lo4, simd_and(u8scope42, u8bit6));                     00000111 and the right 8-bit value jknp0000! In general, the left
+u16lo5 = simd_or(u16lo5, simd_and(u8scope42, u8bit7));                     deletion mask has the value 2d − 1 where d is the number of bits
+u16lo6 = simd_or(u16lo6, simd_and(u8scope42,                               deleted. Thus, adding the product of the left deletion mask and
+                                  simd_sbli(u8bit2,1)));                   the right field value effectively multiplies that field value by 2d ,
+u16lo7 = simd_or(u16lo7, simd_and(u8scope42,
+                                                                           equivalent to a d bit left shift.
+                                  simd_sbli(u8bit3,1)));
+                                                                               Unfortunately, existing commodity SIMD architectures support
+   The calculation of 16 parallel bit streams requires approxi-            the necessary multiplication operations only for a limited set of
+mately four logic and shift operations per stream. However, follow-        field widths. Operations on other field widths may be simulated,
+ing the optimization strategy described for UTF-8 validation, the          but the simulations are too slow for practical application.
+    The ideal approach to parallel deletion uses rotations in a pro-              Using the Altivec instruction set of the Power PC, this three-
+cess of central result induction. A central deletion result is one in         stage process can be applied to convert a set of 8 consecutive
+which nondeleted bits in an n-bit field are moved together in a sin-          registers full of byte data (16 bytes per 128 bit register; 128 bytes
+gle consecutive run that touches or spans the center of the field.            in all) into 8 registers of parallel bit stream data in a mere 72
+Central deletion results naturally arise from shifting the nondeleted         instructions. At one cycle per instruction, the overhead of this
+bits of the left half of a field to the right and the nondeleted bits of      process is well less than one cycle per byte.
+the right half of a field to the left. Thus, for an initial 8-bit data pat-       The process using MMX or SSE technology is comparable, al-
+tern abcdefgh and deletion mask 00110100, the central deletion                though additional instructions are required because of the destruc-
+result is 00abegh0 and the updated deletion mask is 11000001.                 tive nature of the two-operand instructions versus the Altivec three-
+The left and right shifts can be performed simultaneously with                operand instructions, the limited register availability (8 in 32-bit
+SIMD rotate instructions such as the Altivec rotate left instruction          mode, versus 32 for the Altivec) and the lack of a bitwise if-then-
+for simultaneous rotation of 8, 16 or 32 bit fields by a vector of            else instruction (vec sel on the Altivec). Nevertheless, the process
+individual rotation values. For example, given the packed pair of             typically requires between one and two cycles per byte on recent
+8-bit central results 00abegh000jknp00, the 16-bit central result             generation processors.
+000abeghjknp0000 is obtained by simultaneous rotate left of the                   The inverse transform can be implemented using a similar three-
+two fields by 7 bits and 2 bits respectively.                                 stage application of SIMD merge instructions. The merge instruc-
+    Although parallel deletion to the full SIMD register widths may           tions interleave fields from parallel registers to generate merged
+be needed in other applications, the implementation of u8u16 takes            results. The process mirrors that of the forward transform; see the
+advantage of the fact that deletion is the last step before inverse           the technical report [3] for details. The performance also mirrors
+transformation to byte streams. As each register containing UTF-16            that of the forward transform, requiring 72 instructions to generate
+doublebyte values is produced, the nondeleted doublebytes should              a stream of 128 bytes on the Altivec, for example.
+be contiguously located for direct writing to the output stream.                  In UTF-8 to UTF-16 transcoding, two applications of the in-
+Incrementing the output pointer by the number of nondeleted bytes             verse transform produce the low and high bytes of each UTF-16
+then achieves the effect of deleting the other positions. As 128-             code unit from the low 8 UTF-16 bit streams and high 8 UTF-16
+bit registers contain up to 8 doublebyte UTF-16 units, only three             bit streams, respectively. These byte streams are then merged to
+steps of deletion in the parallel bit stream domain are required with         produce UTF-16 code units in either the UTF-16LE or UTF-16BE
+Altivec or SSE technology. Only two steps are required in working             forms.
+with MMX technology.                                                              Overall, UTF-8 to UTF-16 transcoding nominally imposes the
+    A further innovation is employed with the Altivec technology              cost of one forward transform and two inverse transforms for each
+to make use of its powerful byte permutation capabilities. Rather             UTF-8 input byte. However, the u8u16 program reduces this cost
+than applying bit deletions directly to parallel bit streams, deletion        substantially using certain optimizations. First, whenever a suffi-
+is applied to an index vector that can be used to select nondeleted           ciently long run of ASCII bytes is detected, transcoding to UTF-16
+bytes. However, because the byte indices are confined to the range            is implemented by simply interleaving null bytes with the UTF-8
+0 to 15, only 4 bits per index value are needed. Thus, deletions can          input bytes, bypassing bit-stream based transcoding entirely. Sec-
+be applied to packed permutation vectors with 4 bits per index, after         ond, whenever a 128-position block of UTF-8 input data is confined
+which the indices may be unpacked and used to select nondeleted               to the Eurocentric subset having at most two UTF-8 bytes per char-
+bytes with a vec perm instruction.                                            acter, it is known that the high 5 bits of the UTF-16 representation
+                                                                              are always zero. In this case, an optimized inverse transform is ap-
+                                                                              plied.
+5.    Transform and Inverse Transform                                             Although the transform and inverse transform costs are accept-
+                                                                              able on present-day commodity processors, it is reasonable to an-
+Efficient implementation of the transform from byte-oriented char-            ticipate a reduction in the cost of both the forward and inverse trans-
+acter stream data to parallel bit stream form is crucial to any ap-           forms with advances in SIMD processor architecture. These reduc-
+plication of the parallel bit stream method. The inverse transform            tions may arise from general improvements in the SIMD processing
+is also crucial to UTF-8 to UTF-16 conversion as well as to other             units (such as the improvement from Pentium to Core 2 architec-
+applications that compute new character stream data through bit               ture), or due to targeted improvements related to matrix transposi-
+stream manipulations. Fortunately, the overheads imposed by these             tion support, for example. There is substantial interest in develop-
+transforms are tolerable on existing architectures (MMX, SSE, Al-             ment of high-performance SIMD implementations of matrix trans-
+tivec) and can be expected to diminish on future processors.                  position for a variety of applications in graphics, signal processing,
+    Although the forward transform can be implemented in an it-               encryption and other applications. In essence, each of the forward
+erative fashion using the pmovmskb instruction of the MMX and                 and inverse transforms to and from the parallel bit stream represen-
+SSE instruction sets, a faster and more general approach is to use            tation is a form of matrix transposition on a fine-grained scale.
+SIMD pack instructions in a three stage process of binary division.               For example, one possible development is the extension of
+The pack instructions combine two consecutive registers of data by            SIMD instruction set architecture to provide direct support for
+extracting n/2 bits from each n bit field. In the first stage, pack-          inductive doubling algorithms [2]. Inductive doubling refers to a
+ing is used to divide byte streams into two separate streams having           general property of algorithms that involve doubling transitions in
+4 bits per each byte. For example, one stream may comprise the                the size or number of data elements. The three-pass transformation
+low nybble of each byte while the other comprises the high nyb-               algorithms described above are examples; other examples include
+ble, or one may comprise the odd bits of each byte, while the other           divide-and-conquer bit counting, bit reversal by parallel swap and
+comprises the even bits. The bits are selected by appropriate com-            the parallel bit deletion by central result induction discussed above.
+binations of shifting and masking, as required. In the second stage,          With such an extended instruction set architecture, the number
+the two streams having 4 bits per original byte are further packed            of instructions required to implement transposition in the Altivec
+into two streams each having only 2 bits per original byte. The fi-           three register model reduces from 72 to 24 [3]. With 128-bit SIMD
+nal stage completes the process by dividing up the streams having             registers, the overhead of transposition should drop to about a fifth
+2 bits per byte into the desired bit streams. Details and algorithm           of a cycle per byte, at which point it is unlikely to be a significant
+variations are described in the technical report [3].
+cost component even if invoked repeatedly in bulk text processing           Tables 4 through 6 present overall performance results of the
+applications.                                                           u8u16 transcoder versus the built-in iconv utility on Power PC and
+    In essence, the transform/inverse transform pair for conversion     Intel platforms. Results are presented in cycles/UTF-8 input byte,
+to and from parallel bit stream form may be likened to the Fourier      with measurements made using built-in processor time base unit
+and inverse Fourier transforms for converting between the time          (PPC) and timestamp (Intel) counters. All measurements reported
+and frequency domains in signal processing. While some signal           for u8u16 in these tables include the time for performing both the
+processing calculations are most conveniently carried out in the        forward and inverse transforms to and from the parallel bit stream
+time domain, others are best carried out in the frequency domain.       domain.
+Analogously, the byte stream domain and the parallel bit stream
+domain each may be convenient and efficient for particular types                                 ASCII     German      Arabic     Japanese
+of text processing algorithm and less convenient for others. Ideally,     iconv                   46.5      47.1        38.1        32.5
+a very efficient pair of transform operations will allow conversion       u8u16/Altivec            1.7       3.5         4.4         4.6
+to the most convenient form at will.                                      Altivec Speed-up        27.3      13.5         8.7         7.1
+
+6.     Block Processing Structure                                       Table 4. iconv vs. u8u16 on Power PC G4/Mac OS X (cycles/byte)
+The u8u16 is structured to perform the complete processing of one
+block of 64 (MMX) or 128 (Altivec/SSE) bytes of UTF-8 data at               The performance results are most impressive with the Altivec
+a time. Alternative organizations are possible. For example, blocks     platform as shown in Table 4. The test environment is a Power
+may be organized in larger buffers with each of the phases of trans-    PC G4 laptop running Mac OS X 10.4, compiling with Apple’s
+position, byte classification, validation, UTF-16 bit stream calcula-   customized gcc 4.1 with Altivec support. Using the standard iconv
+tion, parallel bit deletion and inverse transform being applied to a    implementation, UTF-8 to UTF-16 transcoding requires over 30
+full buffer of data before control is passed on.                        CPU cycles per UTF-8 input byte. In each case, the parallel bit
+    In order to handle the possibility of a multibyte UTF-8 sequence    stream implementation of u8u16 is much faster, requiring fewer
+crossing a block boundary, a block shortening strategy is used. In      than 5 cycles per byte. Similar results have been measured on a
+essence, blocks may be reduced by up to 3 bytes so that the short-      G5 platform. Overall, these results demonstrate that the parallel
+ened block contains only full UTF-8 sequences. This shortening is       bit stream technology is capable of delivering order-of-magnitude
+performed by a rather inelegant test performed in byte space. An        performance improvements in end-to-end bulk text processing.
+alternative strategy is to perform bit stream shifting across block         Examination of the generated code for the Altivec platform sug-
+boundaries. However, the shifting operations become considerably        gests that further improvements are possible with better compiler
+more expensive with this alternative and the register pressure in-      technology. Even with 32 registers, there is sufficient register pres-
+creased considerably. In practice, block shortening is relatively in-   sure that gcc generates quite a number of instructions to temporar-
+frequent and imposes only a small cost on the overall processing.       ily save SIMD register values on the stack. However, a great many
+    Further details of the u8u16 block processing strategy and other    of the register values used in the algorithm are shift or other control
+implementation details are available in the technical report [3].       constants that may be recomputed in one or a very few instructions
+                                                                        without memory access. With a compiler capable of performing
+                                                                        systematic register rematerialization for such values, this stacking
+7.     Performance Results                                              of temporary values could be reduced considerably. Analysis of the
+To study the performance characteristics of the u8u16 transcoder        register requirements suggests that it may even be possible to im-
+in different contexts, a series of measurements were made for each      plement the entire body of the main transcoding loop without any
+of four input types: pure ASCII text, and XML texts in each of          memory access other than reading the initial UTF-8 byte stream
+German, Arabic and Japanese. The XML texts used as test data            and writing out the final UTF-16 results.
+are large files downloaded from the Wikimedia project. Table 3
+shows the statistical breakdown of blocks processed for each file,                              ASCII      German      Arabic     Japanese
+categorized by the maximum UTF-8 sequence length found within              iconv                 34.2       35.8        29.8        26.4
+the block. These categories reflect the different optimizations used       u8u16/MMX              2.4        9.4        18.5        18.7
+within the transcoder. Of course, the ASCII input file consists en-        MMX Speed-up          14.3        3.8        1.6          1.4
+tirely of single-byte UTF-8 sequences. The German XML text also            u8u16/SSE              1.8        8.1        12.9        13.2
+has a majority of blocks confined to the ASCII (single-byte) sub-          SSE Speed-up           19         4.4        2.3          2.0
+range of UTF-8, with most of the rest consisting of blocks having
+a maximum UTF-8 sequence length of 2. This is expected to be
+typical of Eurocentric XML files. The Arabic XML file was dom-               Table 5. iconv vs. u8u16 on Intel P4/Linux (cycles/byte)
+inated by blocks having at least one 2-byte UTF-8 sequence and
+no longer sequence. As expected, the Japanese text file was domi-           Table 5 shows performance results on an Intel Pentium 4 plat-
+nated by blocks containing at least one 3-byte sequence. Both the       form running Mandriva Linux 10.1, with u8u16 compiled in both
+German and Arabic texts had a small number of blocks containing         MMX and SSE versions compiled using gcc 4.1.2. The results show
+4-byte sequences.                                                       that the parallel bit stream methods achieve significant speed-ups
+                                                                        in all cases. However, examination of the generated assembly code
+                        ASCII     German      Arabic     Japanese       suggests that there is substantial room for further performance im-
+  ASCII only            100%      53.9%       15.9%       16.5%         provement by either improved compiler technology or implemen-
+  2-byte max/block       0%       41.6%       78.4%        0.2%         tation of core algorithm components by hand.
+  3-byte max/block       0%        4.4%        5.6%       83.2%             Table 6 shows performance results on an Intel Core 2 platform
+  4-byte max/block       0%       <0.1%       <0.1%         0%          running Ubuntu Linux 7.04, using the same compiled versions
+                                                                        of u8u16 evaluated on the Pentium platform. The results show
+                                                                        that the improvements in the SIMD execution units with the Core
+     Table 3. Input Blocks by Maximum UTF-8 Sequence Length             2 processors have significantly increased the performance ratio
+                        ASCII      German      Arabic     Japanese        putation of UTF-16 bit streams is relatively inexpensive by com-
+   iconv                 23.2       23.2        20.3        17.6          parison, requiring only 0.9 cycles per byte together.
+   u8u16/MMX             1.4         4.6         8.2         8.8
+   MMX Speed-up          16.6        5.0         2.5         2.0          8.    Further Applications
+   u8u16/SSE             0.9         3.5         5.6         6.2
+   SSE Speed-up          25.8        6.6         3.6         2.8          Further applications of parallel bit stream technology are being ex-
+                                                                          plored as part of ongoing research. Principal among these is the
+                                                                          application of parallel bit stream methods to XML parsing. In gen-
+  Table 6. iconv vs. u8u16 on Intel Core 2/Linux (cycles/byte)            eral, the approach is to construct lexical item streams identifying
+                                                                          lexically significant characters in XML parsing such as the opening
+                                                                          and closing angle brackets, single and double quotes delimiting at-
+of parallel bit stream technology over byte-at-a-time processing.         tribute values, whitespace characters and so on. Bit scan operations
+With further tuning a minimum ratio of 3X over byte-at-a-time             can then be used to rapidly identify the positions of these delim-
+transcoding seems feasible.                                               iters as required. Current prototypes perform basic XML parsing
+                                                                          considerably faster than the fast C-based parsers such as expat.
+    Optimizations      ASCII      German      Arabic     Japanese             Another interesting area of research is parallel regular expres-
+    None                6.3         6.9        7.5          7.6           sion matching using bit streams, working with certain constrained
+    3-byte              5.8         6.4        6.9          7.1           classes of regular expression that are either deterministic or can be
+    2-byte              5.2         5.9        6.4          7.3           easily transformed to deterministic form. Promising initial results
+    2-byte, 3-byte      5.2         5.8        6.3          7.0           allow parallel matching of all instances of such a regular expres-
+    ASCII only          0.9         4.4        6.7          6.6           sion within a bit block, in a number of steps proportional to the
+                                                                          number of concatenated expression elements. Application of these
+                                                                          techniques to validation of datatype instances in XML schema is
+       Table 7. Optimization Levels in u8u16 Performance
+                                                                          particularly promising.
+                                                                              The use of parallel bit streams in string search applications
+    To investigate the relative contributions of the various optimiza-    is also being explored. The basic approach is to simultaneously
+tions to u8u16 performance, several versions of the Intel Core            perform partial matching of all positions within a bit block against
+2/Linux program were evaluated with different combinations of op-         a partial bit match data set. On average, a partial bit match data
+timizations as shown in Table 7. All figures are reported in CPU cy-      set of 12 bits is sufficient to prove the absence of match candidates
+cles per UTF-8 input byte. These may be compared with the results         in a bit block 31 of 32 times. In the case of false positives above
+when all optimizations are turned on, as shown in the u8u16/SSE           the expected rate, an adaptive process adjusts the partial bit match
+row of Table 6. Significantly, if all optimizations are turned off,       data set to rule out the string or strings most responsible for false
+u8u16 still performs very well compared to iconv. In this case,           positives.
+performance for the various file types is more consistent, although
+still better for files with straight ASCII text (which require no block
+shortening for multibyte sequences and which can maintain align-          9.    PatentLeft Commercialization
+ment of byte data when loaded into SSE registers). The 3-byte op-         A Simon Fraser University spin-off company, International Charac-
+timization, in which code for 4-byte sequences in blocks having           ters, has been formed to commercialize the results of the ongoing
+UTF-8 sequences of maximum length 3, is consistently useful. The          parallel bit stream research using an open source model. Several
+consistency is to be expected because 4-byte sequences are so in-         patent applications have been filed on various aspects of parallel
+frequent in practice. However, the 2-byte optimization is more sig-       bit stream technology and inductive doubling architecture. How-
+nificant for Eurocentric XML documents. This optimization saves           ever, any issued patents are being dedicated to free use in research,
+work not only during validation and computation of UTF-16 bit             teaching, experimentation and open-source software. This includes
+streams, but also eliminates deletion operations for the high 5 bit       commercial use of open-source software provided that the software
+streams and allows a simplified inverse transformation for the high       is actually publically available. However, commercial licenses are
+UTF-16 byte. The 2-byte and 3-byte optimizations can be applied           required for proprietary software applications as well as combina-
+together for combined effect.                                             tions of hardware and software.
+    The ASCII optimization is most significant for documents hav-             From an industry perspective, the growth of software patents
+ing even a small number of pure ASCII blocks. This optimization           and open-source software are both undeniable phenomena. How-
+completely bypasses the bulk of the u8u16 algorithm, including            ever, these industry trends are often seen to be in conflict, even
+both the forward and inverse transforms as well as the validation,        though both are based in principle on disclosure and publication of
+decoding and deletion operations on parallel bit streams. In fact,        technology details. It is hoped that the patentleft model advanced
+this optimization does not depend on the parallel bit stream method       by this commercialization effort will be seen as at least one con-
+and has been reported useful by itself for improving the perfor-          structive approach to resolving the conflict. A fine result would ul-
+mance of UTF-8 to UTF-16 transcoding [4]. However, application            timately be legislative reform that publication of open source soft-
+of this technique alone only improves behaviour only in proportion        ware is a form of knowledge dissemination that is considered fair
+to the percentage of identified ASCII subblocks, whereas combi-           use of any patented technology.
+nation with the parallel bit stream method provides a substantial
+speed-up even in the worst case.
+    The overall u8u16 performance numbers can also be broken              10.    Conclusions
+down by functional unit. Of these, the most significant cost com-         As illustrated in the case of UTF-8 to UTF-16 transcoding, the
+ponent is that of the forward and inverse transforms. The forward         method of parallel bit streams is a viable technique for high per-
+transform on the Intel Core 2 requires 1.6 cycles/byte. The inverse       formance text processing on commodity processors with SIMD ca-
+transform, which generates two output bytes for each input bye and        pabilities. Promising initial results have also been obtained in a
+is interwoven with the deletion operations requires approximately         number of other application areas. As SIMD register widths and
+4.0 cycles/byte. The core semantics of UTF-8 validation and com-          processing technologies improve, ratios of performance over byte-
+at-a-time text processing are likely to increase further for existing      References
+applications and potential applications are likely to broaden.              [1] Apparao, P. and Bhat, M. “A Detailed Look at the Characteristics of
+    In order to make the use of parallel bit stream technology acces-           XML Parsing,” Proceedings of the 1st Workshop on Building Block
+sible to the broader programming community, new language and                    Engine Architectures for Computers and Networks (BEACON ’04).
+compiler technologies are needed as well as run-time libraries in-              Boston, MA. October, 2004.
+tegrated with popular technology stacks. It seems unlikely that any         [2] Cameron, Robert D., “Method and Apparatus for an Inductive
+form of automated compiler technology can be used to transform                  Doubling Architecture,” U.S. Patent Application 11/834,333, filed
+traditional byte-at-a-time text processing code to the parallel bit             August 6, 2007.
+stream form. However, one promising direction is the design of new          [3] Cameron, Robert D., “u8u16 – A High-Speed UTF-8 to UTF-16
+high-level text processing constructs that are at once easy to trans-           Transcoder Using Parallel Bit Streams,” Technical Report TR 2007-
+late into efficient code based on parallel bit streams and easy for             18, School of Computing Science, Simon Fraser University, Burnaby,
+programmers to use to produce high quality code that is less prone              BC, Canada, June 2007.
+to error. For example, it may be possible to design new grammar-            [4] Jelliffe, Rick. “Using C++ Intrinsic Functions for Pipelined Text
+based text processing constructs that move beyond the popular but               Processing,” O’Reilly Network, November 7, 2005.
+error-prone features of current regular expression packages.
+    The intraregister parallelism of the parallel bit stream method         [5] Kostoulas, M. G., Matsa, M., Mendelsohn, N., Perkins, E., Heifets,
+                                                                                A., and Mercaldi, M. “XML Screamer: An Integrated Approach to
+may also prove to be a convenient stepping stone to intrachip                   High Performance XML Parsing, Validation and Deserialization,”’
+parallelism with multi-core processors. For example, it is quite easy           Proceedings of the 15th International Conference on World Wide
+to imagine the distribution of different functional components of               Web (WWW ’06), pp. 93-102.
+the transcoding process based on parallel bit streams to separate
+                                                                            [6] Nicola, Matthias, and John, Jasmi, “XML Parsing: A Threat to
+cores. This is not at all a reasonable possibility for traditional byte-        Database Performance,” Proceedings of the Twelfth International
+at-a-time programming. It is also possible to contemplate a data-               Conference on Information and Knowledge Management, New
+oriented distribution, with the transcoding of separate data blocks             Orleans, Louisiana, 2003.
+or buffers carried out in parallel on separate cores. The present
+                                                                            [7] Perkins, E., Kostoulas, M., Heifets, A., Matsa, M., and Mendelsohn,
+block-shortening strategy of the u8u16 transcoder is somewhat                   N., “Performance Analysis of XML APIs,” XML 2005, Atlanta,
+inconvenient from this perspective, but other options seem feasible,            Georgia, November 2005.
+such as a fixed small overlap for distributed block processing. It
+is anticipated that parallel bit stream applications in other areas         [8] Psaila, Giuseppe, “On the Problem of Coupling Java Algorithms and
+                                                                                XML Parsers,” (Invited Paper), 17th International Conference on
+will present similar leveraging opportunities to exploit the intrachip          Database and Expert Systems Applications (DEXA’06), September
+parallelism of multi-core processors.                                           2006, pp. 487-491.
+                                                                            [9] Ramanathan, R.M., “Extending the World’s Most Popular Processor
+Acknowledgments                                                                 Architecture,” Technology@Intel Magazine, October 2006.
+This research is supported by a Discovery Grant from the Natural           [10] Warren, H.S., “Hacker’s Delight,” Addison Wesley Professional,
+Sciences and Engineering Research Council of Canada.                            Boston, 2002, 320 pages.
+

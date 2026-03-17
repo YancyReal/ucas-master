@@ -1,0 +1,1211 @@
+End the Senseless Killing: Improving Memory
+ Management for Mobile Operating Systems
+Niel Lebeck, Arvind Krishnamurthy, and Henry M. Levy, University of Washington;
+                         Irene Zhang, Microsoft Research
+              https://www.usenix.org/conference/atc20/presentation/lebeck
+
+
+
+
+         This paper is included in the Proceedings of the
+           2020 USENIX Annual Technical Conference.
+                                  July 15–17, 2020
+                                  978-1-939133-14-4
+
+
+
+
+                                         Open access to the Proceedings of the
+                                       2020 USENIX Annual Technical Conference
+                                               is sponsored by USENIX.
+                 End the Senseless Killing: Improving Memory Management
+                               for Mobile Operating Systems
+
+                Niel Lebeck                       Arvind Krishnamurthy                     Henry M. Levy
+          University of Washington               University of Washington              University of Washington
+                                                        Irene Zhang
+                                                     Microsoft Research
+
+
+                         Abstract                                 as mobile OSes replace desktop ones (e.g., Android is now
+To ensure low-latency memory allocation, mobile operating         the most used OS in the world) and mobile apps replace
+systems kill applications instead of swapping memory to disk.     desktop counterparts (e.g., Google Docs and Word Online
+This design choice shifts the burden of managing over-utilized    replacing Microsoft Word). Today’s apps already do not fit
+memory to application programmers, requiring them to con-         into their memory allocation, so they manually swap objects
+stantly checkpoint their application state to disk. This paper    between memory and local storage or use libraries to meet
+presents Marvin, a new memory manager for mobile plat-            their needs [11]. Because apps are increasingly likely to be
+forms that efficiently supports swapping while meeting the        killed due to memory pressure, they must also continuously
+strict performance requirements of mobile apps. Marvin’s          save execution state to disk and strive to minimize their start-
+swap-enabled language runtime is co-designed with OS-level        up times to cope with frequent restarts. Despite significant
+memory management to avoid common pitfalls of traditional         engineering effort [21, 27, 32], it still takes several seconds to
+swap mechanisms. Its key features are: (1) a new swap mech-       kill and restart popular apps.
+anism, called ahead-of-time (AOT) swap, which pre-writes             Improving mobile memory management is difficult. Mo-
+memory to disk, then harvests it quickly when needed, (2) a       bile apps run in high-level language runtimes (e.g., Swift,
+modified bookmarking garbage collector that avoids swapping       ART), which limit OS insight (e.g., working set estimation is
+in unused memory, and (3) an object-granularity working set       impossible) and are notoriously difficult for OS-level memory
+estimator. Our experiments show that Marvin can run more          managers to work with [20]. Further, mobile apps often allo-
+than 2x as many concurrent apps as Android, and that Mar-         cate large amounts of memory quickly (e.g., when starting,
+vin can reclaim memory over 60x faster than Android with a        or for cloud downloads); unless the OS keeps a large pool
+Linux swap file can allocate memory under memory pressure.        of free memory, this is easier to accommodate by killing en-
+                                                                  tire applications. Finally, touch-based interfaces impose strict
+1   Introduction                                                  latency requirements, which swapping to disk cannot meet.
+                                                                     In this paper, we improve mobile memory management
+Over the past decade, mobile apps have become bigger and          with a key observation: unlike other operating systems, mo-
+more complex [28], far outpacing increases in mobile de-          bile OSes run all of their apps in a common language runtime.
+vice memory [4]. This trend has increased memory pressure         For example, all apps running on Android must run in the
+on mobile operating systems as apps compete for limited           Android Runtime (ART). This difference lets us co-design the
+space. Going forward, mobile OSes must more efficiently           language runtime to assist the mobile OS in optimizing mem-
+share memory across demanding apps, or user experience            ory management instead of hindering it. Due to its knowledge
+will suffer.                                                      of memory usage, the language runtime becomes an ideal
+   Unfortunately, while mobile apps have become more so-          place for mechanisms that can better manage memory.
+phisticated, mobile memory management remains in its in-             This paper demonstrates the value of leveraging the runtime
+fancy. Today’s popular mobile OSes set a fixed upper bound        for OS tasks. We present Marvin, a new memory manager
+on memory for each running application (e.g., 1.4GB for iOS       for Android that efficiently supports memory overcommit.
+running on an iPhone X [36] and 512MB for Android running         Marvin implements most memory management in the lan-
+on a Google Pixel XL). They never overcommit memory;              guage runtime, which has more insight into an application’s
+instead, they kill running applications and restart them later.   memory usage. Marvin relies on the operating system only
+   This simplistic approach worked well when mobile apps          for cross-application resource allocation.
+were small and largely stateless. However, it is unsustainable       By integrating with the language runtime, Marvin can offer
+
+
+
+USENIX Association                                                          2020 USENIX Annual Technical Conference            873
+Cumulative heap fraction
+
+                                                                                                                                  120
+                           1.00                                                  ● ● ● ●   ●   App
+
+
+
+
+                                                                                                                    Memory (MB)
+                                                                             ●
+                                                                                               ●   amazon                         90
+                           0.75                                                                    candycrush                                                                                               Min. read WS
+                                                                                                                                  60
+                                                                                                   googlemaps                                                                                               Heap size
+                           0.50                                                                    instagram                      30
+                                                                         ●
+                                                                                                   pinterest
+                           0.25                                      ●                             spotify                          0
+                                                                 ●
+                                                             ● ●                                   twitter
+
+
+
+
+                                                                                                                                          on
+
+                                                                                                                                                    sh
+
+
+                                                                                                                                                             s
+
+                                                                                                                                                                     m
+
+
+                                                                                                                                                                                t
+
+                                                                                                                                                                                      ify
+
+                                                                                                                                                                                                   er
+
+
+                                                                                                                                                                                                     t
+                                                                                                                                                                           es
+
+
+
+
+                                                                                                                                                                                                  os
+                                             ● ● ● ● ● ● ●
+
+
+
+
+                                                                                                                                                          ap
+                                       ● ● ●
+
+
+
+
+                                                                                                                                                                  ra
+
+
+
+
+                                                                                                                                                                                                itt
+                                                                                                                                                                                    ot
+                                                                                                                                                ru
+                                                                                                                                        az
+                           0.00
+
+
+
+
+                                                                                                                                                                           er
+
+
+
+
+                                                                                                                                                                                               np
+                                   ● ●
+                                                                                                   washingtonpost
+
+
+
+
+                                                                                                                                                         m
+
+
+
+
+                                                                                                                                                                                              tw
+                                                                                                                                                                 ag
+
+
+
+
+                                                                                                                                                                                sp
+                                                                                                                                               yc
+                                                                                                                                   am
+
+
+
+
+                                                                                                                                                                         nt
+                                                                                                                                                     le
+
+
+
+
+                                                                                                                                                                                            to
+                                                                                                                                                               st
+                                                                                                                                          nd
+                                     1e+02      1e+04        1e+06
+
+
+
+
+                                                                                                                                                                      pi
+                                                                                                                                                    og
+
+
+
+
+                                                                                                                                                                                               ng
+                                                                                                                                                             in
+                                                                                                                                         ca
+
+                                                                                                                                                go
+
+
+
+
+                                                                                                                                                                                              hi
+                                       Object size (bytes, log scale)
+
+
+
+
+                                                                                                                                                                                               s
+                                                                                                                                                                                            wa
+Figure 1: CDF of object size and heap percentage occupied                                                           Figure 2: The cost of fixed allocation. Each bar shows the
+by objects that size or smaller.                                                                                    total Java heap size of a popular app alongside its minimum
+                                                                                                                    Java working set during active use.
+three new features that enhance memory management:
+
+                           • A new swap mechanism, which performs ahead-of-time
+                             swapping to disk to avoid synchronous disk writes when                                 moves objects for heap compaction, and the OS cannot dis-
+                             reclaiming memory, and which leaves checkpointed ob-                                   tinguish this activity from app accesses. Mobile apps also
+                             jects in memory (unlike Linux’s kswapd [18]).                                          access language-level objects, which vary in size, while the
+                                                                                                                    OS can only track memory accesses at page granularity. To
+                           • A new object-level working set estimator, which sep-
+                                                                                                                    understand the impact of object-level accesses on page-sized
+                             arates garbage collector (GC) and app accesses, and
+                                                                                                                    access tracking, we measured the size of objects in popular
+                             avoids false sharing with object-level access tracking.
+                                                                                                                    apps. Figure 1 shows a CDF of the size distribution. Most ob-
+                           • A new bookmarking garbage collector [20], which tracks                                 jects are not page-sized (e.g., up to 40% of objects are smaller
+                             exact liveness data without accessing swapped-out ob-                                  than 4KB), so the OS cannot accurately track their usage.
+                             jects.
+                                                                                                                       Without good insight into app memory usage, today’s mo-
+We implement a prototype of Marvin by modifying the inter-                                                          bile OSes allocate all apps a fixed memory budget. On An-
+preter and compiler of the Android Runtime (ART). Experi-                                                           droid, this memory limit is the same whether an app is in the
+ments show that our Marvin prototype is able to run more than                                                       foreground or background. Android attempts to minimize the
+2x as many concurrent apps as Android, and that Marvin can                                                          memory footprint of apps using techniques such as forking
+reclaim memory over 60x faster than Android with a Linux                                                            all apps from a single “zygote” process with copy-on-write
+swap file can allocate memory under memory pressure.                                                                pages. These techniques reduce duplication of framework
+                                                                                                                    data structures and shared libraries but do not impact appli-
+                                                                                                                    cation objects in the Java heap. Using Marvin’s object-level
+2                            Limitations of Modern Mobile                                                           working set estimator, we measured the working set of popu-
+                             OS Memory Resource Management                                                          lar apps. Figure 2 shows that although the heap footprint of
+                                                                                                                    these apps is large, their working sets actually account for a
+Although mobile OSes may be based on traditional OSes (e.g.,                                                        small fraction of their total heap size. This rarely accessed
+Android and Linux), they diverge in two important ways:                                                             memory would be better utilized keeping other apps alive,
+(1) for each app, they bound memory usage to a fraction                                                             rather than wasting space not being used.
+of physical memory (e.g., 512MB on a 4GB device), rather
+than letting apps allocate as much memory as they need, and                                                            Popular apps often have large memory footprints but small
+(2) they kill applications when physical memory runs out                                                            working set sizes because they cache as much as possible
+rather than overcommitting memory through paging or other                                                           from the cloud. This caching improves performance, but it
+mechanisms. To motivate our work, we ran experiments with                                                           leads to poor memory utilization, and choosing the correct
+popular apps that show the reasoning and cost for these design                                                      cache parameters is difficult [30]. Worse, modern applications
+decisions. We ran all experiments on a Pixel XL phone with                                                          frequently exceed their memory budgets. Coping with this
+4GB RAM and a quad-core Qualcomm Snapdragon 821 CPU.                                                                problem requires apps to implement manual swap-to-storage,
+                                                                                                                    which adds significant programming complexity [10, 11].
+2.1                               Fixed Memory Allocation                                                           While caching libraries like Glide [5] and Fresco [34] are
+                                                                                                                    helpful, they do not apply to all memory objects. Therefore,
+Mobile OSes have poor insight into app memory usage. The                                                            today’s apps use a complex combination of libraries and man-
+runtime garbage collector regularly touches all objects and                                                         ually shuffling data between memory and disk.
+
+
+
+874                               2020 USENIX Annual Technical Conference                                                                                                                           USENIX Association
+Memory allocated (MB)
+
+
+
+
+                                                                              App switch time (s)
+                        500                                                                         12
+                        400
+                                                                                                                                                           App startup time
+                                                                                                    8                                                      Disk read time
+                        300
+                        200                         Memory pressure                                 4
+                        100                         No pressure
+                                                                                                    0
+                         0
+
+
+
+
+                                                                                                               e
+
+
+                                                                                                                        ga
+
+
+
+                                                                                                                                    s
+
+
+                                                                                                                                               am
+
+
+
+                                                                                                                                                          t
+
+
+                                                                                                                                                                   ify
+
+
+                                                                                                                                                                                          er
+
+
+                                                                                                                                                                                          st
+                               0     2000    4000       6000          8000
+
+
+
+
+                                                                                                                                                        es
+                                                                                                                                   ap
+                                                                                                             or
+
+
+
+
+                                                                                                                                                                                      Po
+                                                                                                                                                                                      itt
+                                                                                                                                                               ot
+                                                                                                                       Sa
+
+
+
+
+                                                                                                                                                      er
+                                                                                                                                             gr
+                                                                                                         St
+
+
+
+
+                                                                                                                               M
+
+
+
+
+                                                                                                                                                                                   Tw
+                                                                                                                                                              Sp
+                                            Time (ms)
+
+
+
+
+                                                                                                                                                      nt
+
+
+
+
+                                                                                                                                                                                    n
+                                                                                                                                            a
+                                                                                                                   sh
+                                                                                                         p
+
+
+
+
+                                                                                                                               e
+
+
+
+
+                                                                                                                                                                                 to
+                                                                                                                                         st
+
+
+                                                                                                                                                    Pi
+                                                                                                    Ap
+
+
+
+
+                                                                                                                             gl
+
+
+                                                                                                                                        In
+
+
+
+
+                                                                                                                                                                              ng
+                                                                                                                  ru
+
+
+                                                                                                                         oo
+                                                                                                              C
+                                                                                on
+
+
+
+
+                                                                                                                                                                            hi
+                                                                                                                        G
+
+
+
+
+                                                                                                                                                                          as
+                                                                                                             dy
+                                                                              az
+Figure 3: Progress over time of a memory allocation on An-
+
+
+
+
+                                                                                                                                                                         W
+                                                                                                         an
+                                                                             Am
+
+
+                                                                                                         C
+droid with a swap file and memory pressure vs. no memory
+pressure.                                                                    Figure 4: The cost of re-starting apps compared to reading
+                                                                             their memory image from disk.
+
+
+2.2                           No Memory Overcommit                           3                      Our Approach
+                                                                             The primary barrier to improving memory resource manage-
+Today’s mobile OSes kill applications rather than swapping
+                                                                             ment in mobile operating systems is the OS’s lack of insight
+to disk when physical memory runs out. They take this ap-
+                                                                             into the language runtime. To overcome this barrier, we co-
+proach because mobile apps must respond to user input within
+                                                                             designed the language runtime and the mobile OS. Mobile
+hundreds of milliseconds, so traditional swap mechanisms,
+                                                                             operating systems are uniquely suited to such co-design be-
+which place synchronous disk writes on the critical path, im-
+                                                                             cause, unlike their desktop counterparts (e.g., Linux), they
+pose too much latency. To measure the effect of swapping
+                                                                             force all applications to use the same language runtime.
+on memory allocation, we enabled a Linux swap file on our
+                                                                                Marvin’s design focuses on Android (and the Android
+Android test device [35], and we measured the amount of time
+                                                                             Runtime (ART)), which is now the most popular OS in the
+required to allocate 512MB when the Android OS had free
+                                                                             world [25]. Using the language runtime, Marvin manages
+memory and when it had a swap file and memory pressure.
+                                                                             memory entirely at object granularity, tracking, reclaiming
+Figure 3 shows the progress of the memory allocation over
+                                                                             and faulting in entire objects. This section describes in more
+time. With memory available, the OS allocated all 512MB
+                                                                             detail the barriers to better memory resource management in
+in 450ms; however, with a swap file and memory pressure, it
+                                                                             a mobile OS and how Marvin addresses those challenges.
+took almost 8 seconds for the OS to allocate the same amount.
+Such high allocation latency would be unacceptable if an app
+were allocating memory in response to user input.                            3.1                         Object-Level Working Set Estimation
+   Unfortunately, killing and restarting apps comes at a cost.               The first step to better memory resource management is a
+As shown in Figure 2, modern apps have large memory foot-                    better understanding of each application’s working set. Thus,
+prints, and a restarted app must fetch all of its cached data                Marvin implements language-aware working set estimation
+from the network or disk. We measured the amount of time                     in the language runtime, which tracks app reads and writes
+needed to restart popular apps and compared it to that needed                at object granularity. Marvin uses this mechanism to identify
+to fetch their entire checkpointed memory image from disk.                   candidates for ahead-of-time swap (Section 3.2) and separate
+As shown in Figure 4, restarting apps takes 4-27x longer than                garbage collector accesses from app accesses (Section 3.3).
+fetching the all of the app’s memory from disk.                              Lacking hardware access bits to help with this tracking, Mar-
+   The ability to kill and restart apps at any time also imposes             vin implements software access tracking in both the ART in-
+a programming burden on app developers. Modern OSes give                     terpreter and compiler, as modern mobile language runtimes
+apps a limited time budget to perform cleanup before being                   run both interpreted and compiled code.
+killed. This limit leads apps to constantly write state to stor-
+age; in fact, Android encourages it [9]. Such constant check-                3.2                         Ahead-of-time Swap
+pointing in response to app lifecycle events adds program-
+ming complexity, a challenge described in prior work [14].                   As noted, swapping to disk when the OS needs memory is not
+Not only do app developers have to manage the checkpointing                  feasible for mobile OSes and their touch-based apps. Marvin
+process, they have to correctly use a variety of mechanisms to               takes a different approach. While traditional swapping mech-
+do so with good performance [12]. The programming effort                     anisms write to disk when memory is needed, Marvin uses
+required to prepare for unexpected app deaths is an additional               a new ahead-of-time swap technique. This technique saves
+cost that app developers must pay.                                           memory to disk before it is needed and then reclaims those
+
+
+
+USENIX Association                                                                                            2020 USENIX Annual Technical Conference                                     875
+pages under memory pressure. Ahead-of-time swap separates         While the last two goals are common to all memory man-
+swapping to disk from reclaiming memory; thus, we distin-         agement systems, existing mobile platforms sacrifice high
+guish between saved objects, which have been copied to disk       memory utilization for fast memory allocation. Marvin aims
+but still reside in memory, and reclaimed objects, which no       to achieve all of these goals.
+longer reside in memory but are only on disk.
+   Swapping objects before they are needed leaves a large
+pool of clean memory that the OS can quickly reclaim and
+                                                                  4.2    Marvin System Model
+reallocate. While this technique lets apps continue using mem-
+ory until the OS reclaims it, whenever the app dirties a page,    Marvin assumes a systems environment that meets three re-
+the swap mechanism must update the on-disk copy before the        quirements: (1) all apps are written in a single managed
+OS can reclaim it. Due to this trade-off, Marvin prioritizes      language (e.g., Java), (2) all apps run in a single managed
+swapping objects that are infrequently or never written.          language runtime (e.g., ART), and (3) the runtime performs
+                                                                  garbage collection or some form of automatic memory man-
+3.3     Bookmarking Garbage Collector                             agement. Marvin’s design targets Android, which meets all
+                                                                  of these requirements. Android also runs some libraries us-
+Like traditional swapping, ahead-of-time swapping is affected     ing native code; however, Marvin is not needed to manage
+by friction with the language-level garbage collector. As noted   their memory because they do not have the same issues with
+by Hertz et al. [20], the garbage collector can inadvertently     OS-level memory management as managed languages.
+page in memory when walking the object heap to look for              Marvin’s optimizations could apply to other operating sys-
+unused objects. With ahead-of-time swapping, the garbage          tems as well (e.g., iOS). For example, Swift uses automatic
+collector can also inadvertently dirty pages when updating        reference counting as an alternative to garbage collection, so
+references, causing unnecessary writes to disk. Marvin solves     it would require a bookmarking reference counter that can
+this problem by integrating a modified bookmarking garbage        track references without faulting in the entire object.
+collector [20] into the Android Runtime.
+                                                                     Marvin runs unmodified Android apps on ARM64-based
+   Marvin’s swap mechanism leaves stubs – analogous to
+                                                                  devices. Android distributes apps in a bytecode format called
+bookmarks – for each reclaimed object that detail the objects’
+                                                                  DEX. ART runs DEX bytecode directly in an interpreter
+references to other objects. Using these stubs, its garbage
+                                                                  and also compiles DEX to native ARM64 instructions both
+collector can process a reclaimed object during a mark-and-
+                                                                  at install time (ahead-of-time, or AOT, compilation) and at
+sweep run without faulting in the entire swapped object. Mar-
+                                                                  runtime (just-in-time, or JIT, compilation). Marvin modifies
+vin’s swap mechanism can further optimize swapping from
+                                                                  both the interpreter and compiler.
+disk by dropping dead objects without faulting them in.
+
+
+4     Marvin Overview                                             4.3    Marvin Architecture
+Marvin is a new mobile memory manager that supports flexi-        Marvin has two key components: (1) the Marvin Kernel (MK),
+ble memory allocation between apps and memory overcom-            a modified Android/Linux kernel, and (2) the Marvin Runtime
+mit through swapping. Marvin includes components in the           (MRT), a modified ART. Most memory management occurs
+language runtime and OS, which are co-designed to provide         in MRT; it performs working set estimation, ahead-of-time
+better memory management. This section overviews both.            swapping, and bookmarking garbage collection. MK’s sole
+                                                                  responsibility is to balance memory allocation among apps
+4.1     Design Goals                                              by deciding when and from which app to reclaim memory.
+                                                                     Marvin performs working set estimation and swapping
+Marvin’s design meets the following goals:                        at object granularity; however, there is no CPU support for
+    1. Fast memory allocation. Marvin must allocate mem-          object-level access bits and memory faults. As a result, Mar-
+       ory quickly on-demand, avoiding disk accesses on the       vin implements software object access tracking and faulting
+       critical path for memory allocation.                       in the MRT interpreter and compiler. The interpreter marks
+                                                                  access bits and checks for swapped-out objects as it runs DEX
+    2. High memory utilization. Marvin must provide the il-       bytecode; the compiler inserts that functionality as additional
+       lusion of unlimited memory, provided working sets do       ARM64 instructions. Marvin reserves four bytes in each ob-
+       not exceed the size of physical memory.                    ject header and uses them to store swapping metadata and
+                                                                  access bits. Implementing these features in software imposes
+    3. Minimal overhead. Marvin must impose low runtime           overhead, which we quantify in Section 8. Hardware improve-
+       overhead and require no app code changes.                  ments in future mobile devices could reduce this overhead.
+
+
+
+876     2020 USENIX Annual Technical Conference                                                            USENIX Association
+                            Access page                                        Need memory                   Access page
+      Traditional
+       swapping
+                            Set WSE bits             Scan WSE bits            Swap out              Swap in
+                                                                      Move to                                 Move to
+                    Access object                                    background   Need memory Access object foreground
+         Marvin
+       swapping
+                     Set WSE bits    Scan WSE bits Save objects      Create stubs         Reclaim          Swap in        Swap in
+                                      (during GC)
+    Object state                           In Memory                          Reclaimable        Reclaimed           Reclaimable
+
+
+Figure 5: A timeline of actions performed by Marvin’s swap mechanism as compared to traditional (e.g., Linux) swap mechanisms.
+Events are listed above the timeline while Marvin’s actions in response are listed below.
+
+
+4.4    Marvin Memory Management Timeline                             the Android Runtime are direct pointers to the heap memory
+                                                                     holding the referenced object. This design requires Marvin
+Objects managed by Marvin move through several states over           to inject a layer of indirection to implement features like soft-
+time, driven by app behavior and app lifecycle events. Figure 5      ware object faulting and the bookmarking garbage collector.
+illustrates these events and states and compares Marvin’s            Marvin creates this layer of indirection using special objects,
+swapping to a traditional swap mechanism. When an app                called stubs. Each stub contains a pointer to its underlying
+first starts, MRT begins tracking its working set. It identifies     object along with a copy of each reference held by the object.
+objects that are suited for swapping by examining whether            All references to an object point instead to its stub, and only
+they are cold (have not been read or written recently by the         the stub holds a pointer to its underlying object. Accessing an
+app). MRT begins saving checkpoints of those objects to              object through a stub adds overhead, so Marvin creates stubs
+disk in the background. We refer to an object with a saved           only for objects that are cold and at least 2KB in size.
+checkpoint as a saved object.                                           When creating a stub for an object, Marvin moves the
+   When the app moves from foreground to background, MRT             object to a separate page-aligned region of memory and then
+pauses app threads and creates stubs, small proxy objects that       redirects all references to the object to point to its stub instead.
+add a layer of indirection over swap candidate objects. Stubs        These tasks require that all app threads be paused. Therefore,
+ensure that Marvin can intercept accesses to objects and fault       they can be performed more efficiently if Marvin can create
+them back in, if necessary. Once MRT creates a stub for              stubs for many objects at once, using a single scan of the
+an object, that object becomes reclaimable; the object is still      heap to redirect all affected references. As a result, Marvin
+memory-resident, but MK can reclaim its memory at any time.          periodically executes a heap task that pauses all app threads
+When MK reclaims an object, it enters the reclaimed state;           and creates stubs, and it executes this heap task only when the
+only the object’s stub remains in memory, and the object’s           app is in the background and its threads can be safely paused.
+checkpoint will need to be faulted back into memory before           Stubs are only created once for each object, so the cost is low,
+the object can be accessed again. The garbage collector uses         especially because Marvin does not restart apps frequently.
+only the stub and need not fault the object back into memory.
+
+                                                                     5.2    Reclamation Table for OS-Runtime Coor-
+5     Marvin Core Mechanisms                                                dination
+As noted in Section 3, Marvin’s key features are ahead-of-time       Modern mobile platforms have multicore processors that let
+swap, language-aware working set estimation, and bookmark-           system services run concurrently with apps. In this environ-
+ing garbage collection. Designing these features required            ment, the OS should be able to reclaim memory quickly from
+addressing three challenges: adding a layer of indirection for       a running app without scheduling the app’s threads for execu-
+object references, coordinating between the OS and runtime,          tion. However, the OS cannot simply seize memory from an
+and interposing on object accesses. This section describes           app whose threads are not scheduled—a pointer to the mem-
+Marvin’s mechanisms for addressing these challenges.                 ory in question may be present in an app thread’s stack or
+                                                                     registers, waiting to be used as soon as the thread is scheduled
+5.1    Stubs for Object Reference Indirection                        once again. As a result, the OS and runtime need a way to
+                                                                     coordinate concurrent accesses to objects so the OS does not
+According to the Java language specification, object refer-          try to reclaim one that the runtime is accessing.
+ences are opaque. However, in practice, object references in            Marvin uses a shared-memory reclamation table to provide
+
+
+
+USENIX Association                                                             2020 USENIX Annual Technical Conference              877
+this coordination. MRT populates the table with reclaimable           Setting access bits. MRT uses object access interposition
+objects, and MK uses it to identify memory to reclaim. Each           to set an object’s read and write bits whenever that object is
+reclamation table entry is a small, fixed-size data structure that    read or written from either interpreted or compiled code. It
+holds the address of an object, its size, a set of flags indicating   avoids including garbage collector reads in its working set
+whether the object is memory-resident and the entry is valid,         estimation by setting a flag in the object header when the
+and a set of bits used for locking by the runtime and OS. To          garbage collector is visiting an object and leaving the read bit
+reclaim an object, MK first acquires an exclusive lock on the         untouched if that flag is set.
+object’s reclamation table entry. Similarly, whenever an app             Access tracking in MRT is performed on a best-effort basis
+thread prepares to access an object, MRT acquires a shared            to minimize its overhead: MRT uses non-atomic operations
+lock on the reclamation table entry.                                  with relaxed memory ordering semantics when setting read
+   The reclamation table is necessary because it provides an          and write bits. As a result, concurrent reads and writes to the
+agreed-upon location that MK can quickly scan to identify             same object could result in a lost update to one of the access
+reclaimable objects. If the metadata in the reclamation table         bits. An update to the read bit could also be lost if an app
+were instead stored inside the stubs themselves, then MK              thread reads an object that the garbage collector is processing.
+would need to scan MRT’s entire Java heap to identify re-             These optimizations may decrease swapping performance if
+claimable objects, and stub headers would need to contain a           the estimated and actual working sets differ significantly, but
+magic number or provide some other way for the kernel to              they do not affect correctness.
+recognize them.
+                                                                      Scanning access bits. MRT periodically walks the heap
+5.3    Object Access Interposition                                    and uses the Clock algorithm [8] to track each object’s long-
+                                                                      term usage. Each object header holds two four-bit shift regis-
+All of Marvin’s features require the runtime to interpose and         ters, one for reads and the other for writes. The time between
+perform specific tasks whenever an app accesses an object.            heap walks constitutes an access-tracking “round,” and each
+On every object access, MRT must set read and write bits              shift register tracks whether the object was read or written in
+for working set estimation; check for the presence of a stub          the last four rounds. During a heap walk, MRT updates an
+and redirect the object access through the stub if necessary;         object’s shift registers and then clears the object’s access bits.
+and fault in the object if it has been reclaimed. It must also           MRT piggybacks off of garbage collection to scan access
+set a dirty bit whenever an object is modified so the ahead-          bits, since GC requires walking the heap anyways. Some of
+of-time swap mechanism knows which objects need to be                 ART’s GCs only walk subsets of the heap, so MRT limits its
+saved, and it must update stubs whenever reference member             access bit scanning to full-heap collections. It also periodi-
+variables in their corresponding objects change to support the        cally invokes GC to ensure up-to-date working set estimates
+bookmarking garbage collector.                                        in the absence of app activity.
+   Android apps execute both as DEX bytecode running in an
+interpreter and as compiled native code running directly on the       Producing the working set. As MRT walks the heap and
+hardware, and Marvin must interpose on all object accesses            scans access bits, it tabulates the app’s working set. Our cur-
+in both kinds of code. As a result, Marvin features a set of          rent MRT implementation considers an object part of the
+paired interpreter and compiler modifications that add the            working set if it has been written within the last four access-
+required object access interposition. For each additional task        tracking rounds. The precise policy is an implementation
+performed by the interpreter when it accesses an object, there        detail that can be easily changed.
+is a corresponding change to the compiler, adding assembly
+instructions performing the same task to compiled code.
+                                                                      6.2    Ahead-of-Time Swapping
+6     Marvin Memory Management                                        In Marvin’s ahead-of-time swap mechanism, MK reclaims ob-
+                                                                      jects and decides which apps to target for reclamation. MRT
+This section describes how we use Marvin’s mechanisms                 performs all other functions, including saving object check-
+(stubs, the reclamation table, and object access interposition)       points to disk, restoring reclaimed objects, and preventing the
+to design the features that make up Marvin’s memory man-              operating system from reclaiming objects in use by app code.
+agement system.
+                                                                      Saving objects to disk. MRT identifies suitable objects for
+                                                                      swapping (i.e., cold objects) using its working set estimation
+6.1    Working Set Estimation
+                                                                      feature, and it proactively saves checkpoints of them to a swap
+MRT performs object-granularity working set estimation by             file on disk so they can be reclaimed quickly under memory
+maintaining two access bits in each object header, a read bit         pressure. MRT saves objects to disk in a periodic heap task
+and a write bit, and scanning those access bits.                      that runs on a background thread concurrently with app code.
+
+
+
+878    2020 USENIX Annual Technical Conference                                                                   USENIX Association
+   After app code modifies an object, MRT must save an up-          objects first, trading off a shorter pause time in exchange for
+dated copy of that object to disk. It does not need to save the     the risk of user-perceptible stuttering.
+updated copy immediately as long as it prevents the kernel             If an object has not been eagerly restored, MRT restores
+from reclaiming the object while it is “dirty.” To do so, MRT       it on-demand when app code accesses it, a process that we
+maintains a dirty bit in the object header. It uses object access   call software object faulting. Whenever app code accesses a
+interposition to set this dirty bit whenever app code writes to     reclaimable object, MRT uses object access interposition to
+an object, and its object-saving heap task clears this dirty bit    check if the object is memory-resident by inspecting a bit in
+when saving the object to disk. MK checks dirty bits when           its reclamation table entry. If not, MRT executes an object
+looking for objects to reclaim and avoids reclaiming dirty          fault handler that calls into its C++ object restoration function.
+objects. MRT and MK use strong memory-ordering seman-
+tics when reading and writing the dirty bit to ensure that no
+modifications to objects are lost.                                  6.3    Bookmarking Garbage Collector
+   MRT begins saving swap candidate objects to disk even be-
+                                                                    A tracing garbage collector touches every object in the heap
+fore those objects have had stubs created for them. Once MRT
+                                                                    (or a subset of the heap), causing live objects to be swapped
+creates a batch of stubs, those objects become immediately
+                                                                    back into memory even if app code is not using them. Mar-
+reclaimable without requiring further disk I/O.
+                                                                    vin’s garbage collector avoids touching reclaimed objects by
+                                                                    storing an object’s references inside its stub and using the
+Reclaiming objects. MK selects apps to target for recla-            stub during the mark phase of garbage collection. Stubs play
+mation and reclaims objects from the MRT instances corre-           a similar role as bookmarks in the bookmarking collector [20].
+sponding to those apps. It never targets the foreground app, in        During the mark phase, the garbage collector maintains a
+order to avoid any swapping delays on the foreground app’s          mark stack and repeatedly pops an object from the mark stack,
+user interface (UI) thread. After selecting an MRT instance to      marks all its references, and pushes those references onto the
+target, MK scans the MRT instance’s reclamation table until         mark stack. Marvin’s garbage collector checks whether an
+it finds an entry for an object that is neither dirty nor locked    object is a stub when it pops the object from the mark stack;
+by the runtime. MK then locks that entry and reclaims the ob-       if so, it reads the references off the stub instead of accessing
+ject’s pages. It continues scanning the reclamation table and       the underlying object.
+reclaiming objects until it has harvested the desired amount           For the garbage collector to use stubs in place of their ob-
+of memory from the MRT instance.                                    jects, MRT must ensure that the stub of a memory-resident
+    Each MRT instance ensures that MK does not reclaim              object has up-to-date copies of the object’s references. It uses
+an object currently being accessed by its app code. To do           object access interposition to update the stub of a reclaimable
+so, it uses object access interposition to detect whenever a        object whenever Java code modifies one of the object’s refer-
+reclaimable object is being read or written, and it locks the       ence member variables.
+object’s reclamation table entry before the access and unlocks         MRT must also properly clean up after any saved objects
+its entry after the access.                                         that are freed by the garbage collector. MRT records when
+                                                                    saved objects have been freed by the garbage collector, and
+                                                                    when the fraction of the swap file consisting of freed objects
+Restoring objects. MRT restores reclaimed objects either
+                                                                    passes a set threshold (25% in our implementation), it com-
+eagerly or on-demand. Either way, whenever MRT restores an
+                                                                    pacts the swap file in a heap task. MRT also cleans up after
+object, it locks the object’s reclamation table entry, copies the
+                                                                    reclaimable and reclaimed objects by checking whether an ob-
+saved checkpoint data of the object into memory, and copies
+                                                                    ject being freed is a stub; if so, it deletes the reclamation table
+any modified references from the object’s stub into the object
+                                                                    entry corresponding to the stub. If an object is reclaimable,
+itself. This last step is necessary because references in the
+                                                                    MRT deletes the memory-resident copy of the underlying
+stub may have been modified by the garbage collector while
+                                                                    object; if the object is reclaimed, MRT simply marks its copy
+the object was not memory-resident.
+                                                                    in the swap file for deletion without needing to fault it in.
+   Marvin’s eager object restoration uses app lifecycle infor-
+mation to restore objects before app code needs them. We
+implemented a simple eager restoration policy, where an MRT         6.4    Design Tradeoffs and Alternatives
+instance restores all reclaimed objects when it transitions to
+the foreground. This policy increases the transition delay in       By tracking working sets and faulting in objects in software
+exchange for a guarantee that no swapping delays will block         at the runtime level, Marvin achieves a clean design, albeit
+the foreground app’s UI thread. Our design is flexible and          with some drawbacks. First, Marvin cannot reclaim objects
+could support more advanced policies; for instance, the run-        accessed by native libraries: native libraries have no way to
+time could predict which objects are likely to be touched           detect stubs and no recourse for faulting in reclaimed objects.
+immediately after a foreground transition and restore those         Second, software working set estimation and object faulting
+
+
+
+USENIX Association                                                            2020 USENIX Annual Technical Conference             879
+add overhead, particularly to compiled code. We evaluate this      7.1    Object Access Interposition
+overhead in Section 8.
+   Marvin moves almost all memory management into the              We implemented MRT’s object access interposition by adding
+runtime because we believe that the runtime’s better access        specialized functionality to the ART interpreter and compiler.
+to information about app behavior makes it better suited for       This lets MRT interpose on object accesses from both DEX
+managing memory. The functionality remaining in the kernel         bytecode running in the interpreter and compiled OAT code
+is the minimum required by existing Linux kernel design; if        running natively. The following section describes in detail
+Marvin was built on top of an exokernel [13, 23], it could         how we modified each component.
+move even more functionality into the runtime. A variety of
+other designs are possible that split functionality between the    MRT interpreter. The ART interpreter internally repre-
+runtime and kernel in different ways.                              sents each Java object as a C++ mirror object, which it manip-
+   Kernel-level working set estimation would reduce the over-      ulates when executing DEX bytecode instructions that read or
+head of accessing objects, but it would suffer from false shar-    write an object. The mirror object’s type definition includes
+ing if an app’s working set is mixed with unused objects across    methods to read or write the data at a given offset within the
+4KB pages. Faulting in memory at the kernel level would sim-       object’s memory footprint, and the interpreter code calls these
+ilarly reduce object access overhead but would require more        methods when executing DEX instructions. To add object
+extensive re-design of the runtime garbage collector to avoid      access interposition to the interpreter, we modified the mirror
+unnecessary swapping activity. By tying the granularity of         object methods to implement Marvin’s features.
+memory management to the size of pages, kernel-level mem-             For example, to redirect object accesses through stubs and
+ory management will also become inflexible as large pages          perform on-demand object faulting, we added a preamble
+become more common and the disparity between object sizes          macro to each mirror object method. The preamble first
+and page sizes widens. In any case, kernel-level memory            checks if the object is actually a stub. If so, it casts the this
+management would require some sort of ahead-of-time swap           pointer to a stub, calls a method that locks the stub’s reclama-
+mechanism to satisfy the latency requirements of modern            tion table entry (RTE), checks the RTE’s resident bit, and if
+mobile platforms (Figure 3), and even adding ahead-of-time         the resident bit is cleared, calls a method to fault in the object
+swap to the Linux kernel would require significant effort.         from disk. The preamble then gets the address of the underly-
+   Marvin’s garbage collector is different from the original       ing object from the RTE and invokes the mirror object method
+bookmarking collector [20] in that it maintains exact reacha-      on the underlying object. Finally, the preamble unlocks the
+bility information with stubs rather than conservatively stor-     RTE and returns the result of the mirror object method, if any.
+ing approximate reachability information. The latter approach         ART contains multiple interpreter implementations, and
+requires the garbage collector to perform less work when           the default is the “mterp interpreter,” an interpreter written
+evicting pages and scanning the heap, but it can result in the     in assembly. When the mterp interpreter executes DEX in-
+heap being needlessly occupied with dead objects.                  structions that read or write an array, it directly accesses the
+                                                                   array’s memory, bypassing the mirror object methods. To al-
+                                                                   low Marvin to interpose on array accesses, we instead use the
+7     Marvin Prototype
+                                                                   “switch interpreter,” an interpreter written in C++ that calls
+We implemented a prototype of MRT by modifying ART on              the mirror object methods when executing array accesses.
+Android 7.1.1 (which includes Linux 3.18.31). Our implemen-
+tation includes a modified version of ART’s ARM64 compiler,        MRT compiler. Java code in Android framework libraries
+allowing our prototype to support Android devices with 64-bit      and portions of app Java code execute as native code, which
+ARM processors. Our changes to the ART codebase resulted           is compiled by the ART compiler either statically after instal-
+in 3475 additional lines of code [38].                             lation or dynamically with just-in-time (JIT) compilation. We
+   In addition to modifying ART, we made a small modifica-         added object access interposition to this compiled code by
+tion to the version of OpenJDK included with Android 7.1.1,        modifying the compiler’s assembler to generate additional
+namely, we added fields to the Object class definition to mirror   assembly instructions that implement Marvin’s features when
+the bytes added to the object header in ART. We also changed       it performs code generation for object accesses. We used
+a source file in the Android framework (ProcessList.java)          ARM64 devices for testing and evaluation, so we added sup-
+to increase a hard-coded limit on the number of concurrently       port for object access interposition to the ARM64 assembler.
+running apps since Marvin is able to run more.                        Each operation described above for the interpreter’s imple-
+   Our experiments require us to manually trigger reclamation,     mentation of stub redirection and object faulting has a corre-
+so we did not implement automated reclamation in the MK.           sponding block of ARM64 instructions in compiled code. The
+However, our MRT implementation includes the reclamation           main difference is that when a stub is detected, the compiled
+table and performs all operations required to support kernel       code must explicitly overwrite the register holding the stub’s
+memory reclamation.                                                address with the address of the underlying “real object;” it
+
+
+
+880    2020 USENIX Annual Technical Conference                                                                USENIX Association
+                                                                    RSS (MB above baseline)
+then loads the stub’s address back into that register when it
+                                                                                              500
+is done with the object. In the common case, when an object
+                                                                                              400
+is not a stub (or when it is, but its underlying “real object” is                                                                        Working set
+                                                                                              300
+memory-resident), execution branches past many of the added                                                                                 0MB
+                                                                                              200                                           100MB
+object-faulting instructions.                                                                                                               250MB
+                                                                                              100
+                                                                                               0
+                                                                                                      −200      0       200     400
+7.2    Limitations and Potential Optimizations                                                                   Time (ms)
+
+Our MRT implementation is a research prototype and has              Figure 6: Memory usage as Marvin reclaims memory from a
+some limitations as a result. One is instability when reclaim-      benchmark app with different working set sizes.
+ing objects from black-box commercial apps. When running
+apps that we create in Android Studio, MRT reliably and
+consistently reclaims and restores objects, but when running        8.1                             Evaluation Setup
+commercial apps with stub creation and reclamation enabled,
+                                                                    We ran our experiments on a Google Pixel XL smartphone
+it tends to crash. MRT’s object access interposition works
+                                                                    with 4GB RAM and a quad-core Qualcomm Snapdragon 821
+correctly with commercial apps, so by disabling stub creation
+                                                                    CPU. The smartphone ran either the open-source release of
+and reclamation, we can test its overhead and collect working
+                                                                    Android 7.1.1 (AOSP tag android-7.1.1_r57) or our Marvin
+set data. Our MRT prototype also does not support reclaiming
+                                                                    implementation based on that release. Both our Marvin imple-
+objects with live JNI global references or directly accessing a
+                                                                    mentation and our baseline Android build included a change
+reclaimable array’s memory through JNI.
+                                                                    to the Android framework to increase a hard-coded cap on
+   Our implementation of object access interposition in the         the number of concurrently running apps.
+MRT compiler is unoptimized, and the per-object-access over-
+                                                                       Our experiments used a mix of synthetic apps for bench-
+head of compiled code could be reduced with deeper compiler
+                                                                    marking and real-world apps. We built several synthetic work-
+integration. We modified the ARM64 assembler, which trans-
+                                                                    loads that simulate various memory footprints and working set
+lates intermediate representation (IR) instructions to ARM64
+                                                                    sizes to measure their effect on Marvin compared to Android.
+binary code. Our implementation generates ARM64 instruc-
+                                                                    We also used PCMark for Android, a commercial benchmark
+tions performing object access interposition for every IR in-
+                                                                    app based on real-world apps, to measure Marvin’s overhead
+struction that reads or writes an object, even though many
+                                                                    on real apps [3]. We chose two benchmarks from the test suite
+of those instructions only need to execute when the object’s
+                                                                    (Writing 2.0 and Data Manipulation) since the remaining
+register allocation begins or ends. An optimized version of the
+                                                                    three test the performance of native libraries.
+compiler, with modifications at the IR level, could decrease
+both the execution and size overhead of compiled code.
+   The MRT compiler has other areas for optimization. For           8.2                             Memory Reclamation
+instance, we noticed situations where ARM64 parameter reg-
+isters (x0–x7 and d0–d7) appear to be live but are not re-          Marvin must be able to quickly reclaim memory from run-
+ported as such by the ART compiler’s LocationSummary                ning apps when a new or existing app needs to allocate large
+class; therefore, we conservatively save all parameter regis-       amounts of memory. Its ahead-of-time swap mechanism en-
+ters to the stack when performing a procedure call. Saving          sures that each MRT instance has a pool of clean memory that
+only live parameter registers would further reduce code size        can be quickly reclaimed without swapping to disk. In this
+overhead. In addition, the ARM64 assembler makes a max-             section, we measure the latency of reclaiming memory for
+imum of two scratch registers available at any time, which          apps with different working set sizes. Reclamation latency de-
+required us to save backpointers and add more instructions to       pends on the app’s working set size since Marvin can reclaim
+juggle required state among the limited available registers.        more memory from apps with smaller working set sizes.
+                                                                       For our prototype, we use madvise to return memory from
+                                                                    MRT to the kernel. This design lets us trigger reclamation
+                                                                    rather than waiting for memory pressure. Our MRT prototype
+8     Evaluation                                                    reclaims memory when an app transitions to the background
+                                                                    and then periodically while it is in the background.
+Our evaluation demonstrated that Marvin successfully met               Figure 6 shows memory usage over time for apps with a
+its design goals. It could: (1) quickly reclaim memory on-          500MB heap and differing working set sizes. RSS values
+demand; (2) maintain high memory utilization by sharing             shown are relative to the RSS reported for a minimal Android
+memory among apps rather than killing them; and (3) achieve         app with a single empty Activity (approx. 80MB). At time
+the previous two goals with low overhead and no app changes.        0ms, MRT begins to return memory from the app to the OS.
+
+
+
+USENIX Association                                                                                    2020 USENIX Annual Technical Conference   881
+                  30                                5
+                                                                                       4000
+Num active apps
+
+
+
+
+                                                    4   Android            1           3000
+
+
+
+
+                                                                               Score
+                  20                                    Android+swap (4KB) 2
+                                  3                     Android+swap (mix) 3           2000
+                                                                                                                                     Android
+                  10                                    Marvin (4KB)       4                                                         Marvin
+                                                    1   Marvin (mix)                   1000
+                                                                           5
+                  0                          2                                            0
+                       0    10000   20000   30000                                             Data Manipulation   Writing 2.0
+                                Time (s)
+                                                                                                         Benchmark
+
+Figure 7: Count of active benchmark app instances over time.                            Figure 8: PCMark for Android benchmark results.
+Marvin runs more than twice as many apps as regular Android
+before needing to kill any apps; on Android with a swap file,
+most apps are alive but inactive due to constant swapping                      runs of Android with a swap file consistently ended early due
+activity.                                                                      to the device crashing.
+                                                                                  Marvin made better use of device memory because it re-
+                                                                               claimed unused memory from apps and used its bookmark-
+Marvin returned 250MB of memory in 52ms and 500MB                              ing garbage collector to avoid touching that unused memory
+of memory in 108ms. In comparison, as shown in Figure 3,                       when running garbage collection. While Android only ran 10
+Android with a Linux swap file took nearly 8 seconds to                        apps concurrently, and Android with a swap file only briefly
+free and allocate 500MB of memory under memory pressure.                       reached a maximum of 13 concurrent apps (4KB arrays) or
+Using ahead-of-time swap let Marvin reclaim memory over                        20 apps (4KB/1MB mix), Marvin ran 27 apps (4KB arrays)
+60x faster than Android with Linux swap could allocate the                     or 30 apps (4KB/1MB mix) concurrently. Marvin’s memory
+same amount of memory, allowing Marvin to meet the strict                      reclamation and bookmarking garbage collector let it execute
+latency requirements of mobile apps.                                           1.5-2x as many apps concurrently while neither killing apps
+                                                                               nor suffering performance degradation.
+
+8.3                    Memory Utilization
+                                                                               8.4        Runtime Overhead
+To demonstrate Marvin’s more efficient memory manager, we
+ran multiple instances of an app with a large memory footprint                 While Marvin provides better memory management, it comes
+and a limited working set, and we counted the number of                        with a set of trade-offs. This section quantifies Marvin’s four
+active apps that were alive and making progress on their                       sources of overhead: (1) execution time overhead caused by
+workloads. Each app had a 220MB heap filled with arrays,                       Marvin’s object access interposition in compiled OAT code;
+and it deleted and reallocated 20MB of those arrays every                      (2) increased compiled code size due to object access interpo-
+5 seconds. We used two different heap compositions: one                        sition; (3) CPU utilization overhead caused by Marvin’s heap
+where the apps had heaps filled with 4KB arrays, and one                       walks for working set estimation; and (4) faulting overhead
+where they had an even mix of 4KB and 1MB arrays (similar                      when an app accesses a reclaimed object.
+to the bimodal distribution of real apps in Figure 1). We
+consider an app “inactive” if it fails to perform a round of its               Execution time overhead of object access interposition.
+workload for 20 seconds after the previous round; we consider                  Native code produced by the MRT compiler has additional
+it “active” once again if it succeeds in performing a round                    ARM64 instructions to support object access interposition.
+of its workload within 7 seconds of the previous round. We                     Some instructions (stub checks, dirty bit updates, and access-
+started a new app instance every 10 minutes to give Marvin                     tracking bit updates) execute on every object access. Other
+time to perform background work. For unmodified Android,                       instructions (indirecting object accesses through stubs and
+only the data for the apps with 4KB arrays is shown, because                   locking RTEs) execute only on accesses to reclaimable ob-
+its behavior was nearly identical for the 4KB/1MB mix.                         jects. We measured the overhead of the added instructions that
+   As shown in Figure 7, Marvin ran over 2x as many active                     apply to all object accesses using PCMark for Android, and
+apps concurrently as unmodified Android and over 1.5x-2x as                    we used a synthetic benchmark to illustrate the dependence
+Android with a Linux swap file enabled, where swapping left                    of that overhead on the makeup of application code.
+almost all apps unusable as the experiment went on. While                         Figure 8 compares the performance of Marvin and unmodi-
+baseline Android begins killing apps when physical memory                      fied Android on the PCMark benchmarks in our test set. Each
+runs out, Android with swap keeps more apps alive. However,                    bar shows the mean and standard deviation of five runs. We
+without a bookmarking garbage collector, the system experi-                    turned off stub creation and swapping when running PCMark,
+enced constant swapping activity, which prevented most apps                    using the benchmarks to measure the overhead of the instruc-
+from making progress on their workloads. Our experimental                      tions added to every object access for stub checks and working
+
+
+
+882                    2020 USENIX Annual Technical Conference                                                             USENIX Association
+                                                                             Speed (objects touched/sec)
+                  4
+Marvin overhead
+
+                                                                        ●
+                                                                                                           200,000
+                  3
+                                                                                                           150,000
+                  2                              ●
+
+                                           ●
+
+                  1                  ●                                                                     100,000
+                                ●
+
+
+                  0    ●
+                           ●
+                                                                                                            50,000
+                      0.0           0.1        0.2         0.3         0.4
+                               Fraction of DEX instructions with OAI                                            0
+                                                                                                                         1% faults    10% faults     20% faults
+Figure 9: Overhead of Marvin for a synthetic workload with
+different proportions of object access interposition (OAI). The              Figure 10: Speed of a benchmark app as it touches objects in
+point (0,0) represents the theoretical scenario of running with-             its heap with different fractions of reclaimed objects.
+out any OAI, while other points show experimental results.
+                                                                             timation by invoking the concurrent garbage collector and
+set estimation. Marvin’s score on the Writing 2.0 benchmark                  piggybacking off its heap walk. Our prototype performs a
+was nearly identical to Android’s, and its score on the Data                 heap walk every 5 seconds when an app is in the foreground
+Manipulation benchmark was only 15% lower. These scores                      and every 30 seconds for an app in the background. In theory,
+show that Marvin’s overhead for accessing regular (i.e., non-                this periodic invocation of the garbage collector across mul-
+reclaimable) objects is low for real-world apps.                             tiple MRT instances could add CPU utilization overhead. In
+   Figure 9 explores the dependence of Marvin’s overhead                     practice, when running multiple apps in the background, we
+on the DEX instruction mix of application code. The graph                    found that the difference between Marvin’s and unmodified
+shows Marvin’s overhead executing a synthetic workload that                  Android’s CPU utilization was negligible, likely because GC
+performed a tunable proportion of object accesses (array reads               invocations were so infrequent for background apps.
+and writes) and integer operations (addition and multiplica-
+tion). Each point represents the mean and standard deviation
+of Marvin’s execution time overhead relative to Android for                  Overhead of faulting in objects. When an app first ac-
+40 iterations of the workload. For large proportions of object               cesses a reclaimed object, Marvin must fault it in from disk,
+accesses, Marvin had relatively high overhead (e.g., 350%                    adding significant latency to that initial access. Marvin’s de-
+overhead for 40% object accesses), while for low proportions                 fault policy eagerly restores all objects when an app moves to
+of object accesses, Marvin’s overhead was minimal (e.g., 10%                 the foreground, trading off a longer transition delay for a guar-
+overhead for 1% object accesses). PCMark’s 15% overhead                      antee that object-faulting latencies will never block the app’s
+indicates that the real app workloads represented by PCMark                  UI thread once it is in the foreground. The added transition
+have low proportions of object accesses.                                     delay is proportional to the amount of reclaimed memory and
+   Although these overheads are already reasonable, they                     the restoration rate. Anecdotally, our prototype restored mem-
+could be improved with optimizations. As noted in Section 7,                 ory at about 100 MB/s, but we believe that rate could improve
+deeper compiler integration would let Marvin reduce overhead                 to around 260 MB/s with optimization. (The slower rate is the
+by performing object access interposition less frequently.                   disk read speed of the C++ standard library implementation
+                                                                             used by ART, while the faster rate is the speed of the stan-
+                                                                             dard library implementation linked by the Android standalone
+Code size overhead of object access interposition. The                       toolchain.) Object faults may occur for background apps, but
+ARM64 instructions added by Marvin’s object access in-                       the Java working sets of apps in the background are generally
+terposition also increase the size of compiled native code.                  quite small (less than 4MB for all commercial apps in our test
+To measure the increase in code size, we compared the                        set), so we expect object faulting to happen infrequently in
+compiled Android framework libraries generated by Mar-                       practice.
+vin to the framework libraries on unmodified Android.                           We nonetheless studied the effect of object faulting on
+Marvin increased the total size of the ARM64 frame-                          performance, to understand how Marvin would perform in
+work libraries (in the /system/framework/arm64 and                           situations where different policies or workloads result in more
+/system/framework/oat/arm64 directories on the Android                       object faulting. Figure 10 shows the effect of object faulting
+filesystem) from 117 MB to 292 MB. This code size over-                      on a heap-walking benchmark app as it touches different
+head, while relatively high, could be reduced significantly                  fractions of reclaimed objects. The app looped over a set of
+with deeper compiler integration (Section 7).                                4KB arrays, reading five member variables of each array, and
+                                                                             measured the speed of traversing the objects. Each bar shows
+CPU utilization overhead of heap walks. Our Marvin pro-                      the mean and standard deviation of five measurements, and the
+totype performs the heap walks required for working set es-                  device’s disk cache was cleared before each run. As expected,
+
+
+
+USENIX Association                                                                                                   2020 USENIX Annual Technical Conference      883
+there was an inverse relationship between heap-walking speed        the existing virtual memory system to estimate the working
+and fraction of faults; for instance, speed dropped by 49% as       set and trigger its object fault handler.
+the fraction of faults increased from 10% to 20%.                      Like Marvin, the bookmarking collector [20] aims to im-
+                                                                    prove the performance of Java apps in memory-constrained
+                                                                    environments. It assumes that the OS uses a traditional page-
+9     Related Work
+                                                                    level swapping mechanism and focuses on letting the garbage
+Several recent systems provide swapping for mobile platforms        collector run without unnecessary swapping. It conservatively
+but focus on page-granularity rather than object-granularity        stores approximate reachability information (bookmarks) that
+swapping. SmartSwap [43] predicts which apps are unlikely           is used during garbage collection, whereas Marvin stores
+to be used and swaps out pages from those apps ahead-of-time.       exact reachability information (stubs). The BMX garbage col-
+A2S [22] takes the opposite approach; it avoids swapping            lector [15] also uses stubs to avoid expensive object accesses,
+out pages from unused apps, since their pages will be freed         but in the context of a distributed persistent object store.
+anyways when they are terminated. MARS [19] optimizes                  Other recent work on garbage collection focuses on co-
+Linux swapping to improve performance on flash storage              designing the GC and runtime to manage software caches
+devices. It disables garbage collection in background apps          more efficiently [30], co-designing the GC and virtual mem-
+and reclaims memory from those apps. DR. Swap [42] uses             ory manager to improve performance [41], measuring the
+NVRAM rather than flash storage to store swapped-out pages          effect of GC on scalability [16], and designing GCs or mem-
+and satisfies reads by reading directly from NVRAM. Choi et         ory managers for domains such as big data systems [17, 29].
+al. [6] improve the performance of an in-memory file system            With multiple runtimes managing their own memory on
+by co-designing the swap mechanism to minimize I/O.                 top of a single operating system, Android’s architecture re-
+   The Linux kernel includes a daemon, kswapd, which frees          sembles that of a virtual machine manager, where multiple
+unused pages in the background to maintain a reserve pool of        guest operating systems run on top of a hypervisor. Marvin’s
+unallocated memory [18]. Like Marvin, kswapd proactively            runtime–OS cooperation is analogous to that between guest
+checkpoints unused memory, but unlike Marvin, kswapd re-            OS and hypervisor in the VMware ESX server [37], which
+claims pages when it checkpoints them. As a result, kswapd          uses a balloon driver to induce guest OSes to reclaim memory.
+is limited in how much memory it can checkpoint ahead-of-              Wright et al. [39] present a system in which the architec-
+time—keeping a large proportion of memory checkpointed              ture and Java runtime are co-designed for improved memory
+and reclaimed would make that memory unusable and shrink            access performance. It features hardware modifications that
+the device’s effective memory footprint.                            allow an object-addressed CPU cache and an in-cache GC.
+   Liang et al. [24] present FAST, an Android memory man-
+agement system that modifies kswapd to improve its suitabil-
+                                                                    10    Conclusion
+ity for Android. FAST changes kswapd to prioritize reclaim-
+ing pages from apps in the background. It also identifies a         Users of mobile devices expect to use apps and switch be-
+mismatch between the large reclamation sizes of kswapd and          tween apps with low latency. As mobile apps have become
+the small sizes of typical Android allocations, and it includes a   more memory-hungry, device RAM capacities have not kept
+predictor to determine the reclamation size based on workload       pace, and traditional swapping mechanisms cannot meet user
+patterns. Like FAST, Marvin avoids reclaiming memory from           latency expectations. Marvin overcomes this challenge with a
+the foreground app, but Marvin differs in its runtime-level         novel runtime-level swapping mechanism that accurately esti-
+memory management and its decoupling of checkpointing               mates working sets, moves disk I/O off the allocation critical
+and reclamation.                                                    path, and avoids unnecessary swapping during garbage collec-
+   A significant body of work examines the issue of providing       tion. As our experiments demonstrate, Marvin lets more apps
+persistent memory for object-oriented languages [1, 7, 26, 31,      run simultaneously and reclaims memory faster than unmodi-
+33, 40]. These systems checkpoint objects to disk or non-           fied Android while adding reasonable overhead. The source
+volatile memory, but they do so to ensure safety in the face of     code for our Marvin prototype and experiments is available
+failures rather than swapping out unused memory. As a result,       at https://github.com/UWSysLab.
+they focus on supporting transactional programming models
+that provide strong guarantees under failure [7, 31] and on
+implementing crash-safe garbage collection [7,40] rather than       Acknowledgments
+on maximizing the number of apps that can run concurrently.
+   SSDAlloc [2] is a persistent memory system that, like            We thank our anonymous reviewers and our shepherd, Malte
+Marvin, is motivated by the goal of helping apps with large         Schwarzkopf, for their insightful feedback. We also thank
+memory footprints avoid memory pressure. Unlike Marvin’s            Sandy Kaplan for editing and writing advice and Ali Razeen
+runtime-level object faulting and working set estimation, SS-       for help with Android troubleshooting. This work was funded
+DAlloc allocates objects in separate virtual pages and uses         in part by Futurewei.
+
+
+
+884    2020 USENIX Annual Technical Conference                                                               USENIX Association
+References                                                           libraries/architecture/saving-states,              2018.
+                                                                     Accessed: 2018-11-28.
+ [1] Malcolm Atkinson and Ronald Morrison. Orthogonally
+     persistent object systems. The VLDB Journal, 4(3):319–     [13] D. R. Engler, M. F. Kaashoek, and J. O’Toole, Jr. Exok-
+     402, July 1995.                                                 ernel: An operating system architecture for application-
+                                                                     level resource management. In Proceedings of the Fif-
+ [2] Anirudh Badam and Vivek S. Pai. Ssdalloc: Hybrid                teenth ACM Symposium on Operating Systems Princi-
+     ssd/ram memory management made easy. In Proceed-                ples, SOSP ’95, pages 251–266, 1995.
+     ings of the 8th USENIX Symposium on Networked Sys-
+     tems Design and Implementation (NSDI ’11), 2011.           [14] Umar Farooq and Zhijia Zhao.          Runtimedroid:
+ [3] UL Benchmarks. Pcmark for android.           https://           Restarting-free runtime change handling for android
+     benchmarks.ul.com/pcmark-android.            Accessed:          apps. In Proceedings of the 16th Annual International
+     2019-1-9.                                                       Conference on Mobile Systems, Applications, and Ser-
+                                                                     vices, MobiSys ’18, pages 110–122, 2018.
+ [4] Kofi Amankwah Boamah. iphone on-board RAM,
+     July 2017.    https://www.researchgate.net/                [15] Paulo Ferreira and Marc Shapiro. Garbage Collec-
+     figure/Phone-on-board-RAM-From-figure-8-                        tion and DSM Consistency. In Proceedings of the 1st
+     it-is-clear-that-Apple-either-maintains-                        USENIX Conference on Operating Systems Design and
+     the-iPhone_fig1_319307164.                                      Implementation (OSDI ‘94), pages 229–241, Monterey
+                                                                     CA, USA, United States, 1994.
+ [5] Bumptech. Glide v4: Fast and efficient image loading
+     for android. https://bumptech.github.io/glide/.            [16] Lokesh Gidra, Gaël Thomas, Julien Sopena, and Marc
+     Accessed: 2018-11-28.                                           Shapiro. Assessing the scalability of garbage collectors
+                                                                     on many cores. In Proceedings of the 6th Workshop on
+ [6] J. Choi, J. Ahn, J. Kim, S. Ryu, and H. Han. In-memory
+                                                                     Programming Languages and Operating Systems (PLOS
+     file system with efficient swap support for mobile smart
+                                                                    ’11), 2011.
+     devices. IEEE Transactions on Consumer Electronics,
+     62(3):275–282, August 2016.                                [17] Ionel Gog, Jana Giceva, Malte Schwarzkopf, Kapil
+ [7] Joel Coburn, Adrian M. Caulfield, Ameen Akel,                   Vaswani, Dimitrios Vytiniotis, Ganesan Ramalingam,
+     Laura M. Grupp, Rajesh K. Gupta, Ranjit Jhala, and              Manuel Costa, Derek G. Murray, Steven Hand, and
+     Steven Swanson. Nv-heaps: Making persistent objects             Michael Isard. Broom: Sweeping out garbage collection
+     fast and safe with next-generation, non-volatile memo-          from big data systems. In 15th Workshop on Hot Topics
+     ries. In Proceedings of the Sixteenth International Con-        in Operating Systems (HotOS XV), Kartause Ittingen,
+     ference on Architectural Support for Programming Lan-           Switzerland, 2015.
+     guages and Operating Systems, ASPLOS XVI, pages
+     105–118, New York, NY, USA, 2011. ACM.                     [18] Mel Gorman. An investigation into the theoretical foun-
+                                                                     dations and implementation of the linux virtual memory
+ [8] Peter J Denning and Stuart C Schwartz. Properties of            manager, 2003.
+     the working-set model. Communications of the ACM,
+     15(3):191–198, 1972.                                       [19] Weichao Guo, Kang Chen, Huan Feng, Yongwei Wu,
+                                                                     Rui Zhang, and Weimin Zheng. Mars: Mobile appli-
+ [9] Android Documentation.       Activity.    https:                cation relaunching speed-up through flash-aware page
+     //developer.android.com/reference/android/                      swapping. IEEE Transactions on Computers, 65(3):916
+     app/Activity, 2018. Accessed: 2018-11-28.                       – 928, March 2016.
+[10] Android Documentation.      Caching bitmaps.
+                                                                [20] Matthew Hertz, Yi Feng, and Emery D. Berger. Garbage
+     https://developer.android.com/topic/
+                                                                     collection without paging. In Proceedings of the 2005
+     performance/graphics/cache-bitmap,     2018.
+                                                                     ACM SIGPLAN Conference on Programming Language
+     Accessed: 2018-11-30.
+                                                                     Design and Implementation, PLDI ’05, pages 143–153,
+[11] Android Documentation. Manage your app’s mem-                   2005.
+     ory.    https://developer.android.com/topic/
+     performance/memory, 2018. Accessed: 2018-11-28.            [21] Tyler Kieft. Building a better instagram app for android.
+                                                                     https://instagram-engineering.com/building-
+[12] Android Documentation.     Saving ui             states.        a-better-instagram-app-for-android-
+     https://developer.android.com/topic/                            c08f973662b, 2014. Accessed: 2018-11-9.
+
+
+
+USENIX Association                                                       2020 USENIX Annual Technical Conference         885
+[22] Sang-Hoon Kim, Jinkyu Jeong, and Jin-Soo Kim.              [32] Anshu Rustagi.     How we improved our android
+     Application-aware swapping for mobile systems. ACM              app “cold start” time by 28%. https://redfin.
+     Trans. Embed. Comput. Syst., 16(5s):182:1–182:19,               engineering/how-we-improved-our-android-
+     September 2017.                                                 app-cold-start-time-by-28-a722e231314a,
+                                                                     2018. Accessed: 2018-11-9.
+[23] Ian M. Leslie, Derek McAuley, Richard Black, Timothy
+     Roscoe, Paul Barham, David Evers, Robin Fairbairns,        [33] Vivek Singhal, Sheetal V. Kakkad, and Paul R. Wilson.
+     and Eoin Hyden. The design and implementation of                Texas: An efficient, portable persistent store. In Antonio
+     an operating system to support distributed multimedia           Albano and Ron Morrison, editors, Persistent Object
+     applications. IEEE Journal on Selected Areas in Com-            Systems, pages 11–33, London, 1993. Springer London.
+     munications, 14(7):1280–1297, September 1996.
+                                                                [34] Facebook Open Source. Fresco. https://frescolib.
+[24] Yu Liang, Jinheng Li, Rachata Ausavarungnirun, Ri-              org/. Accessed: 2018-11-28.
+     wei Pan, Liang Shi, Tei-Wei Kuo, and Chun Jason Xue.
+     Acclaim: Adaptive memory reclaim to improve user ex-       [35] StackExchange. Creating and enabling an internal stor-
+     perience in android systems. In Proceedings of the 2020         age swap partition on rooted android kitkat. https://
+     USENIX Annual Technical Conference, 2020.                       android.stackexchange.com/a/89030. Accessed:
+                                                                     2019-4-4.
+[25] Michelle Meyers.    Android inches ahead of
+                                                                [36] StackOverflow.    ios app maximum memory bud-
+     windows as most popular os.     CNET, April
+                                                                     get. https://stackoverflow.com/a/15200855. Ac-
+     2017.    https://www.cnet.com/news/android-
+                                                                     cessed: 2019-1-9.
+     most-popular-os-beats-windows-statcounter/.
+                                                                [37] Carl A. Waldspurger. Memory resource management
+[26] J. Eliot B. Moss. Design of the mneme persistent object
+                                                                     in vmware esx server. In Proceedings of the 5th Sympo-
+     store. ACM Trans. Inf. Syst., 8(2):103–139, April 1990.
+                                                                     sium on Operating Systems Design and Implementation
+[27] Mike Nakhimovich. Improving startup time in the                 (OSDI ’02), 2002.
+     nytimes android app. https://open.blogs.nytimes.
+                                                                [38] David A. Wheeler. SLOCCount, 2013. http://www.
+     com/2016/02/11/improving-startup-time-in-
+                                                                     dwheeler.com/sloccount/.
+     the-nytimes-android-app/, 2016.        Accessed:
+     2018-11-9.                                                 [39] Greg Wright, Matthew L. Seidl, and Mario Wolczko.
+                                                                     An object-aware memory architecture. Technical re-
+[28] Randy Nelson. The size of iphone’s top apps has in-
+                                                                     port, Sun Microsystems, Inc., Mountain View, CA, USA,
+     creased by 1,000% in four years. Sensor Tower, Jun
+                                                                     2005.
+     2017. https://sensortower.com/blog/ios-app-
+     size-growth.                                               [40] Mingyu Wu, Ziming Zhao, Haoyu Li, Heting Li, Haibo
+                                                                     Chen, Binyu Zang, and Haibing Guan. Espresso: Brew-
+[29] Khanh Nguyen, Lu Fang, Guoqing Xu, Brian Demsky,                ing java for more non-volatility with non-volatile mem-
+     Shan Lu, Sanazsadat Alamian, and Onur Mutlu. Yak:               ory. In Proceedings of the Twenty-Third International
+     A high-performance big-data-friendly garbage collec-            Conference on Architectural Support for Programming
+     tor. In Proceedings of the 12th USENIX Symposium on             Languages and Operating Systems, ASPLOS ’18, pages
+     Operating Systems Design and Implementation (OSDI               70–83, New York, NY, USA, 2018. ACM.
+    ’16), 2016.
+                                                                [41] Ting Yang, Emery D. Berger, Scott F. Kaplan, and
+[30] Diogenes Nunez, Samuel Z. Guyer, and Emery D.                   J. Eliot B. Moss. Cramm: virtual memory support for
+     Berger. Prioritized garbage collection: Explicit gc sup-        garbage-collected applications. In Proceedings of the
+     port for software caches. In Proceedings of the 2016            7th Symposium on Operating Systems Design and Im-
+     ACM SIGPLAN International Conference on Object-                 plementation (OSDI ’06), 2006.
+     Oriented Programming, Systems, Languages, and Appli-
+     cations, OOPSLA 2016, pages 695–710, New York, NY,         [42] K. Zhong, X. Zhu, T. Wang, D. Zhang, X. Luo, D. Liu,
+     USA, 2016. ACM.                                                 W. Liu, and E. H.-M. Sha. Dr. swap: Energy-efficient
+                                                                     paging for smartphones. In 2014 IEEE/ACM Interna-
+[31] James O’Toole, Scott Nettles, and David Gifford. Con-           tional Symposium on Low Power Electronics and Design
+     current compacting garbage collection of a persistent           (ISLPED), pages 81–86, Aug 2014.
+     heap. In Proceedings of the Fourteenth ACM Sympo-
+     sium on Operating Systems Principles, SOSP ’93, pages      [43] Xiao Zhu, Duo Liu, Kan Zhong, Jinting Ren, and Tao
+     161–174, New York, NY, USA, 1993. ACM.                          Li. Smartswap: High-performance and user experience
+
+
+
+886   2020 USENIX Annual Technical Conference                                                            USENIX Association
+    friendly swapping in mobile systems. In Proceedings of   DAC ’17, pages 22:1–22:6, New York, NY, USA, 2017.
+    the 54th Annual Design Automation Conference 2017,       ACM.
+
+
+
+
+USENIX Association                                              2020 USENIX Annual Technical Conference    887
+

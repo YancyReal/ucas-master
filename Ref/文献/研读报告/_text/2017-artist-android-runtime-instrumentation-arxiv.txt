@@ -1,0 +1,904 @@
+                                                  ARTist: The Android Runtime Instrumentation and
+                                                                  Security Toolkit
+
+                                                       Michael Backes1 , Sven Bugiel2 , Oliver Schranz2 , Philipp von Styp-Rekowsky2
+                                                                                  Sebastian Weisgerber2
+                                                                       1 CISPA, Saarland University & MPI-SWS, Saarland Informatics Campus
+                                                                              2 CISPA, Saarland University, Saarland Informatics Campus
+arXiv:1607.06619v1 [cs.CR] 22 Jul 2016
+
+
+
+
+                                         ABSTRACT                                                            Our contributions. In this paper, we present a compiler-
+                                         We present ARTist, a compiler-based application instru-             based solution that can not only be used to study the feasi-
+                                         mentation solution for Android. ARTist is based on the              bility of re-instantiating previous solutions such as dynamic,
+                                         new ART runtime and the on-device dex2oat compiler of               intra-application taint tracking and dynamic permission en-
+                                         Android, which replaced the interpreter-based managed run-          forcement, but, moreover, provides a more robust, reliable,
+                                         time (DVM) from Android version 5 onwards. Since dex2oat            and integrated application-layer instrumentation approach
+                                         is yet uncharted, our approach required first and foremost          than previously possible. Concretely, we make the following
+                                         a thorough study of the compiler suite’s internals and in           contributions in this paper.
+                                         particular of the new default compiler backend Optimizing.             Study of the ART compiler suite. Since the novel ART com-
+                                         We document the results of this study in this paper to fa-          piler suite, dex2oat, is still uncharted, our solution required
+                                         cilitate independent research on this topic and exemplify           first and foremost a thorough study of the newly introduced
+                                         the viability of ARTist by realizing two use cases. More-           dex2oat compiler. We provide, to the best of our knowledge,
+                                         over, given that seminal works like TaintDroid hitherto de-         the first in-depth, comprehensive study of the internals of
+                                         pend on the now abandoned DVM, we conduct a case study              ART’s compiler suite. In particular, we deep-dive into its
+                                         on whether taint tracking can be re-instantiated using a            most recent backend called Optimizing that became the de-
+                                         compiler-based instrumentation framework. Overall, our              fault with Android 6 Marshmallow. Those new insights not
+                                         results provide compelling arguments for preferring compiler-       only allow us to implement compiler-based security solutions,
+                                         based instrumentation over alternative bytecode or binary           but also form expert knowledge that facilitates independent
+                                         rewriting approaches.                                               research on the topic.
+                                                                                                                Compiler-based app instrumentation. We design and imple-
+                                                                                                             ment a novel approach, called ARTist (ART Instrumentation
+                                                                                                             and Security Toolkit), for application instrumentation based
+                                                                                                             on an extended version of ART’s on-device compiler dex2oat.
+                                         1.   INTRODUCTION                                                   Our system leverages the compiler’s rich optimization frame-
+                                            Google’s Android OS has become a popular subject of the          work to safely optimize the newly instrumented application
+                                         security research community over the last few years. Among          code. The instrumentation process is guided by static analy-
+                                         the different directions of research on improving Android’s         sis that utilizes the compiler’s intermediate representation
+                                         security, a dedicated line of work has successfully investigated    of the app’s code as well as its static program information
+                                         how instrumentation of the interpreter (i.e., Dalvik virtual        in order to efficiently determine instrumentation targets. A
+                                         machine) can be leveraged for security purposes. This line          particular benefit of our solution, in contrast to alternative
+                                         of work comprises influencing works such as TaintDroid [17]         application layer solutions (i.e., bytecode or binary rewriting),
+                                         for analyzing privacy relevant data flows within applica-           is that the application signature is unchanged and therefore
+                                         tions, AppFence [22] for protecting the end-users’ privacy,         Android’s signature-based same origin model and its central
+                                         Moses [28] for domain isolation, or Spandex [13] for password       update utility remain intact. We thoroughly discuss further
+                                         tracking, just to name a few.                                       benefits and drawbacks of security-extended compilers on An-
+                                            However, with the release of Android 5 Lollipop, Google          droid in comparison to bytecode and binary rewriting. Our
+                                         made a large technological leap by replacing the interpreter-       results provide compelling arguments for preferring compiler-
+                                         based runtime with an on-device, ahead-of-time compilation          based instrumentation over alternative bytecode or binary
+                                         of apps to platform specific bytecode that is executed in the       rewriting approaches.
+                                         new Android runtime (short ART). While this leap did not               Feasibility study for compiler-based taint tracking. To
+                                         affect the app developers, it broke legacy compliance of all        demonstrate the benefits of a solution such as our ARTist,
+                                         of the previously mentioned security solutions that rely on         we conduct a case study on whether compiler-assisted in-
+                                         instrumentation of the DVM and it restricts them to Android         strumentation can be utilized to realize a dynamic intra-
+                                         versions prior to Lollipop. In fact, it has left the security       application taint tracking solution. Our resulting prototype
+                                         research community with two choices for carrying on work            is evaluated using microbenchmarks and its operational ca-
+                                         that relies on instrumented runtimes: resorting to binary           pability is shown using an open source test suite with known
+                                         or bytecode rewriting techniques [16, 21] or adapting to the        ground truth.
+                                         novel but uncharted on-device compiler infrastructure.
+Outline. The remainder of this paper is structured as fol-               APK                            dex2oat                                    OAT
+                                                                                 Compile                                               Install
+lows. In Section 2, we present the results of our study of the       dex code                Verify                    Write ELF                 dex code
+                                                                                           Input                              Output
+dex2oat compiler and its Optimizing backend. We analyze
+the requirements for an application-layer instrumentation                                          Optimizing Backend
+                                                                                                        Optimization
+solution in Section 3 and compare bytecode and binary rewrit-
+ing with compiler-based approaches. We present our ARTist                               dex Transform                  Code      native
+                                                                                                            IR
+                                                                                       code                       Generation     code
+design in Section 4. Section 5 illustrates use cases for ARTist,
+followed by a more detailed case study on compiler-assisted
+taint tracking. We discuss limitations and future work of our      Figure 1: A high-level overview of the dex2oat compiler us-
+                                                                   ing Optimizing backend including the transformation to the IR,
+solution in Section 6 and conclude this paper in Section 7.
+                                                                   optimizations, and native code generation.
+
+
+2.    BACKGROUND ON ART AND DEX2OAT                                as the 65k method limit1 . In particular, Google made the
+   We provide general background information on Android’s          Optimizing compiler backend, which was introduced as opt-in
+managed runtime to set the context of our compiler ex-             feature in Android 5, the default backend in Android 6. In
+tensions (Section 2.1), and afterwards present technical           the following Sections 2.2 and 2.3, we will elaborate in more
+background information on the compiler suite dex2oat (Sec-         technical details on this new compiler suite and in particular
+tion 2.2) and in particular on its Optimizing backend (Sec-        on the Optimizing backend.
+tion 2.3).
+                                                                   Prior documentation of ART. Even though the Android
+2.1    Android Runtime                                             source code is publicly available as a part of the Android
+                                                                   Open Source Project (AOSP), little attention has yet been
+   Android is essentially a Linux-based operating system with      given to ART from a security researcher’s perspective. Paul
+an extensive middleware software-stack on top of the ker-          Sabanal had an early look [29] at the Android Runtime right
+nel. The middleware provides native libraries, a feature-rich      after its silent introduction as a developer option on Android
+application framework that implements the Android SDK,             4.4 KitKat. Beside providing information on the ART exe-
+and a managed runtime on top of which system as well as            cutable file formats, the paper discusses the idea of hiding
+third-party applications and a small number of framework           rootkits in framework or app code, assuming root access has
+services are executed. The runtime executes bytecode gen-          already been granted. However, especially in its early phase,
+erated from Java-based applications and Android’s SDK              the Android Runtime has undergone frequent changes, which
+components. The runtime provides the code executed within          by now make this documentation unfortunately outdated.2
+its environment the necessary hooks to interact with the rest         Another work [8] focuses on fuzzing the new runtime
+of the system, such as the operating system, the application       with automatically generated input files in order to detect
+framework services, or the native Android user space (i.e.,        bugs and vulnerabilities. While it provides some high-level
+components running outside the managed runtime). Every             overview on the compiler structure and its backends, it un-
+process executing an application runtime environment is usu-       fortunately omits any deeper information on the Optimizing
+ally forked from a warmed-up process, called Zygote, which         backend.
+has all necessary libraries and a skeleton runtime for the app        Thus, this background section servers also the purpose of
+code preloaded.                                                    filling a gap in the technical documentation of those new
+                                                                   Android features.
+Runtime prior to Android 5. On Android devices prior
+to version 5, the runtime consisted of the DEX bytecode            2.2     DEX2OAT Compiler Suite
+interpreter (or Dalvik virtual machine), which was specifi-
+                                                                     Android’s on-device compiler dex2oat is responsible for
+cally designed for devices with constrained resources (e.g.,
+                                                                   the validation of applications and their compilation to native
+register-based execution model instead of stack-based). It
+                                                                   code. It was designed from scratch to be highly flexible
+executes Dalvik executable bytecode (short dex), which is
+                                                                   and of modular structure, providing numerous configuration
+created from the Java bytecode of applications at application
+                                                                   possibilities, compiler backends, and native code generators
+build time. Thus, every application package ships the dex
+                                                                   for supported Android platforms. The general workflow of
+bytecode compiled from the application Java sources. Addi-
+                                                                   the compiler suite is depicted in Figure 1 and its steps will
+tionally, since Android version 2.2, Dalvik uses just-in-time
+                                                                   be explained in the remainder of this section. Providing a
+compilation of hotspot code segments in order to improve
+                                                                   full technically documentation of the entire compiler suite
+the runtime performance of applications.
+                                                                   and all its intricacies would unfortunately exceed the space
+Runtime since Android 5. With Android 5, Google                    limitations of this paper. Therefore, in this section we only
+moved over from an interpreter-based app execution to an           focus on the parts relevant to this paper.
+on-device, ahead-of-time compilation of apps’ dex bytecode
+                                                                   2.2.1        Input File Format
+to native code that is executed in a newly introduced man-
+aged runtime called ART. This shift in the runtime model             As an input format, dex2oat expects the very same dex files
+was intended to address the app performance needs of An-           that DVM used to interpret. This strategical decision ensured
+droid’s user and developer base. The new compiler suite            that neither developers nor app store operators needed to
+was designed from scratch to allow for compile time opti-          1
+                                                                     http://developer.android.com/tools/building/multidex.
+mizations that improve application performance, start up           html
+time, battery lifespan, and also to solve some well-known          2
+                                                                     E.g., compare the documented oat version 45 and the current
+limitations of the previous interpreter-based runtime, such        version 63 at the time of this writing.
+                                                                          01:   public String getID() {
+adapt their code to ART. Developers still upload their apps
+                                                                          02:
+as Android Application Package (APK) files that bundle the
+                                                                          03:       TelephonyManager tm =
+app’s code with its resources. When a new app is installed on
+                                                                          04:         getSystemService(TELEPHONY_SERVICE);
+the device, dex2oat compiles the app dex bytecode and the
+                                                                          05:
+ART runtime executes it, which is completely transparent
+                                                                          06:       String id = tm.getDeviceId();
+for the end user. Using this strategy, ART is still compatible            07:
+with the old Android app base without enforcing a fallback                08:       if(id != null) {
+to interpretation, which would loose all benefits that the new            09:          id = prefixID(id);
+compiler provides.                                                        10:       } else {
+                                                                          11:          id = "N/A";
+ 2.2.2   Compilation                                                      12:       }
+  Before the actual compilation is performed, each input                  13:
+dex file is checked for validity. Those checks are more ex-               14:       return id;
+tensive and stricter than those implemented in the DVM in                 15:   }
+order to allow for state-of-the-art code optimizations. The               16:
+compilation itself is done on a per-method base and can                   17:   public String prefixID(String id) {
+be parallelized. dex2oat delegates the actual compilation                 18:     String prefix = "ID: ";
+completely to the backend and only writes the results of                  19:     String result = prefix + id;
+the compilation to an oat file along with the original dex                20:     Log.d(TAG, prefix + id); // leak id!
+code. There are three compilation phases shared between all               21:     return result;
+backends:                                                                 22:   }
+                                                                   Figure 2: An example code snippet containing a leak of the
+Transformation: A graph-based intermediate representation
+                                                                   device’s phone number to the logging facility.
+(IR) is created from the dex code. Depending on the actual
+backend, multiple IRs are possible.
+
+Optimization: Given a populated IR graph, the code is opti-        which is required to hold up consistency between the code
+mized. Each backend provides its own set of optimization           that the developer wrote in Java, the dex code that used to
+measures, ranging from very basic techniques to state-of-the-      be interpreted, and the compiled code, or to allow fall back
+art algorithms.                                                    to interpretation mode when debugging apps.
+
+Native code generation: The IR nodes are transformed to            2.3    Optimizing Intermediate Representation
+native code using a code generator for the specific CPU ar-          We introduce insights into dex2oat’s Optimizing backend,
+chitecture of the current platform. The level of sophistication    which we derived mainly from the AOSP source code of
+of the register allocation algorithm and implementation of         the ART project’s master branch between June 2015 and
+the code generator depend on the backend.                          February 2016. Optimizing’s intermediate representation is
+                                                                   essentially a control flow graph on the method level, which the
+Backends. On an Android stock device running version 5             Android developers denote as HGraph. It is further enriched
+(Lollipop) or higher, dex2oat can choose between two dif-          with structural data about the program and populated with
+ferent backends, Quick and Optimizing. Although Quick              instruction nodes, denoted as HInstructions. Figure 2 presents
+was dex2oat’s default backend until Android 6, we focus            an example Java code and Figure 3 presents the resulting3
+in the remainder of this section and paper on the newer            HGraph of the getID function in the Optimizing IR. We will
+Optimizing backend. This choice is not only motivated by           come back to this example in our case study in Section 5.2.
+the fact that Optimizing is the default backend since An-          2.3.1 HGraph
+droid 6 but also by the fact that Quick is essentially derived
+from Dalvik and lacks a sophisticated IR that can support             The HGraph serves as the single intermediate represen-
+state-of-the-art compiler optimizations—including sophisti-        tation of the app code. When the graph is created, dex
+cated security-oriented algorithms. However, Optimizing is         instructions of the app’s bytecode are scanned one by one
+designed completely from scratch and little is yet known           and the corresponding HInstructions are created and inter-
+about its internal structure and design. In Figure 1 the           linked with the current basic block and the graph. In order
+compilation steps of Optimizing are depicted. More insights        to allow for complex optimizations, the graph is transformed
+on the inner workings of the new default compiler backend          into a single static assignment form (SSA). Pairs of value
+will be provided in Section 2.3.                                   definitions and usage, so-called def-use-pairs, are created dur-
+                                                                   ing a liveness analysis and explicitly interlinked afterwards.
+ 2.2.3   Oat File Format                                           At this point, phi nodes are introduced where static analysis
+   Oat files are Android’s new file format for apps that are       cannot reliably decide which value will be assigned at a given
+ready to be loaded and executed by the ART runtime. Even           position.
+though the format was newly created for the Android plat-             In this form, the graph is amenable to a multitude of
+form, technically speaking oat files are specialized ELF shared    possible optimizations. The available optimizations includes
+objects that are loaded into processes, i.e., loading a compiled   algorithms such as BoundsCheckElimination to remove redun-
+app into an application process is comparable to loading an        dant bounds checks, GVNOptimization to remove duplicate
+(ELF) shared library into the process space of a dynamically       code, dead code elimination, or loop invariant code motion to
+linked executable. Besides the native code generated with          3
+                                                                     Presented code is simplified and limited to relevant instruc-
+dex2oat, oat files contain the complete original dex code,         tions for the sake of readability.
+                                   getID: Basic Block 0                                                                         dex2oat
+                                                                                            APK                                                                              OAT
+                         4: ParameterValue: this                                                      Compile                                                Install
+                                                                                          dex code                 Verify                    Write ELF                    dex code
+                         44: NullConstant
+                                                                                                                Input                              Output
+                                                                                     InstrAPK                                                                          InstrOAT
+                                                                                                                         Optimizing Backend
+                                   getID: Basic Block 1                                     APK                                                                              OAT*
+                                                                                                                            Optimization
+        6: LoadString: 'phone'                                                            dex code*                                                                       dex code
+        12: InvokeVirtual: Activity.getSystemService, args:(4, 6)                                         dex   Transform                  Code    native
+                                                                                                                                IR
+        15: LoadClass: Landroid/telephony/TelephonyManager                                               code                           Generation code
+        17: CheckCast args:(12, 15)                                                                               dex                                      native
+        21: InvokeVirtual: TelephonyManager.getDeviceId, args:(12)                                      InstrDEX code*       InstrOPT      IR*    InstrBIN code*
+        25: Equal, args:(21, 44)
+        26: If, args:(25)
+                                                                                     Figure 4: The code instrumentation points before, during, and
+                                                                                     after the compilation for different representations of the app code.
+            getID: Basic Block 4                     getID: Basic Block 2
+                                                                                     Instrumented code is depicted in black boxes.
+        36: LoadString: 'N/A'            31: InvokeVirtual: prefixID, args:(4, 21)
+
+
+
+                                   getID: Basic Block 3                              ing type casting, bounds checking, division-by-zero checks,
+                            43: Phi, args:(31, 36)                                   or null pointer exceptions). Second, instructions to repre-
+                            35: Return, args:(43)                                    sent so-called suspension points are added, which effectively
+                                                                                     subdivide the application code into multiple chunks. Each
+Figure 3: Generated IR in SSA form for the getID() method in
+Figure 2.                                                                            suspension point between two chunks acts as a synchroniza-
+                                                                                     tion point between native code and original dex bytecode in
+                                                                                     the program execution and also serves as an entry point for
+optimize hotspot code in loops. In the following Section 4, we                       garbage collectors or debuggers.
+will show how this form is also amenable to security-oriented
+instrumentation, thus supporting compiler-based security                             3.         THE CASE FOR COMPILER-ASSISTED
+solutions on Android, such as dynamic taint tracking (see                                       SECURITY ON ANDROID
+Section 5.2).
+                                                                                        A dedicated line of work, including the TaintDroid project
+2.3.2     HInstructions                                                              and its derivatives (such as [22, 2]), relied on instrumentation
+                                                                                     of the now abandoned Dalvik virtual machine. As a conse-
+   The HGraph nodes roughly correspond to dex instructions.
+                                                                                     quence, the research community faces the dilemma on how
+The supplementary material provides an overview of the dex
+                                                                                     to continue this line of work and is left with two choices (see
+instructions and their corresponding HInstructions counter-
+                                                                                     Figure 4): Either compensating the missing runtime instru-
+parts. Beside this transformation, nodes in the HGraph have
+                                                                                     mentation through app rewriting techniques—dex bytecode
+additional attributes that have no equivalent in dex bytecode
+                                                                                     (InstrAPK ) or binary (InstrOAT )—or taking advantage of An-
+(e.g., an SSA index). The HInstructions distinguish between
+                                                                                     droid’s new compiler suite (InstrDEX , InstrOPT , and InstrBIN ).
+arguments and inputs. While the former corresponds to the
+                                                                                     Although dex bytecode rewriting is well-established in con-
+arguments given to an operator or method, the latter en-
+                                                                                     texts such as inline reference monitoring [23, 16, 15, 7] and
+codes additional dependencies that may not be immediately
+                                                                                     taint analysis [31], and ART now supports porting binary
+observable given only the underlying dex code, as in the
+                                                                                     rewriting techniques from commodity systems, we build in
+case of static method invocations that in addition to their
+                                                                                     this paper on compiler-based instrumentation to not only
+arguments have an HLoadClass or HClinit as their input. All
+                                                                                     re-instantiate previous approaches that relied on Dalvik VM
+HInstructions share a basic set of information: Type, inputs,
+                                                                                     instrumentation, but also to explore novel security solutions
+uses, id, and further data is attached to each node in or-
+                                                                                     that leverage the compiler features.
+der to ease the creation of and working with the HGraph.
+                                                                                        In the following, we analyze the concrete requirements
+Each node is uniquely identified within the graph by its id
+                                                                                     that an instrumentation solution should provide and discuss
+that is assigned and incremented continuously during node
+                                                                                     for each of the above approaches (i.e., bytecode rewriting
+creation. The type can be void for methods that have no
+                                                                                     InstrAPK , binary rewriting InstrOAT , and compiler-based in-
+return value, not for strings and object types of any kind,
+                                                                                     strumentation) their respective benefits and shortcomings in
+and additionally any of the Java primitive types. In order to
+                                                                                     fulfilling those requirements. Table 1 provides a summary of
+get the actual object type, a fallback to the original dex file
+                                                                                     our requirements analysis.
+is required. This loose coupling between HInstructions and
+dex instructions as well as the presence of a method local                           R1. Enforceable security policies. Each of the three
+dex program counter in each node show that the IR nodes                              approaches operates on one of the different representations
+are not completely independent of the original dex file.                             of the same app code, i.e., bytecode, IR, or binary. Hence,
+                                                                                     all three approaches are identical in their capabilities of
+Semantic consistency. In addition to the instructions that                           instrumenting the code and none of the solutions addresses
+represent the original application logic, the HGraph also con-                       any security policy alone.
+tains meta-instructions to preserve the semantic consistency
+between the original Java code of the developer, the dex byte-                       R2. Strong security boundary. Both rewriting and
+code shipped with APKs, and the native bytecode actually                             the compiler-based approach rely on injecting monitoring
+executed in ART. First, additional instructions are inlined                          code into the app’s process space and can therefore not
+into the graph to support meaningful debugging (e.g., to                             provide a strong security boundary between monitoring and
+map from segmentation faults in ART to actual stack traces)                          (potentially) malicious app code (7), e.g., native code. Thus,
+and to conduct various forms of runtime checks (e.g., check-                         all of them can only provide security guarantees for at most
+                       Bytecode     Compiler-      Binary         the potential to interfere with the semantics of the mod-
+                       rewriting      based       rewriting       ification through, e.g., instruction reordering, inlining, or
+ R1. Enforceable                    identical                     similar techniques of state-of-the-art compilers like Optimiz-
+ security policies
+ R2. Strong secu-           7           7             7           ing. Current bytecode rewriting approaches InstrAPK are
+ rity boundary                                                    applied before compilation, thus any instrumentation has to
+ R3. Application           3            3             3           be robust against optimization by Optimizing—an aspect
+ layer only                                                       not yet further investigated by contemporary research (7).
+ R4. User privilege        3           (7)           (7)          On the other hand, binary rewriting InstrOAT is restricted to
+ only                                                             instrumenting optimized code (3), but misses the chance to
+ R5. Platform in-          3            3             7           reuse the rich Optimizing framework to also optimize added
+ dependence
+                                                                  security code. The sweet spot is compiler-based instrumenta-
+ R6.      Signature         7           3             3
+ preservation                                                     tion that provides full control over which optimizations are
+ R7. Robustness             7           3             3           applied when and in which ordering (3). Even more, this
+ against optimiza-                                                enables creating optimizations that are specifically tailored
+ tion                                                             towards improving the instrumented code by utilizing the
+ R8. Integrated ap-         7           3             7           static program information that is present in the compiler.
+ proach
+ R9.     Supported         all         6+            5+           R8. Integration into toolchain. Integrating an instru-
+ versions                                                         mentation system into an existing toolchain ensures per-
+               3= fulfilled; 7= not fulfilled                     petual development and fixes by the community as well as
+Table 1: Comparison of security and deployment features between   access to established and well-tested tools and frameworks.
+bytecode rewriting, compiler-based instrumentation, and binary    In this case, even though the ART project is open source
+rewriting.                                                        and therefore open to the community, the compiler is mostly
+                                                                  maintained by Google itself. Consequently, compiler-driven
+                                                                  solutions that do not break with the toolchain’s regular func-
+honest-but-curious apps.                                          tionality, benefit from the continuing improvements (3). In
+                                                                  the case of ARTist, the amount of code that needed to be
+R3. Application layer only. All approaches can be imple-
+                                                                  changed is minimal and therefore easy to adapt for newer
+mented purely at application layer (3). Deploying bytecode
+                                                                  versions of the toolchain. Bytecode rewriting InstrAPK and
+rewriting techniques InstrAPK in form of separate apps has
+                                                                  binary rewriting InstrOAT are developed separately from the
+been presented in the literature [23, 16, 15, 7]. A compiler-
+                                                                  toolchain and do not reap those benefits (7).
+based solution can be deployed as a separate app that ships
+and controls the security-instrumented compiler suite (see        R9. Version support. While bytecode instrumentation
+also Section 4.2). For both, the compiler-based approach          InstrAPK can be applied to all Android versions, compiler-
+and the binary rewriting, the main requirement is access to       based approaches and binary rewriting InstrOAT depend on
+the storage location of applications’ oat files, which does not   ART and therefore can only be applied since Lollipop (5+),
+require system modification.                                      where a compiler-based solution (as presented here) should
+                                                                  utilize the Optimizing backend on Android 6+ in preference
+R4. User privilege only. While dex code is freely available       to Quick.
+for non-forward locked apps, accessing applications’ oat files
+makes elevated privileges necessary. However, in Section          Sweet spot. In conclusion, comparing the security and
+6.1.3 we discuss an approach that would allow both, binary        deployment features that the three available instrumentation
+and compiler-based rewriting, to circumvent this problem          approaches provide, a compiler-based approach has very
+without requiring elevated privileges.                            appealing properties and occupies a sweet spot among all
+                                                                  approaches.
+R5. Platform independence. Bytecode rewriting In-
+strAPK (3) and compiler-based instrumentation (3) can be
+applied on all platforms supported by Android, since they
+                                                                  4.    ARTist DESIGN
+modify the code before platform-dependent native code is             In this section, we present the architecture of the ART
+generated. Binary rewriting InstrOAT , in contrast, depends       Instrumentation and Security Toolkit. ARTist consists of two
+on the actual hardware architecture of the platform (7).          separate components: a security-instrumented compiler (sec-
+                                                                  compiler) and an app to deploy the compiler (deployment
+R6. App signature preservation. App signatures are the            app). The sec-compiler is our implementation of a compile-
+foundation of Android’s same origin model that governs the        time instrumentation tool that is based on the dex2oat com-
+app update policy or sharing of resources between apps, like      piler. The latter is a regular Android application that ships,
+a common process or UID. Consequently, modifying bytecode         deploys, and manages the sec-compiler.
+InstrAPK and the resulting obligation to resign and repackage
+apps breaks this same origin model (7). In contrast, compiler-    4.1    Security-Instrumented Compiler
+based instrumentation (3) and binary rewriting InstrOAT (3)
+do not modify the original app package and therefore do not       Choice of instrumentation point. The general concept
+invalidate the signature.                                         of security-instrumented compilers is not restricted in its mod-
+                                                                  ifications of the compilation code. Given dex2oat’s modular
+R7. Robustness against code optimization. The in-                 design, there are immediately multiple possibilities apparent
+strumentation point determines whether any instrumented           where app modifying code could be placed. For instance,
+code will be subject to optimization at compile time. Ap-         dex2oat’s design would easily allow porting bytecode and
+plying optimization algorithms to instrumented code has           binary rewriting approaches (InstrDEX & InstrBIN ) into the
+compiler infrastructure (cf. Figure 4). Of the different choices,   4.2    Compiler Deployment App
+ARTist’s sec-compiler is concretely designed to operate on the         Responsibility of the deployment app is to deploy the
+intermediate representation of dex2oat’s Optimizing backend         sec-compiler at application layer in addition to the sys-
+(InstrOPT ), where the existing optimization infrastructure         tem’s dex2oat binary. Using deployment app, one can create
+and static code information in the Optimizing IR allow for          security-instrumented versions of installed applications by
+efficient and precise code modification. More precisely, our        re-compiling the apps’ bytecode with sec-compiler and replac-
+app instrumentation code is realized as an HOptimization,           ing the oat files stored4 on filesystem. To make the Android
+which, as a result, is no different than other optimizations in     runtime agnostic to this instrumentation, two particular chal-
+the sense that they are provided with required information,         lenges had to be overcome. First, Android has mechanisms
+such as the current method’s HGraph, and are modularly              in place to verify that oat files correspond to their respective
+integrated into the optimization workflow. As HOptimization,        apps and that the paths of the oat files are correct. Our
+our security instrumentation logic has full control over the        implementation solves this challenge by rewriting paths and
+ordering and execution of optimizations, which opens up the         checksums to match those that the system dex2oat would
+opportunity to optimize the already instrumented code by            have generated. Second, the oat files are by default stored
+creating or applying compatible optimizations that improve          at and loaded from a protected location to which 3rd party
+the performance of the security code.                               apps have no access. A naïve solution to this problem would
+   Generally, using the HOptimization interface one can extend      be to require extended privileges for our deployment app
+the compiler with custom functionality that is decoupled            (e.g., a dedicated SELinux type or root on security-relaxed
+from dex2oat’s code base. We will refer to those independent        after-market ROMs). We discuss alternatives to the naïve
+extensions as Modules for the remainder of this paper.              approach in Section 6, which abstain from extended privi-
+                                                                    leges by using app virtualization or reference hijacking. After
+Spotting instrumentation targets. HGraph supports the               solving those challenges, the Android default runtime will
+visitor pattern [19] that enables us to iterate over, inspect,      load the instrumented oat file while remaining agnostic to
+and modify each single HInstruction of the app’s code. In           the fact that we replaced it.
+contrast to method hooking techniques, we can therefore
+operate at the instruction level. In ARTist, HGraphVisitors         Executing the compiler. Instead of shipping deployment
+are primarily used to identify instrumentation targets and          app with a statically linked dex2oat binary that includes our
+apply the desired modification. However, they can also be           ARTist extensions, we opted for utilizing a copy of Android’s
+utilized to bootstrap static analysis. We will see concrete         default dex2oat binary and leveraging its modularity to ship
+implementations using a visitor to collect instrumentation          our extensions to the compiler suite as separate libraries. We
+sites for our dynamic permission enforcement system in Sec-         use the LD_LIBRARY_PATH environment variable to ensure
+tion 5.1 and starting points for backward slicing in our taint      that our dex2oat loads and dynamically links our ARTist
+tracking case study in Section 5.2.                                 libraries, such as libart-compiler.so, from the assets directory
+                                                                    of the deployment app.
+Modification capabilities. Given an instrumentation tar-
+get in the form of an HInstruction, there are several possi-        Inlining custom code. While the instrumentation with
+bilities for modification like changing types, inputs, or even      ARTist already provides powerful tools to modify the appli-
+removing/replacing the instruction altogether. It is also pos-      cation, most security solutions require an additional custom
+sible to instantiate new instructions of any type and inline        code library within the app (e.g., additional taint tracking
+them before or after the current target. ARTist provides a          logic in Section 5.2). To facilitate adding custom code to
+new API dedicated to automate such modifications if pro-            an instrumented app, deployment app has a preprocessing
+vided with the information which methods, where and what            step that is executed before the app’s bytecode is compiled.
+to instrument. Since we are only generating nodes in the            This step utilizes the DexMerger utility to combine the app’s
+form of HInstruction objects and insert them into the HGraph,       original bytecode with the additional code library. During
+we do not have to modify the generation of native code from         compilation, connections between original and new code are
+the IR. This means that the code generator is agnostic to-          built in form of invocations of the added code’s methods.
+wards our changes and receives no unexpected instructions
+or structures. The result of this integrated solution is that       5.    USE CASES
+we still take advantage of the robustness of Optimizing’s              We demonstrate the applicability and usefulness of our sys-
+code generators, which are well-tested, constantly improved,        tem by discussing several use cases out of which we exemplar-
+and in productive use on every stock Android phone running          ily realized two as ARTist Modules. First, we implemented
+version 6+.                                                         an Inline Reference Monitor (IRM) injection Module to allow
+                                                                    for dynamic permission enforcement. Second, we conduct
+Configuration. Using Modules, the instrumentation and
+                                                                    a case study on realizing intra-app taint tracking through
+modification process is already flexible. To further increase       inlining of taint tracking code. In addition, we discuss further
+flexibility, Modules can, in turn, depend on policy configu-        ideas for ARTist Modules.
+ration files that govern the instrumentation process. While
+the design of such policy files highly depends on the con-
+crete Module, there are recurring and common patterns, for
+instance, the amount and type of instrumentation targets
+that should be detected, as demonstrated in Section 5.1. In
+general, this allows adaptation of existing instrumentation so-
+lutions to new targets or provisioning them with new security       4
+                                                                      Located at /data/app/<package-name>-1/oat/arm/base.
+policies.                                                           odex
+5.1     IRM for Dynamic Permission Enforcement                    interested in, we avoid generating irrelevant but costly taint
+   In the literature, Inline Reference Monitoring (IRM) is        tracking code for parts of the method that never actually
+mostly implemented by modifying the bytecode before the in-       influence the data that is obvserved and gain noticable per-
+stallation [23, 16] or by hooking into an application’s method    formance improvements over more naïve taint tracking. In
+at the caller or callee side at runtime [7]. By utilizing a       the instrumentation phase, code will be inlined that creates,
+security-instrumented compiler, IRM can be implemented            propagates, and checks the taint values along the identi-
+without the need to resign and repackage apps as it is re-        fied data flows. Our combined analysis and instrumentation
+quired by established approaches. Moreover, dex2oat-based         achieves flow-, path-, object-, and context-sensitive taint
+IRM can operate at instruction granularity instead of at          tracking.
+the method level. Those capabilities are showcased by our            While [31] and [25] also utilize static analysis to optimize
+IRM injection module that allows for dynamic permission           and guide the instrumentation process, both assume a holistic
+enforcement, as shown by [7, 23, 33] on Android versions          view on the application in form of a control or data flow graph.
+before Marshmallow.                                               In contrast, dex2oat backends operate on a per-method level,
+   The module is split into two distinct parts, the code in-      leaving the primary challenge for our taint tracking Module
+jection routine that will inline permission enforcement code      to achieve similar tracking properties while inspecting one
+and the accompanying library that acts as a policy decision       method at a time. A naïve solution to this problem would
+point. While the first directs the instrumentation process        be to retrofit the compiler suite to provide an application-
+at installation time, the latter enforces the user’s policy at    wide view and instrumentation. However, our prototype
+runtime.                                                          demonstrates how we can still achieve taint tracking for the
+                                                                  whole application while restricting ourselves to a per-method
+Code injection. We first utilize ARTist to locate the call        view and instrumentation. To this end, we introduce in the
+sites of permission-protected SDK methods that are defined        following a new design for storing and propagating taint tags,
+in a policy configuration file. Afterwards, ARTist injects        in particular we have to refine the definitions of sink and
+additional calls to our companioning library right before the     source.
+call sites to check whether the critical method invocations
+should be allowed. This ensures that the control flow is          5.2.2    Analysis Phase
+diverted to our policy decision point before the execution of       In order to optimize the instrumentation with taint track-
+permission-protected methods.                                     ing code, we exploit the processing features (e.g., HGraph’s
+   The limitations imposed by the choice of this rather basic     Visitor [19] pattern support) of the dex2oat compiler to detect
+strategy are discussed in Section 6.2.2.                          the data flow sources and sinks and afterwards use its static
+                                                                  analysis features to identify the relevant data flows and the
+Policy decision point. The library that our Module injects
+                                                                  operations along those flows that have to be instrumented.
+into target apps provides methods to check their current state
+of permissions. Based on the given user permission policy, the    Refining source and sink definition. The literature on
+library either allows or rejects the execution of a protected     taint tracking for Android defines sources and sinks as the
+SDK method.                                                       API methods that input privacy-sensitive information into
+                                                                  the application process (e.g., framework functions that re-
+5.2     Case study: Taint Tracking                                turn sensitive data, such as the location or telephony API)
+   Established approaches for dynamic taint tracking on An-       or, respectively, leak privacy-sensitive information from the
+droid [17] rely on instrumenting the by now scrapped DVM          application process (e.g., file handles, Internet sockets, or log-
+for intra-application taint tracking or directly rewrite byte-    ging facilities). Since dex2oat is operating on a per-method
+code [31]. In this case study, we explore the applicability       level, we cannot assume that our analysis is able to always
+of a compiler-based instrumentation framework like ARTist         connect a sink and a source (e.g., when they are located
+to re-instantiate intra-app taint tracking for applications       in different methods). To address this problem, we have to
+on Android version 6 and higher. That is, through a pro-          connect the data flows of tainted variables across the different
+totypical implementation, we want to investigate whether          methods while maintaining the per-method-based analysis.
+inlining taint tracking logic into the application code base      To this end, we introduce in addition to the above men-
+with ARTist at compilation time can be a surrogate for solu-      tioned sinks and sources from the literature—in the following
+tions prior to Android version 5. Please note, that this case     denoted as global sinks/sources—new method-local sinks/-
+study does not aim at a full replacement of existing solutions    sources, more precisely HInstructions, which form the entry
+like TaintDroid [17], but at demonstrating a new potential        and exit points for inter-procedural data flows. Thus, global
+foundation for future taint-tracking on Android.                  sinks and sources are points of interest for taint tag creation
+                                                                  and check, respectively, while local sinks and sources are for
+5.2.1    Module Design                                            inter-procedural tag propagation. For local sinks and sources
+   In general, we want to track information as it flows through   we differentiate between three categories each: local sources
+the code using tracking logic inlined by a new HOptimization      include arguments provided to the current method (LSO1),
+in the Optimizing backend. However, simply assigning each         return values from method invocations (LSO2), and values
+single value that should be tracked a taint tag and updating      read from fields (LSO3). Conversely, local sinks are method
+the tag for each single instruction operating on it will incur    invocations that leak values through its parameters from
+a major performance penalty. To minimalize the runtime            the current method (LSI1), return statements of the current
+impact, we split our approach into two phases: analysis and       method (LSI2), and field setting instructions (LSI3). At the
+instrumentation. In the analysis phase, we identify flows of      beginning of the analysis phase we collect all sinks within all
+tainted information between sources and sinks. By restrict-       methods and in a subsequent step detect all relevant sources
+ing ourselves only to those relevant flows of the values we are   for those sinks (see next paragraph).
+01: public String getID() {                                              getID: Basic Block 1                                                 prefixID: Basic Block 0
+02:                                               6: LoadString: 'phone'                                                          6: ParameterValue: this
+03:   TelephonyManager tm =                       12: InvokeVirtual: Activity.getSystemService, args:(4, 6)                       8: ParameterValue: Ljava/lang/String
+04:     getSystemService(TELEPHONY_SERVICE);      15: LoadClass: Landroid/telephony/TelephonyManager                             77: InvokeVirtual: TaintLib.getArgTaint, args:(75)
+05:                                               17: CheckCast args:(12, 15)
+                                                  21: InvokeVirtual: TelephonyManager.getDeviceId, args:(12)
+06:   String id = tm.getDeviceId(); GSO           25: Equal, args:(21, 44)
+07:                                               26: If, args:(25)                                                      2                    prefixID: Basic Block 1
+                                       1
+08:   if(id != null) {                                                                                                           10: LoadString: 'ID: '
+                                                                                                                     1
+ LSO2 id = prefixID(id); LSI1
+09:
+                                                                                                                             3
+                                                                                                                                 35: LoadString: 'TAG’
+10:   } else {                                       getID: Basic Block 4                getID: Basic Block 2                    60: LoadClass: Landroid/util/Log;
+11:      id = "N/A";           2                                                                                                 61: ClinitCheck, args:(60) uses:[64]
+                                                 36: LoadString: 'N/A'              52: InvokeVirtual: TaintLib.                 78: InvokeVirtual: TaintLib.checkLeakage,
+12: 5 }                                                                                 setArgTaint, args:(51, 47)                   args:(75, 77)
+13:                                                                                 31: InvokeVirtual: printID,                  64: InvokeStaticOrDirect: Log.d,
+                                                                                        args:(4, 21)
+14:   return id; LSI2                                                               54: InvokeVirtual: TaintLib.
+                                                                                                                                     args:(35, 10, 8, 61)
+                                                                                                                                 76: InvokeVirtual: TaintLib.setReturnTaint,
+15: }                                                                                   getReturnTaint, args:(51)            4       args:(75, 77)
+16:                           LSO1                                                                                               66: Return args:(8)
+17: public String prefixID(String id) { 3
+                                                                                                                         5
+18:   String prefix = "ID: ";                4                           getID: Basic Block 3
+19:   String result = prefix + id;                              43: Phi, args:(31, 36)
+20:   Log.d(TAG, prefix + id); GSI                              53: InvokeVirtual: TaintLib.
+21:   return result;     LSI2                                       setReturnTaint, args:(51, 54)
+                                                                35: Return, args:(43)
+22: }
+
+
+Figure 5: Tracking tainted variable id from example of Figure 2. All discovered sinks and sources are marked. Solid lines indicate
+intra-procedural data flows of tainted variables, dashed lines inter-procedural data flows between local sink-source pairs. Right hand side
+depicts the inlined taint tracking code to propagate taint tags.
+
+
+Creating intra-procedural data flows. After collecting                              TaintLib. In order to improve the flexibility of our solution
+all local and global sinks, we create for each sink a backward                      by not restricting our system to a specific implementation
+slice within the currently analyzed method by inspecting                            for storing, updating, and checking taints, we make use of
+the current instruction and recursively tracing back its input                      ARTist’s modular design and deploy the instrumentation
+parameters depending on the concrete instruction type to                            code in form of a new companion library called TaintLib
+discover all sources that influence this sink. For instance,                        that is merged by ARTist into the app code at compile time.
+Figure 5 continues the example code from Figure 2. In the                           TaintLib in turn relies on a policy file that defines the global
+Java code on the left hand side, all sinks have been identified                     and local sources/sinks as well as the sources’ taints tags.
+(i.e., the parameter id passed to function prefixID in line 9                       TaintLib provides source-type-specific taint-set methods, calls
+is a local sink of type LSI1, the return statements in lines 14                     to which are inlined at all sources, and sink-type-specific
+and 21 form local sinks of type LSI2, and in line 20 the call                       taint-get methods, calls to which are inlined at all sinks.
+to Log forms a global sink). Using backwards slicing (solid                         By injecting TaintLib method calls instead of concrete taint
+lines 1 , 3 , and 5 ) the local sources in lines 17 (LSO1) and                      tracking logic, we decouple the instrumentation from the taint
+9 (LSO2) as well as the global source in line 6 (getDeviceID                        management code. For global sources, taint-get retrieves and
+call to retrieve device’s phone number) have been identified.                       sets the taint tag according to the policy and taint-set at
+Each resulting backward slice is defined by its starting point                      global sinks checks6 the taint tag. In contrast, for local
+(i.e., the sink) and all found endpoints (i.e., the sources).                       sinks taint-set propagates the tag together with the tainted
+Constants cannot be tainted and are therefore explicitly                            value to the next local source, where it is retrieved with
+omitted as sources. Together those backward slices form the                         taint-get. By instrumenting all methods alike, an implicit
+input for the instrumentation phase.                                                contract between all methods is established and fulfilled,
+   Note that high precision of this analysis is desirable but                       i.e., every time a taint-get tries to obtain the taint value
+not required for secure taint tracking. Higher precision of                         of a method parameter on the callee side, we assume that
+this backwards slicing helps in removing irrelevant taint                           the corresponding taint-set has been executed in the calling
+tracking code for the observed values and hence improves                            method to provide the taint data. In case the slice contains
+performance of the instrumented application’s process, but                          multiple sources, the output of their corresponding taint-gets
+actual taint propagation occurs at runtime and the set of our                       is combined by injecting a call to a combination method that
+slices contains a superset5 of the relevant flows for complete                      will return the merged taint tag.
+tracking of tainted values.                                                            To continue our running example, the right hand side of
+                                                                                    Figure 5 presents the IR of the code snippet with taint-set
+5.2.3    Instrumentation Phase                                                      and taint-get calls inlined. For instance, the setArgTaint call
+  In the instrumentation phase, we inline code that at run-                         for LSI1 in basic block 2 of getID (HInstructions 52) precedes
+time creates taint tags for global sources and that checks                          the local sink in HInstructions 31 that invokes the prefixID
+taints at global sinks. Additionally, we inline code that inter-                    function. The setArgTaint instruction transfers the taint
+procedurally propagates taints at runtime from a local sink                         of id inter-procedurally to the getArgTaint instruction in
+to a local source, ensuring the data flow of a tainted value                        HInstruction 77 of basic block 0 of prefixID (dashed line
+across multiple methods correctly propagates the taints.
+                                                                                    6
+                                                                                     While a naïve check halts the program when tainted data is
+5
+ The use of reflection is an exception to this rule since this                      about to leak, invoking a sanitizer as suggested by [25] can
+poses serious problems for static analyses.                                         easily be implemented in ARTist.
+ 2 ), from where it is intra-procedurally propagated using the       already utilize compilers for information flow control, which
+backwards slicing information (solid line 3 ). Similarly, the        can now be realized on Android as well.
+taint is propagated back from prefixID to getID through
+                                                                     Container solutions. Modifications of the Android run-
+the return statement and variable assignment (dashed line
+                                                                     time environment have been used in the past (for instance
+ 4 ).
+                                                                     Divide 7 , now part of Google Android for Work) to establish
+Inter-procedural taint tag propagation channel. In                   container solutions that, e.g., encrypt file system I/O of
+the case of parameters (LSO1 and LSI1) and method re-                apps or restrict inter-application communication. Using a
+turns (LSO2 and LSI2), there are at runtime always pairs             compiler-based approach such as ARTist, similar container
+of taint-sets and taint-gets, given by the fact that for each        solutions can be established by replacing the corresponding
+callee method, there is a caller method that also has been           method invocations (e.g., calls to Java’s I/O classes) with
+instrumented. Combining this with the observation that a             calls to injected security-enhanced versions of the same.
+caller-callee method pair is always executed by the same
+                                                                     Code replacement and compile-time patching. Google
+thread, the taint propagation can be realized using thread
+                                                                     has recently started separating security-critical libraries, such
+local storage for a taint stack. At the caller side, the taint in-
+                                                                     as the notorious WebKit, from application packages into
+formation is pushed onto a per-thread stack and at the callee
+                                                                     stand-alone apps that are called by apps on-demand. This al-
+side it is popped again, vaguely resembling the x86 calling
+                                                                     lows Google to maintain those libraries on an ecosystem-wide
+convention for passing arguments to methods. Keeping in
+                                                                     scale and roll out security patches more effectively. Since
+mind that almost every injected TaintLib method call ac-
+                                                                     ARTist is not only able to inject but also to replace or re-
+cesses the taint information, replacing more straightforward
+                                                                     move code from an app’s code base, ARTist can also be
+approaches for taint storage (like a single HashMap) with
+                                                                     used to apply compile-time patches by replacing vulnerable
+cheaper stack operations also benefits the overall performance
+                                                                     libraries within apps with fixed versions. In an extreme case,
+of our taint tracking solution.
+                                                                     this mechanism could allow for removing entire libraries by
+   In the case of field operations (LSO3 and LSI3), we can
+                                                                     mocking all their method invocations (e.g., removing ads),
+neither assume them to appear in pairs nor to be executed on
+                                                                     or moving code partitions behind a strong security bound-
+the same thread and therefore employ a thread-safe mapping
+                                                                     ary, such as a dedicated process, and reconnect the code
+in the form of a ConcurrentHashMap. This, however, raises
+                                                                     through inter-process communications (e.g., as done in the
+the challenge of providing easily computable, stable and
+                                                                     AdSplit [32] or AdDroid [26] solutions).
+unique keys. If we consider our taint tags not to store the
+taint value of a certain value, but of a certain location, we        Beyond security: profiling and debugging. Besides its
+can compute stable identifiers for fields and use them as            application in the security domain, using ARTist to inject
+keys. For static class fields, identifying the specific class and    tracing, debugging or profiling code allows to gain additional
+field is sufficient and can be precomputed during compilation.       insights into third party applications. A basic example is the
+The current implementation injects the computed key as a             method call-tracing we employ in our robustness evaluation
+constant into the HGraph and provides it as an argument              in Section 6.1.1.
+to a field taint-set or taint-get. For object fields, we do not
+only need to identify classes but concrete objects, which
+requires runtime information. In this case, we only inject the       6.     DISCUSSION
+field identifier as a constant and provide it together with the         This section evaluates ARTist and its modules in terms
+field’s concrete object to a newly added TaintLib function.          of performance, inherent and implementation-specific limita-
+The returned key is robust to object aliasing, so we do not          tions, and discusses ideas for future work to overcome those
+loose track of objects in e.g. collections. Afterwards, we can       and extend our system.
+use this key in a taint-set or taint-get for the object field.
+   It is important to note that our approach to taint tracking       6.1 ARTist
+depends not only on the entity for which we store taints              We first evaluate and discuss general limitations of the
+(i.e., variable locations instead of values), but also on the        ART Instrumentation and Security Toolkit.
+type of data to which we assign taint values. In our model,
+we track taints only for primitive types and the taint tag           6.1.1     Robustness
+of objects is transitively given by their field’s tags. In case        We briefly evaluate ARTist in terms of its robustness by
+of non-primitive fields, the rule applies recursively because        applying an instrumentation routine to a subset of the top
+eventually all objects can be decomposed to primitives. This         apps from different Google play store categories and observ-
+design decision is motivated by the fact that tracking all           ing their execution. For the experiment, ARTist injects
+taint-set and taint-get operations on fields and on all method       into each method of a target application calls to a carefully
+invocations is more fine-grained than storing taint informa-         crafted tracing method that is merged into the app’s code.
+tion at the object level.                                            The tracing method uses stack inspection to determine its
+                                                                     caller and prints the corresponding method name to the log.
+5.3    Further Use Cases                                             All tests are conducted on a real device (rooted Nexus 5
+                                                                     running Android 6 factory image). Out of 85 non-multidex
+Dynamic analysis. Compiler-based solutions are inher-                apps (see Section 6.1.3), 83 apps were successfully instru-
+ently well-suited for white box approaches that require an           mented and remained stable when tested (97.64% success
+understanding of the application’s internals. One example is         rate), indicating the robustness of ARTist’s instrumentation
+the taint tracking Module described above that re-instantiates       capabilities.
+TaintDroid-inspired intra-app taint tracking. Other exam-
+                                                                     7
+ples are existing works on commodity systems [12, 3] that                http://www.divide.com
+  Because runtime overhead for instrumented apps largely          simply providing the additional dex files as input to the
+depends on the concrete code that is injected, we refer to the    compilation process.
+concrete benchmarks of the Modules in Sections 6.2.1 and
+6.3.1 for a performance evaluation.                               6.2     Dynamic Permission Module
+                                                                    We briefly evaluate the performance impact of our dynamic
+6.1.2    Conceptual Limitations                                   permission module and discuss limitations.
+Native code support. Optimizing operates by design on             6.2.1    Evaluation
+dex input only. Bundled native libraries (i.e., C/C++) that          The additional security checks inlined by our Module are
+are connected via JNI are never transformed into Optimiz-         only inserted before permission-protected SDK method calls,
+ing’s IR and therefore neither instrumented nor inspected         so we cannot rely on benchmark apps, because they rarely
+by our prototype. Native code components are a limitation         trigger the added functionality. Therefore, we evaluate the
+of the attacker model of not only our concept but indeed an       performance impact of our permission checking code using
+open challenge for most of the solutions by Android secu-         custom microbenchmarks. Table 2 depicts the results of
+rity research, e.g. code analysis as well as IRM solutions in     our measurements for calls that are protected by 3 distinct
+particular.                                                       permissions. The overhead encountered in the microbange-
+Potential fallback to dex. The oat files produced by              marks ranges between 1.18% and 30.65%, thus showing the
+dex2oat still contain the original dex byte code of the app       feasibility of our prototype.
+to allow fallback to interpretation mode. Naturally, fallback
+                                                                  6.2.2    Limitations
+to interpretation would render our instrumentation of the
+compiled dex byte code futile. This fallback is currently         Restriction to synchronous calls. In order to demon-
+limited to app debugging, however, no guarantees exist that       strate the straightforward implementation of an ARTist Mod-
+such a fallback cannot be triggered maliciously. Similarly,       ule, we opted for a simple instrumentation strategy that only
+dynamically loaded dex code [27, 20] (e.g., via the DexClass-     covers synchronous permission-protected method calls. In
+Loader) is by default compiled to native bytecode, but no         result, the current prototype does not support callbacks or
+guarantee can be given that dynamically loaded code cannot        asynchronicity and its implementation should therefore be
+fall back to interpretation.                                      considered a proof-of-concept only.
+6.1.3    Implementation Limitations                               Best effort permission map. In order to direct ARTist to
+                                                                  the instrumentation targets, i.e., the application’s permission-
+Permanence of instrumentation. Instrumentation of an              protected method calls, we utilize a map of methods calls to
+app’s oat file might be reverted through an application up-       the permissions enforced by those calls. While the PScout
+date or a firmware update where apps are re-compiled. Thus,       project [5] provides exact API method to permission map-
+there exists a window of opportunity for an attacker to start     pings up to Android version 5.1.1, ARTist operates on Marsh-
+an uninstrumented app after a system or app update. Apps,         mallow that requires mappings for Android 6. Consequently,
+however, cannot be started programmatically after install/up-     the permission map utilized by our Module is a hand picked
+date until the user has started the app manually and both         subset of methods from the v5.1.1 PScout map that did not
+scenarios can be detected by deployment app via system noti-      change for Marshmallow.
+fications (i.e., broadcasts). Assuming that the system notifies
+the deployment app fast enough in order to re-instrument          6.3     Taint Tracking Module
+the updated app before the user manually starts the app,             We evaluate our taint tracking Module in terms of feasibil-
+the window of opportunity in which an uninstrumented app          ity, performance, and the limitations of its current prototyp-
+is started can be closed.                                         ical implementation.
+Deployment strategy. In order to create a pure appli-             6.3.1    Evaluation
+cation layer solution, our prototype currently relies on the
+naïve approach of requesting elevated privileges to replace       Runtime overhead. We leverage an Android microbench-
+the installed app oat file with the instrumented version. We      mark application to evaluate the performance of our pro-
+can eliminate this requirement by integrating ARTist with         totype. Since our taint-instrumentation only affects the
+an application layer only sandboxing solution that provides       performance of Java code, we specifically chose the Passmark
+file system virtualization, such as Boxify [6] or NJAS [9], or    benchmark, which does not contain native libraries and imple-
+by resetting the execution environment and replacing loaded       ments all benchmarks in Java. Table 3 compares the results of
+libraries using reference hijacking [34]. Both approaches en-     the baseline benchmark with a non-instrumented Passmark
+able the manipulation of file paths from the original to the      app to those of an instrumented and taint-aware version.
+instrumented oat file at application startup time.                The results show an overhead ranging between 7.74% and
+                                                                  30.73%, which is within an acceptable range for a taint track-
+Multidex support. Currently our ARTist prototype does             ing approach that is not fully tuned for performance. This
+not support multidex8 apps. Enabling support for such             result is also roughly comparable to microbenchmark results
+apps would not only improve coverage of our prototype             of TaintDroid’s [17] interpreter-based approach. However, as
+for more complex apps, but also simplify the merging of           stated in [24], microbenchmarks are not very representative
+additional code by shifting the merge process from the pre-       in user-driven scenarios such as Android apps, so we take
+processing step in deployment app into the sec-compiler by        this result with a grain of salt.
+8                                                                    Overall performance can be enhanced by introducing cus-
+  http://developer.android.com/tools/building/multidex.
+html                                                              tom optimizations specifically tailored towards improving
+                                                     Microbenchmarks
+         Tested Method                                   Permission               Baseline    Instrumented    Penalty
+         WifiManager.getConfiguredNetworks()        ACCESS_WIFI_STATE             0.681 ms      0.742 ms       8.89%
+         WifiManager.isWifiEnabled()                ACCESS_WIFI_STATE             0.071 ms      0.072 ms       1.18%
+         WifiManager.getScanResults()            ACCESS_COARSE_LOCATION           0.452 ms      0.591 ms      30.65%
+         BluetoothAdapter.startDiscovery()          BLUETOOTH_ADMIN               0.910 ms      0.940 ms       3.32%
+Table 2: Microbenchmarks averaged over 60.000 runs. The baseline benchmarks measure the pure execution time of the permission-
+protected call while the instrumented benchmarks measure the protected call and the additional permission check.
+
+
+                            Passmark                                                      DroidBench
+      Test       Baseline    Taint-Aware   Penalty in %               Category                   Successful Tests    Ratio
+      CPU         32521         22526        30.73%                   Callbacks                       14/15           93%
+      Disk        24893         20777        16.53%                   Lifecycle                       13/14          92.9%
+      Memory      3627           3346         7.74%                   General Java                    14/20           70%
+                                                                      Aliasing                         1/1           100%
+       Table 3: Passmark results averaged over 5 runs.                Android Specifics                5/9           55.6%
+                                                                      Field & Object Sensitivity       7/7           100%
+                                                                      Overall                         54/66          81.8%
+taint tracking code. One approach would be to eliminate
+taint-sets and taint-gets that are based on stack operations     Table 4: Results for the DroidBench taint tracking evaluation.
+and cancel each other out, e.g., alternating pushs and pops of   Broken tests and categories not applicable to our system are
+the same tag as seen for methods that return the return value    omitted.
+of another method call. Moreover, the analysis phase allows
+to abstain from instrumenting apps that do not contain any
+global taint sinks in order to not impact performance at all
+                                                                  6.3.2   Limitations
+in this case.                                                    No tracking of implicit flows. Like TaintDroid [17], our
+Functional Evaluation. We conducted this case study              system currently does not track implicit flows (i.e., data leak-
+to research whether intra-application taint tracking can be      age using control flow dependencies) and malevolent apps
+achieved with an compiler-based instrumentation framework        could exfiltrate data in a way that is unnoticeable by our
+such as ARTist, so our functional evaluation focuses on de-      prototype. As the TaintDroid authors discuss, mitigating
+tecting different kinds of data leaks in apps. However, to the   leakage through control flows would require static analysis
+best of our knowledge, there is no standardized test suite       and access to the app’s source code—both of which Taint-
+specifically tailored towards evaluating dynamic taint track-    Droid could not provide. ARTist however is already provided
+ing systems for Android apps, and testing real applications is   with the full app code and it would be highly interesting
+not feasible because they lack the required ground truth. In     future work to investigate to which extent the structural
+order to overcome this unsatisfactory situation, we decided to   program information of the IR and analytical features of the
+exploit an open source suite called DroidBench [4, 1] that was   compiler backend (e.g., Optimizing) can help to remedy the
+initially created to benchmark static taint tracking systems.    limitations of customary taint tracking solutions on Android.
+Even though this does not immediately apply to a dynamic         Taint tracking boundaries. The compiler is restricted
+system such as ours, we can still leverage the fact that it      to the app’s code base, which introduces imprecision when
+provides us with an assortment of applications with differ-      leaking information through SDK methods, where a taint-set
+ent but well-defined leakage behavior. Table 4 summarizes        at the caller side (developer code) but not the taint-get at
+our Module’s results for those tests and categories within       the callee side (SDK) can be inlined. In particular, and in
+scope. Tests for implicit flows, inter-component communi-        contrast to object types, storing primitives or strings in col-
+cation, and reflection are omitted because they currently        lections or sharing them across threads are corner cases where
+exceed the scope of our proof-of-concept taint tracking. As      the taints will not be propagated appropriately. This short-
+we are abusing the benchmark suite, we need to be careful        coming can be solved by using pre-computed control-flow
+which conclusions we draw from the test results. The first       models for framework methods [11] to generate corresponding
+insight we gain, however, is that our case study succeeded in    taint-set and taint-get pairs that model the transition of data
+showing that intra-app taint tracking can be implemented         through the framework. A preferable technical solution in
+as a pure application layer solution using compiler-driven       the future, which removes the potential over-approximations
+instrumentation. The second insight we derive is that, as        of SDK internal states in control-flow models [11] and which
+indicated by lower results such as those for the Android         could be of interest beyond taint tracking, is the instrumen-
+Specifics category, our proof-of-concept does not yet catch      tation of the core image. The core image is a pre-compiled
+up with previous works such as TaintDroid. Nonetheless, our      oat file of the framework classes that is pre-loaded into every
+work not only shows the feasibility of the approach but also     application process via Zygote. Since the core image is cre-
+lays the foundation for creating a full-fledged taint tracking   ated with dex2oat during the device startup once after each
+system for Android versions above Marshmallow that uti-          system update, it can be instrumented using a sec-compiler
+lizes compiler-based instrumentation and does not require        as in ARTist. However, in either case and as in the original
+modification of the operating system.                            work [17], data that already left the phone (e.g., through a
+                                                                 network socket) cannot be tracked.
+Inter-application communication. Our prototype is cur-                   http://census-labs.com/media/Fuzzing_Objects_d_
+rently limited to intra-application tracking and lacks support           ART_hitbsecconf2015ams_WP.pdf, 2015.
+for inter-application tracking, for instance, through the file       [9] A. Bianchi, Y. Fratantonio, C. Kruegel, and G. Vigna.
+system or Binder IPC. This opens the possibility of confused             NJAS: Sandboxing unmodified applications in
+deputy [18, 14] or collusion attacks [30, 10] to exfiltrate              non-rooted devices running stock android. In ACM
+data. Assuming that all installed apps are instrumented,                 CCS SPSM’15.
+a fix to this problem would be the instrumentation of the           [10] S. Bugiel, L. Davi, A. Dmitrienko, T. Fischer, A.-R.
+I/O method calls in order to write out taints together with              Sadeghi, and B. Shastry. Towards Taming
+the data (e.g., into a file or Binder Parcel) and restore the            Privilege-Escalation Attacks on Android. In NDSS’12.
+taints at receiver side. When abandoning the requirement            [11] Y. Cao, Y. Fratantonio, A. Bianchi, M. Egele,
+for a pure application-layer solution, our system could also             C. Kruegel, G. Vigna, and Y. Chen. EdgeMiner:
+be complemented with the original TaintDroid file system                 Automatically detecting implicit control flow
+and IPC infrastructure, which is unaffected by the loss of               transitions through the android framework. In
+DVM, in order to track taints across applications.                       NDSS’15.
+                                                                    [12] W. Chang, B. Streiff, and C. Lin. Efficient and
+7.   CONCLUSION                                                          extensible security enforcement using dynamic data
+  In this paper, we presented ARTist, a dex2oat compiler-                flow analysis. In ACM CCS’08.
+based instrumentation solution for Android applications that        [13] L. P. Cox, P. Gilbert, G. Lawler, V. Pistol, A. Razeen,
+operates at application-layer only. In order to be able to               B. Wu, and S. Cheemalapati. Spandex: Secure
+design and implement ARTist, we first and foremost had                   password tracking for android. In USENIX SEC’14.
+to thoroughly study the yet uncharted internals of the new          [14] L. Davi, A. Dmitrienko, A.-R. Sadeghi, and
+compiler suite and in particular of its Optimizing backend.              M. Winandy. Privilege escalation attacks on android.
+A deeper understanding of this compiler suite and the new                In ISC’10.
+ART runtime is insofar of interest for the security commu-          [15] B. Davis and H. Chen. Retroskeleton: Retrofitting
+nity, since ART and dex2oat replaced the interpreter-based               android apps. In ACM MobiSys’13.
+runtime (DVM) of Android versions prior to Lollipop (i.e.,          [16] B. Davis, B. Sanders, A. Khodaverdian, and H. Chen.
+version 5) and hence also voided applicability of any security           I-ARM-Droid: A Rewriting Framework for In-App
+solution that relies on interpreter instrumentation (e.g., Taint-        Reference Monitors for Android Applications. In IEEE
+Droid [17] and its derivatives [22, 2]). We study feasibility of         CS MoST’12.
+our approach through implementing two distinct use cases.           [17] W. Enck, P. Gilbert, B.-G. Chun, L. P. Cox, J. Jung,
+Furthermore our case study highlights the capability of a                P. McDaniel, and A. N. Sheth. TaintDroid: An
+compiler-based instrumentation framework to re-instantiate               information-flow tracking system for realtime privacy
+basic taint tracking for Android apps on the application layer.          monitoring on smartphones. In USENIX OSDI’10.
+In general, our results provide compelling arguments, such
+                                                                    [18] A. P. Felt, H. J. Wang, A. Moshchuk, S. Hanna, and
+as higher robustness and better integration, for preferring
+                                                                         E. Chin. Permission re-delegation: Attacks and
+compiler-based instrumentation over alternative bytecode or
+                                                                         defenses. In USENIX SEC’11.
+binary rewriting approaches.
+                                                                    [19] E. Gamma, R. Helm, R. Johnson, and J. Vlissides.
+                                                                         Design Patterns: Elements of Reusable Object-oriented
+8.   REFERENCES                                                          Software. Addison-Wesley Longman Publishing Co.,
+ [1] Online: https://github.com/                                         Inc., 1995.
+     secure-software-engineering/DroidBench.                        [20] M. Grace, W. Zhou, X. Jiang, and A.-R. Sadeghi.
+ [2] Google code: Droidbox.                                              Unsafe exposure analysis of mobile in-app
+     https://code.google.com/p/droidbox/.                                advertisements. In ACM WISEC’12.
+ [3] F. Araujo, W. Kevin, et al. Compiler-instrumented,             [21] H. Hao, V. Singh, and W. Du. On the Effectiveness of
+     dynamic secret-redaction of legacy processes for                    API-level Access Control Using Bytecode Rewriting in
+     attacker deception. In USENIX SEC’15.                               Android. In ACM ASIACCS’13.
+ [4] S. Arzt, S. Rasthofer, C. Fritz, E. Bodden, A. Bartel,         [22] P. Hornyack, S. Han, J. Jung, S. Schechter, and
+     J. Klein, Y. Le Traon, D. Octeau, and P. McDaniel.                  D. Wetherall. These aren’t the droids you’re looking
+     FlowDroid: Precise context, flow, field, object-sensitive           for: Retrofitting android to protect data from
+     and lifecycle-aware taint analysis for android apps. In             imperious applications. In ACM CCS’11.
+     ACM PLDI ’14.                                                  [23] J. Jeon, K. K. Micinski, J. A. Vaughan, A. Fogel,
+ [5] K. W. Y. Au, Y. F. Zhou, Z. Huang, and D. Lie.                      N. Reddy, J. S. Foster, and T. Millstein. Dr. Android
+     Pscout: analyzing the android permission specification.             and Mr. Hide: Fine-grained Permissions in Android
+     In ACM CCS’12.                                                      Applications. In ACM CCS SPSM’12.
+ [6] M. Backes, S. Bugiel, C. Hammer, O. Schranz, and               [24] B. Livshits. Dynamic taint tracking in managed
+     P. von Styp-Rekowsky. Boxify: Full-fledged app                      runtimes. Technical report, Microsoft Research.
+     sandboxing for stock android. In USENIX SEC’15.                [25] B. Livshits and S. Chong. Towards fully automatic
+ [7] M. Backes, S. Gerling, C. Hammer, M. Maffei, and                    placement of security sanitizers and declassifiers. In
+     P. von Styp-Rekowsky. AppGuard - enforcing user                     ACM SIGPLAN’13.
+     requirements on Android apps. In TACAS’13.                     [26] P. Pearce, A. Porter Felt, G. Nunez, and D. Wagner.
+ [8] A. Bechtsoudis. Fuzzing Objects d’ART: Digging Into                 AdDroid: Privilege separation for applications and
+     the New Android L Runtime Internals. Online:
+     advertisers in Android. In ACM ASIACCS’12.
+[27] S. Poeplau, Y. Fratantonio, A. Bianchi, C. Kruegel,
+     and G. Vigna. Execute this! analyzing unsafe and
+     malicious dynamic code loading in android applications.
+     In NDSS’14.
+[28] G. Russello, M. Conti, B. Crispo, and E. Fernandes.
+     MOSES: supporting operation modes on smartphones.
+     In ACM SACMAT’12.
+[29] P. Sabanal. Hiding behind ART. Online:
+     https://www.blackhat.com/docs/asia-15/materials/
+     asia-15-Sabanal-Hiding-Behind-ART-wp.pdf, 2015.
+[30] R. Schlegel, K. Zhang, X. Zhou, M. Intwala,
+     A. Kapadia, and X. Wang. Soundcomber: A stealthy
+     and context-aware sound trojan for smartphones. In
+     NDSS’11.
+[31] J. Schütte, D. Titze, and J. De Fuentes. AppCaulk:
+     Data leak prevention by injecting targeted taint
+     tracking into android apps. In TrustCom14.
+[32] S. Shekhar, M. Dietz, and D. S. Wallach. Adsplit:
+     Separating smartphone advertising from applications.
+     In USENIX SEC’12.
+[33] R. Xu, H. Saïdi, and R. Anderson. Aurasium –
+     Practical Policy Enforcement for Android Applications.
+     In USENIX SEC’12.
+[34] W. You, B. Liang, W. Shi, S. Zhu, P. Wang, S. Xie,
+     and X. Zhang. Reference hijacking: Patching,
+     protecting and analyzing on unmodified and
+     non-rooted android devices. In ICSE’16.
+

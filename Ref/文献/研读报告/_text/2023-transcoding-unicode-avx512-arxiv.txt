@@ -1,0 +1,2181 @@
+                                         ORIGINAL ARTICLE
+arXiv:2212.05098v4 [cs.DS] 5 Aug 2023
+
+
+
+
+                                         Transcoding Unicode Characters with AVX-512
+                                         Instructions
+
+                                         Robert Clausecker1*                           | Daniel Lemire2†
+                                         1 Zuse Institute Berlin, Germany
+                                                                                                       Intel includes in its recent processors a powerful set of in-
+                                         2 DOT-Lab Research Center, Université du
+
+                                         Québec (TELUQ), Montréal, Canada                              structions capable of processing 512-bit registers with a sin-
+                                                                                                       gle instruction (AVX-512). Some of these instructions have
+                                         Correspondence
+                                         Daniel Lemire, DOT-Lab Research Center,                       no equivalent in earlier instruction sets. We leverage these
+                                         Université du Québec (TELUQ), Montreal,                       instructions to eﬃciently transcode strings between the most
+                                         Quebec, H2S 3L5, Canada
+                                         Email: daniel.lemire@teluq.ca                                 common formats: UTF-8 and UTF-16. With our novel algo-
+                                                                                                       rithms, we are often twice as fast as the previous best solu-
+                                         Funding information
+                                         Natural Sciences and Engineering Research                     tions. For example, we transcode Chinese text from UTF-8
+                                         Council of Canada, Grant Number:                              to UTF-16 at more than 5 GiB s−1 using fewer than 2 CPU in-
+                                         RGPIN-2017-03910
+                                                                                                       structions per character. To ensure reproducibility, we make
+                                                                                                       our software freely available as an open source library. Our
+                                                                                                       library is part of the popular Node.js JavaScript runtime.
+
+                                                                                                       KEYWORDS
+                                                                                                       Vectorization, Unicode, Text Processing, Character Encoding
+
+
+
+                                         1 |        INTRODUCTION
+
+                                         Computers store strings of text as arrays of bytes. Unicode is a standard for representing text as a sequence of
+                                         universal characters represented by code points. Code points are stored as short sequences of bytes according to a
+                                         given unicode transformation format (UTF), the most popular being UTF-8 and UTF-16. Not all sequence of bytes are
+                                         valid UTF-8 or UTF-16 strings [1]. Validation is required to detect incorrectly encoded or corrupted text before it is
+                                         processed.
+                                               We often need to transcode strings between the two formats. For example, a database might store data in UTF-
+                                         16 and yet the programmer might need to produce UTF-8 strings for a web site. Thankfully, transcoding is relatively
+                                         eﬃcient. Conventional transcoders often achieve a throughput between 0.5 GiB s −1 to 1.5 GiB s −1 on commodity
+                                         processors [2] (cf. § 8).1 Yet this falls far below the sequential-read speed of a fast disk (e.g., 5 GiB s −1 ) or the throughput
+
+                                        1 The speed is measured by taking the size of the input and dividing by the time elapsed.
+
+
+
+
+                                                                                                                                                                         1
+ 2                                                                                          Robert Clausecker and Daniel Lemire
+
+
+ of a fast network connection.
+       IBM mainframes based on z/Architecture provide special-purposes instructions named “CONVERT UTF-8 TO
+ UTF-16” and “CONVERT UTF-16 TO UTF-8” for translation between the two encodings [3]. By virtue of being im-
+ plemented in hardware, these exceed 10 GiB s −1 processing speed for typical inputs. While commodity processors
+ currently lack such dedicated instructions, they can beneﬁt from single-instruction-multiple-data (SIMD) instructions.
+ Unlike conventional instructions which operate on a single machine word (e. g. 64 bits), these SIMD instructions op-
+ erate on larger registers (128 bits, 256 bits, . . . ) representing vectors of numbers. A single SIMD instruction may
+ add eight pairs of 16-bit words at once. We can transcode gigabytes of text per second [2] by a deliberate use of
+ conventional SIMD instructions (e.g., ARM NEON, SSE, AVX2).
+       In recent years, Intel introduced new SIMD instruction sets operating over registers as wide as 512 bits. If Intel
+ had merely doubled the width of the registers, there would be little need for further work on our part. However, our
+ experience suggests that to fully beneﬁt from AVX-512 instructions, we need to use adapted algorithms [4]. Indeed,
+ while AVX-512 instructions beneﬁt from wider registers, Intel has also added many more instructions than what is
+ typically found in SIMD instruction sets. There is also a slightly diﬀerent model: AVX-512 instruction may consume or
+ generate masks in mask registers which have no equivalent in prior commodity instruction sets. In AVX-512, a mask
+ is conceptually an array of 8, 16, 32, or 64 bits corresponding to vectors of 8, 16, 32, or 64 elements.
+       We present novel transcoding functions using AVX-512 instructions. On average, we are roughly twice as fast as
+ the previous fastest functions [2] on commodity processors.
+
+
+
+ 2 |        UNICODE AND ITS ENCODINGS
+
+ Unicode is a standard based on the Universal Character Set (UCS). An extension to ASCII, UCS is a character set whose
+ characters (called universal characters) have code points numbered from U+02 to U+10FFFF (decimal 1 114 111). These
+ code points are organized into 17 planes of 65 536 characters each, with the ﬁrst plane U+0000–U+FFFF being called
+ the Basic Multilingual Plane (BMP). Code points in the range 0xd800–0xdfff are reserved for surrogates used in the
+ UTF-16 encoding and do not represent universal characters.
+       Unlike simpler character sets like ASCII, universal characters are seldomly stored directly as integers, as such a
+ storage format is wasteful and incompatible to existing byte-oriented environments. Instead, several Unicode Trans-
+ formation Formats (UTF) are employed to store and process universal characters, depending on the use case at hand.
+       A Unicode Transformation Format transforms each universal character into a sequence of integers, with the size
+ of the integer being dependent on the format. Popular Unicode Transformation Formats include:
+ UTF-32 representing each universal character as a 32-bit integer. Mainly used as an internal representation.
+ UTF-16 representing each universal character as one or two 16-bit integers [5]. All code-point values up to U+FFFF
+       are stored as 2-byte integer values directly. Otherwise we use surrogate pairs: two consecutive 2-byte values,
+       each storing 10 bits of the codepoint. Used by Java, Windows NT, databases, binary protocols, and others.
+ UTF-8 representing each universal character as 1–4 bytes [6]. An extension to ASCII, UTF-8 is by far the most popular
+       text encoding on the World Wide Web.
+ Though our software work covers many cases (from UTF-8 to UTF-16 or UTF-32, from UTF-16 to UTF-8 or UTF-32,
+ and so forth), we study the two most diﬃcult cases: from UTF-8 to UTF-16 and back.
+       Multi-byte words in computers representing numerical values can be stored in either little-endian format or big-
+ endian format, depending on whether the ﬁrst byte is the least signiﬁcant or the most signiﬁcant. Unicode Transfor-
+
+2 U+ followed by a hexadecimal number is notation for a universal character’s code point.
+ Robert Clausecker and Daniel Lemire                                                                                    3
+
+
+                              case                 UTF-16                                  UTF-8
+
+                             ASCII        0000 0000 0GFE DCBA              ---- ---- ---- ---- ---- ---- 0GFE DCBA
+                            2-byte        0000 0LKJ HGFE DCBA              ---- ---- ---- ---- 110L KJHG 10FE DCBA
+                            3-byte        RQPN MLKJ HGFE DCBA              ---- ---- 1110 RQPN 10ML KJHG 10FE DCBA
+                            4-byte        1101 10vu tsRQ PNML              1111 0WVU 10TS RQPN 10ML KJHG 10FE DCBA
+                                          1101 11KJ HGFE DCBA
+
+                         (a) Bit-by-bit correspondence between UTF-16 and UTF-8 encodings in the four possible cases.
+                         The bits are named A to W starting at the least signiﬁcant bits with 0vuts = WVUTS − 1.
+
+
+                            codepoint                UTF-16                                UTF-8
+
+                                     U+0 0000 0000 0000 0000 ---- ---- ---- ---- ---- ---- 0000 0000
+                                   U+7F 0000 0000 0111 1111 ---- ---- ---- ---- ---- ---- 0111 1111
+                                   U+80 0000 0000 1000 0000 ---- ---- ---- ---- 1100 0010 1000 0000
+                                 U+7FF 0000 0111 1111 1111 ---- ---- ---- ---- 1101 1111 1011 1111
+                                 U+800 0000 1000 0000 0000 ---- ---- 1110 0000 1010 0000 1000 0000
+                                U+FFFF 1111 1111 1111 1111 ---- ---- 1110 1111 1011 1111 1011 1111
+                              U+10000 1101 1000 0000 0000 1111 0000 1001 0000 1000 0000 1000 0000
+                                            1101 1100 0000 0000
+                            U+10FFFF 1101 1011 1111 1111 1111 0100 1000 1111 1011 1111 1011 1111
+                                            1101 1111 1111 1111
+
+                          (b) Examples of matched code-point values in UTF-32, UTF-16LE and UTF-8. For U+10000 and
+                          U+10FFFF, UTF-16 requires a surrogate pair.
+
+ FIGURE 1         Correspondence between UTF-16 and UTF-8. Format-speciﬁc prescribed bits (tag bits) are underlined.
+
+
+
+ mation Formats representing characters in units larger than bytes are subject to endianess. If the endianess is not
+ known from the context3 , it can be given by adding a LE or BE suﬃx to the name of the Unicode Transformation
+ Format, giving e. g. UTF-16BE or UTF-32LE. We can reverse the order of the bytes—between big and little endian—at
+ high speed: e.g., using one instruction per 64 bytes. For simplicity, we present our results on UTF-8 and UTF-16LE.
+
+
+
+ 2.1 |         UTF-16
+ When the Universal Character Set was initially deﬁned, it was meant to be a 16-bit character set with UTF-16 being
+ its natural encoding, representing each universal character in one 16-bit word. It was later realized that 65 536 code
+ points are insuﬃcient to represent the writing systems of the world’s many cultures, especially when having to account
+ for over 50 000 Chinese, Japanese, and Korean ideographs. UCS was therefore extended past the Basic Multilingual
+ Plane to code points up to U+10FFFF and UTF-16 retroﬁtted with a surrogate mechanism to permit representation of
+ these newly added characters.
+       UTF-16 is a versatile Unicode Transformation Format as it permits (absent surrogates) easy processing of text in
+ many popular languages, while not being as memory-hungry as UTF-32. It is widely used in databases and binary ﬁle
+
+
+3 Big endian is the prescribed default byte order [5], although it is less common.
+ 4                                                                                                               Robert Clausecker and Daniel Lemire
+
+
+                                                         type                   range             pattern
+
+                                                   ASCII lead byte          0x00–0x7f           0XXX XXXX
+
+                                                continuation byte           0x80–0xbf           10XX XXXX
+
+                                                  2-byte lead byte          0xc2–0xdf           110X XXXX
+
+                                                  3-byte lead byte          0xe0–0xef           1110 XXXX
+
+                                                  4-byte lead byte          0xf0–0xf4           1111 0XXX
+
+
+ TABLE 1        Types of UTF-8 bytes with tag bits underlined.
+
+
+
+ formats and is the preferred internal text representation on Windows NT. Nevertheless, with the advent and growing
+ popularity of universal characters outside of the Basic Multilingual Plane, UTF-16 has been steadily declining in use.
+       Despite big-endian byte order being prescribed for UTF-16, the little-endian variant UTF-16LE is more commonly
+ encountered under the inﬂuence of x86’s little-endian orientation. A common convention to deal with this ambiguity is
+ to preﬁx UTF-16 encoded documents with the byte order mark (BOM) U+FEFF.4 Its byte-swapped counterpart U+FFFE
+ is a reserved “uncharacter” and should not occur in Unicode text. If a UTF-16 encoded document begins with U+FFFE,
+ it can thus be assumed to be in wrong byte order, permitting automatic byte-order detection in many situations. Our
+ algorithms do not make use of this convention and strictly assume UTF-16LE throughout. A BOM is neither generated,
+ nor checked for, nor stripped.
+       As illustrated in the “UTF-16” column of Fig. 1, code points in the Basic Multilingual Plane are represented as
+ themselves. Code points outside of this plane have 0x10000 subtracted from them (the surrogate plane shift), yielding a
+ 20-bit number. This number is split into two 10-bit halves. The high half is tagged with 0xd800, yielding a high surrogate.
+ Likewise, the low half is tagged with 0xdc00, yielding a low surrogate. The character is then encoded by giving its high
+ surrogate, directly followed by its low surrogate. It is for this purpose that code points in the range 0xd800–0xdfff
+ do not represent universal characters.
+       Decoding UTF-16 is a matter of joining the bits of surrogate pairs, leaving Basic-Multilingual-Plane characters
+ unchanged. Care must be taken to validate that each high surrogate is succeeded by a low surrogate and vice versa.
+ With this sequencing requirement ensured, all UTF-16 sequences are valid and have a 1:1 mapping to code points.
+
+
+
+ 2.2 |         UTF-8
+ The most popular Unicode Transformation Format is UTF-8, representing each universal character as a sequence of
+ 1–4 bytes. Replacing the earlier UTF-1, the format was designed to be backwards-compatible to ASCII while also
+ being safe for use in UNIX ﬁle names, and comes with many other desirable features. Under many circumstances,
+ UTF-8 text can be processed as if it was a conventional ASCII-based 8-bit encoding like those of the ISO-8859 family.
+ This includes common applications like concatenation, substring search, ﬁeld-splitting (with ASCII characters or UTF-8
+ strings for separators), and collation, rendering it the most popular UTF.
+       UTF-8 can be seen as an extension to ASCII, where each ASCII character (U+00–U+7F) is represented as itself with
+ other characters being represented by sequences of bytes in the range 0x80–0xf4 (cf. Table 1). Such sequences start
+
+
+4 U+FEFF only has this function as the ﬁrst character of a document. In other positions, it should be treated as an ordinary universal character and must not
+
+ be stripped or altered.
+ Robert Clausecker and Daniel Lemire                                                                                                                      5
+
+
+                                    expression                                     description
+
+                                                  ¬a      bitwise complement of a
+
+                                             ctz(a )      number of trailing zeroes in a
+
+                                         width(a )        number of bits needed to represent a
+
+                                    popcount(a )          number of bits set in a
+
+                                        pext(a, b )       the bits given in a extracted from b
+
+                                       pdep(a, b )        b deposited into the bits given in a
+
+                                compress(m, v )           vector v compressed by mask m
+
+                                               a +b       sum of a and b
+
+                                             a ≪b         a logically shifted to the left by b places
+
+                                             a ≫b         a logically shifted to the right by b places
+
+                                              a=b         mask indicating elements of a equal to those of b
+
+                                               a ∧b       bitwise and of a and b
+
+                                               a ∨b       bitwise or of a and b
+
+                                              a ⊕b        bitwise exclusive-or of a and b
+
+                                           a?b:c          ternary operator; equal to a ∧ b ∨ ¬a ∧ c
+
+
+ TABLE 2       Summary of notation
+
+
+
+ with a lead byte (0xc25 –0xf4) indicating the length of the sequence in its tag bits, followed by 1–3 continuation bytes
+ (0x80–0xbf), making the encoding stateless, and self-synchronizing.
+      The details are summarized in the “UTF-8” column of Fig. 1: The bits of the code point are numbered A–W starting
+ at the least signiﬁcant bit. For each of the four possible cases (the ASCII/1-byte case, the 2-byte case, the 3-byte
+ case, and the 4-byte case6 ), the bits of the code point are copied into the lead and continuation bytes as indicated in
+ the ﬁgure. Tag bits are applied (underlined in Fig. 1) to distinguish ASCII, lead, and continuation bytes.
+      For many universal characters, more than one encoding seems to be possible according to the ﬁgure. However,
+ only the shortest possible encoding for each character is permitted to ensure uniqueness of the encoding. While 4-
+ byte sequences could encode code points in excess of U+10FFFF, such sequences are not legal either. The bytes 0xc0,
+ 0xc1, and 0xf5–0xff are thus not used by UTF-8.
+      Decoding UTF-8 begins by looking at the tag bits to tell the start and length of each sequence. Then, the code
+ point is assembled from the payload of these bytes. A critical part in decoding UTF-8 is validation, especially against
+ overly-long sequences and illegal code points (surrogates, code points greater than 10FFFF). In the algorithm presented
+ in § 6 we demonstrate how decoding UTF-8 with comprehensive validation and then reencoding it into UTF-16 can
+ be implemented eﬃciently, leveraging AVX-512 instructions.
+
+
+
+
+5 0xc0 and 0xc1 would introduce 2-byte sequences corresponding to ASCII characters, which are encoded as single bytes instead.
+
+6 the 1–3-byte cases represent Basic-Multilingual-Plane characters, the 4-byte case corresponds to characters represented as surrogate pairs in UTF-16.
+ 6                                                                                                         Robert Clausecker and Daniel Lemire
+
+
+ 3 |       RELATED WORK
+
+ There are relatively few academic publications on Unicode string processing using SIMD instructions. Cameron [7]
+ proposed a UTF-8 to UTF-16 transcoder using SIMD instruction using bit streams. A bit stream is a transposition on
+ the character inputs. For example, from 128 bytes of data, we produce eight 128-bit registers with the ﬁrst register
+ containing the most signiﬁcant bits of each input byte, and the last register containing the least signiﬁcant bit of each
+ input byte. The transcoding from UTF-8 to UTF-16 is done in this bit stream form with a ﬁnal phase where unused
+ bytes are removed. Inoue et al. [8] presented a limited UTF-8 to UTF-16 transcoder which lacked validation and could
+ not handle 4-byte UTF-8 characters. They rely on a 105 KiB lookup table.
+      Lemire and Muła [2] presented a generic approach that does full UTF-8 to UTF-16 and UTF-16 to UTF-8 transcod-
+ ing, with validation. Their UTF-8 to UTF-16 transcoding function is similar in principle to the strategy used by Inoue et
+ al. [8] in that they rely on the presence of instructions to quickly permute bytes within a register in an arbitrary manner,
+ based on a lookup table. The accelerated UTF-8 to UTF-16 transcoding algorithm processes up to 12 input UTF-8
+ bytes at a time. Given the input bytes, it ﬁnds beginning of each character, forming a 12-bit word which is used as a
+ key in a 1024-entry table. Each entry in the table contains the number of UTF-8 bytes to consume and an index into
+ another table where we ﬁnd shuﬄe masks. The tables use about 11 KiB. The shuﬄe masks are applied to the 12 input
+ bytes to form a vector register that can be transformed eﬃciently. This 12-byte routine works within 64-byte blocks.
+ The 64-byte blocks are validated using a fast technique [1]. Their UTF-16 to UTF-8 algorithm iteratively reads a block
+ of input bytes in a SIMD register. Depending of the values of 16-bit words, the algorithm uses one of several paths.
+ E.g., if all 16-bit words are in the range U+0000–U+07FF, the 16-bit words are converted to 32-bit words to ultimately
+ produce 1-byte, 2-byte or 3-byte characters. A series of lookup tables allow the eﬃcient permutations, using a total
+ of 8.5 KiB.
+      Gatilov [9] produced one of the best and most complete software library for Unicode transcoding (utf8lut). It is
+ similar in spirit to the work of Lemire and Muła [2], but utf8lut requires larger tables: 2 MiB for the UTF-8 to UTF-16
+ transcoder and 16 KiB for the UTF-16 to UTF-8 transcoder.
+      Unlike this prior work, our proposals do not require lookup tables. This is possible through the use of novel
+ compression instructions introduced with AVX-512VBMI2 (see § 4.3, Tbl. 3), allowing us to move bytes to the right
+ places within registers entirely in hardware, without in-memory tables.
+
+
+
+ 4 |       NOTATIONAL CONVENTIONS
+
+ In the algorithms described below, all logical symbols refer to bitwise logic. Comparisons are performed between cor-
+ responding elements of vectors, yielding a bit mask of those elements for which the comparison holds. All arithmetic
+ operations, shifts, and comparisons are performed on unsigned numbers. The width of the number depends on the
+ vector used.
+      As a general convention, scalars, vectors of bytes, and masks derived from them are indicated with lowercase
+ letters. Vectors of 16- or 32-bit words are indicated with uppercase letters.7 The symbol n is number of bytes in a
+ vector; for AVX-512 it is n = 64. This convention permits us to explain the algorithms in terms of AVX-512 instructions
+ while giving generic formulæ potentially applicable to other future instruction sets.
+
+
+
+
+7 The convention attempts to underline that byte vectors correspond to UTF-8 whereas word vectors correspond to UTF-16.
+Robert Clausecker and Daniel Lemire                                                                                       7
+
+
+    The operator precedence follows C precedence rules with
+
+
+                                                     a +b ≪ c =d ∧e ∨f
+
+
+being parsed as
+
+
+                                                ( ( ( (a + b ) ≪ c ) = d ) ∧ e ) ∨ f .
+
+
+Table 2 gives a list of symbols used in decreasing order of precedence.
+
+
+
+4.1 |      Mask Operations
+
+Masks are conceptually arrays of bits—containing between 8 and 64 bits—meant to be used in conjunction with
+vectors having the same number of elements. For example, byte masks (noted m 1 , m 234 , . . .) may contain 64 bits if they
+correspond to vectors of 64 bytes. We also have word masks (e.g., M 3 ) containing 16 bits when they corresponding
+to 512-bit vectors of 32-bit values. See Appendices A and B for detailed lists of our masks and other variables. We
+operate on masks as if they were unsigned integer values: m +3 = m 4 ≪ 3 means that the whole mask m 4 is shifted to
+the left by three places to give m +3 ; the 64 individual mask bits are always either 0 or 1. The logical operations or (∨),
+and (∧) and not (¬) are applied bitwise. We have that m = 0 sets all bits to zero whereas m = ¬0 sets all bits to one.
+    In practice, the processor has several instructions dedicated to AVX-512 mask registers (e. g., kshiftrd, kandq,
+korb). Mask registers can be converted back and forth to general-purpose registers as needed—with the caveat that
+the conversion from mask registers to general-purpose registers may have a high latency (e. g., 3 cycles).
+
+
+
+4.2 |      Vector Operations
+
+When operating on vectors, equations have to be read as “SIMD formulæ” applying element-by-element. For example,
+we write
+
+
+                                                        w =m ?a +b :c
+
+
+to mean “each element of w is set to the sum of the corresponding elements in a and b if the corresponding bit is set
+in m or to c otherwise.” With an explicit index i = 0 . . . n − 1, the previous expression could be written as
+
+
+                              w [i ] = m ∧ 1 ≪ i ? a [i ] + b [i ] : c [i ]    for i = 0, 1, . . . , n − 1.
+
+
+We believe that the presentation as “SIMD formulæ” is easier to understand and prefer it where possible. Explicit
+indices are only used when permutations are involved. For example, we write
+
+                                                                          
+                                                         w [i ] = v p [i ]
+
+
+to mean “w is v permuted by the index vector p.”
+    Conversions from one element size to another are not explicitly written out; watch the letter case of the variables
+used to see when this happens. All such conversions are zero-extensions or truncations.
+8                                                                                      Robert Clausecker and Daniel Lemire
+
+
+Remark The conventional binary notation presents the least signiﬁcant bits last. When working with masks and
+vectors, these least signiﬁcant bits correspond to the ﬁrst elements of the vectors. This discrepancy in the order is a
+source of confusion, but it is diﬃcult to avoid. Intel intrinsic functions reﬂect this confusion by providing two sets of
+functions to create new vectors: _mm512_set_* and _mm512_rset_* depending on the prefered order [10].
+
+
+
+4.3 |     Special Functions
+
+We use several special bit-manipulation functions corresponding to instructions available on contemporary x86 com-
+puters:
+
+ctz The count trailing zeroes operation ctz(a ) counts the number of trailing (least signiﬁcant) zero bits in a, i. e. how
+    often a can be divided by 2 until leaving an odd number. It corresponds to the bsf/tzcnt instructions of the
+    x86 instruction set. Our algorithms never invoke ctz(0).
+width The bit width operation width(a ) counts the number of bits needed to represent a. It is
+
+
+                                            width(a ) = (a , 0) ? ⌊log2 a ⌋ + 1 : 0.                                   (1)
+
+
+    This operation is eﬃciently implemented on many architectures through the count leading zeroes operation (x86 in-
+    struction bsr/lzcnt). Our algorithms never invoke width(0).
+popcount The population count operation popcount(a ) computes the number of bits set in a. This can also be under-
+    stood as the sum of the bits of a. It corresponds to the popcnt instruction of the x86 instruction set.
+pext The parallel extract operation pext(a, b ) takes a bit mask a indicating a possibly non-consecutive bit ﬁeld and
+    extracts those bits from b, packing them into popcount(a ) bits. This corresponds to the pext instruction on
+    recent x86 processors. The operation is perhaps best understood with a diagram:
+
+
+                                                       a    1010111011000100
+                                                       b    1000101011110001
+                                                                                                                       (2)
+                                                bit ﬁeld    1-0-101-11---0--
+                                             pext(a, b )    0000000010101110
+
+pdep The parallel deposit operation pdep(a, b ) takes a bit mask a indicating a possibly non-consecutive bit ﬁeld and
+    deposits the bits from b into this ﬁeld. It performs the opposite operation to pext and corresponds to the pdep
+    instruction on recent x86 processors. We can likewise visualize its operation through a diagram:
+
+
+                                                       a     1010111011000100
+                                                       b     1011010010101110
+                                                                                                                       (3)
+                                                bit ﬁeld     1-0-101-11---0--
+                                             pdep(a, b )     1000101011000000
+
+compress The compress vector operation compress(m, v ) is the only vector operation among our special functions. It
+    performs the same operation as the parallel extract operation pext, but instead of extracting bits from a bit ﬁeld, it
+    extracts elements from a vector. This corresponds to the vpcompressb instruction on recent x86 processors. For
+    the visualization, we have given the mask m = 0xcd with the least signiﬁcant bit on the left to make the operation
+    easier to see. The least signiﬁcant mask bit decides whether to keep the ﬁrst vector element and so on until the
+ Robert Clausecker and Daniel Lemire                                                                                     9
+
+
+      most signiﬁcant mask bit decides whether to keep the last vector element:
+
+
+                                                                       m       1 0 1 1 0 0 1 1
+                                                                       v      12 34 56 78 9a bc de f0
+                                                                                                                        (4)
+                                                       kept elements          12 -- 56 78 -- -- de f0
+                                                    compress(m, v )           12 56 78 de f0 00 00 00
+
+      Observe how we reversed the bit order of the mask m to match the natural vector order: its usual binary repre-
+      sentation is 11001101.
+
+
+
+ 5 |       AVX-512
+
+ Our algorithms are based on the AVX-512 family of instruction-set extensions to the Intel 648 instruction-set archi-
+ tecture [11]. An extension to the AVX family of instruction-set extensions, AVX-512 provides a comprehensive set of
+ SIMD instructions for operation on vectors of 16, 32, or 64 bytes organized into bytes or words of 16, 32, or 64 bits.
+ A register ﬁle of 32 vector registers zmm0–zmm31 complemented by 8 mask registers k0–k7 is provided.
+      AVX-512 instructions are generally non-destructive, writing their output into a separate operand from their inputs.
+ In most AVX-512 instructions, one operand is permitted to be a memory operand with the remaining operands being
+ register or immediate operands. This is usually the ﬁrst input operand, but for some instructions it may also be the
+ output operand.
+      The AVX-512 instruction set is split into a set of extensions. Each extension adds new instructions to the Intel 64
+ architecture, enhancing the capabilities of AVX-512. Depending on the microarchitecture used, not all AVX-512
+ extensions might be available. Table 3 gives a list of AVX-512 instructions used and the extension they hail from. In
+ the following, we list those AVX-512 extensions needed to execute the algorithms described in this paper:
+ AVX-512F The foundation extension implements the basic AVX-512 instruction set on 64-byte vectors. Every AVX-
+      512 implementation must support AVX-512F.
+ AVX-512BW The byte/word extension extends the AVX-512F instructions to vectors of bytes and 16-bit words.
+ AVX-512DQ The dword/qword extension provides additional instructions on 32- and 64-bit words.
+ AVX-512VBMI The vector byte manipulation instructions extension adds instructions to permute and manipulate
+      bytes.
+ AVX-512VBMI2 The vector byte manipulation instructions 2 extension adds compress/expand support and double-
+      width shifts for bytes and 16-bit words.
+ The ﬁrst generation of Intel 64 processors supporting all required AVX-512 extensions are those code named Icelake,
+ based on the microarchitecture code named Sunny Cove. By emulating vpcompressb through other instructions, it
+ is likely possible to adapt the algorithms to processors as early as the generation code named Cannon Lake, albeit at
+ signiﬁcant reduction in performance.
+
+
+
+
+8 The 64 bit variant of the x86 (IA-32) instruction-set architecture, also known as AMD64, x86-64, EM64T, and IA-32e.
+ 10                                                                                                  Robert Clausecker and Daniel Lemire
+
+
+                            instruction extension description
+
+                        vmovdqu8/16            BW         move byte/word/dword vector
+
+                        vpblendmw/d           BW/F        blend words/dwords with mask
+
+                   vpbroadcastd/q                F        broadcast dword/qword to vector
+
+                     vextracti32x8             DQ         extract 256-byte word from vector
+
+                      vpmovzxbw/wd            BW/F        zero-extend byte to word or word to dword
+
+                          vpaddb/w/d           BW         add bytes/words/dwords
+
+                          vpsubb/w/d           BW         subtract bytes/words/dwords
+
+                           vpcmpub/w           BW         compare unsigned bytes/words
+
+                          vpternlogd             F        logic on 3 operands by given truth table
+
+                                vpandd           F        bitwise and dwords
+
+                               vpandnd           F        bitwise and-not dwords
+
+                             vpsllw/d         BW/F        logically shift words/dwords left by immediate
+
+                             vpsrlw/d         BW/F        logically shift words/dwords right by immediate
+
+                               valignd           F        right-shift elements between operands
+
+                   vpmultishiftqb             VBMI        shift bytes within qword, see § 7.3
+
+                        vpcompressb          VBMI2 compress byte vector, see § 4.3
+
+                                vpermb        VBMI        permute byte vector by byte index vector
+
+                               kmovd/q         BW         move 32/64-bit mask
+
+                                kord/q         BW         bitwise or 32/64-bit mask
+
+                             kandnd/q          BW         bitwise and-not 32/64-bit mask
+
+                               knotd/q         BW         bitwise complement 32/64-bit mask
+
+                          kshiftrd/q           BW         logically shift 32/64-bit mask right by imm.
+
+                             ktestd/q          BW         test bitwise and/and-not of masks for all-zero
+
+                          kortestd/q           BW         test bitwise or of masks for all-zero/all-one
+
+
+ TABLE 3       Selected AVX-512 instructions.
+
+
+
+ 5.1 |         Masking
+ The output of most vector instructions is subject to masking, a novel feature of AVX-512. A mask register k1–k79 is
+ applied to the output operand, specifying either merge masking or zero masking. With merge masking, only those vector
+ elements indicated by bits set in the mask register are modiﬁed in the output operand. The other vector elements
+ remain unchanged. With zero masking, vector elements for which the bits in the mask register are clear are zeroed
+ out.
+
+9 Mask register k0 cannot be used for masking, but remains available for logic on masks.
+  Robert Clausecker and Daniel Lemire                                                                                   11
+
+
+       For example, the merge and zero masking instructions
+
+
+                                 vpaddb zmm0{k1}, zmm2, zmm3               (merge masking), and
+                                 vpaddb zmm4{k5}{z}, zmm6, zmm7            (zero masking)
+
+  perform a packed addition of bytes, giving
+
+
+                                            zmm0 = k1 ? zmm2 + zmm3 : zmm0      and
+
+                                            zmm4 = k5 ? zmm6 + zmm7 : 0.
+
+
+  Masking on register operands is free for most instructions, though merge masking introduces an input dependency
+  on the old value of the output operand.
+       Masking on memory operands enables memory fault suppression for most instructions. This means that the CPU
+  does not signal memory faults for masked-out vector elements, permitting masked out elements to extend into un-
+  mapped or non-writable pages. This suppression aﬀects both input and output memory operands.
+
+
+
+  5.2 |       Microarchitectural Details
+  To simplify the implementation of AVX-512 on microarchitectures designed to execute the older SSE and AVX families
+  of instruction-set extensions, most SIMD instructions operate within lanes of 16 bytes. That is, in many ways, it is as
+  if the 64-byte vector registers were made of four nearly independent 16-byte subregisters. Instructions that process
+  data across lanes (such as vpermb or vpcompressb) exist, but can typically execute on less execution units and take
+  longer to execute in comparison to instructions that do not. We thus want to avoid cross-lane operations if feasible.
+       On current Intel microarchitectures including Sunny Cove (Icelake), Cypress Cove (Rocket Lake), and Willow Cove
+  (Tiger Lake), most AVX-512 instructions10 can execute on execution ports 0, 1, and 5. Instructions that do not cross
+  lanes usually execute in a single cycle, instructions that do take 3 or more cycles. Some instructions are restricted in
+  the ports they can execute on: shifts can only execute on ports 0/1, permutations and other cross-lane instructions,
+  as well as comparisons into masks can only execute on port 5. Instructions operating on masks (i. e. those whose
+  mnemonics start with k) are restricted to one of ports 0 or port 5, depending on the instruction [12, 13].
+       In addition to these restrictions, ports 0 and 1 support a vector length of only 32 bytes while port 5 supports the
+ whole 64 bytes. Instructions operating on a vector length of 64 bytes are executed either on port 5 or on ports 0/1
+  joined together, occupying both ports for one cycle simultaneously. Thus, there are eﬀectively only two ports available
+  to execute instructions with a 64-byte vector length. While 32-byte vectors are processed at 3 vectors of 32 bytes
+  (i. e. 6 lanes) per cycle, 64-byte vectors are processed at only 2 vectors of 64 bytes (or 8 lanes) per cycle, leading to
+  a theoretical speedup by a factor of 4/3 or 33 % of 64-byte vectors over 32-byte vectors for an otherwise identical
+  algorithm. This stands in contrast to the factor 2 or 100 % speedup one would naïvely expect from doubling the vector
+  length.
+       It is vital for the performance of AVX-512 code to keep track of which ports instructions execute on, rearranging
+  or editing the code such that both port 0/1 and port 5 can execute instructions at the same time [14]. Through the
+  use of microarchitectural simulation [15] in the design of the algorithms, good port utilization has been ensured.
+
+
+
+
+10 assuming no memory operands
+12                                                                                      Robert Clausecker and Daniel Lemire
+
+
+6 |      TRANSCODING FROM UTF-8 TO UTF-16
+
+We transcode UTF-8 to UTF-16 by gathering the bytes that make up each character from the last byte of each char-
+acter to its ﬁrst byte. This exploits the similarity in bit arrangement between the four cases (ASCII, 2-byte, 3-byte,
+and 4-byte) highlighted in Fig. 1a. The bytes of each UTF-8 sequence are isolated from the input string, liberated of
+their tag bits, shifted into position, and ﬁnally summed up into a code point.
+     Using the exact correspondence between 4-byte UTF-8 characters and characters represented as surrogate pairs
+in UTF-16, we treat 4-byte characters as an overlapping pair of a 3-byte sequences and a 2-byte sequence that is later
+ﬁxed up into a high and a low surrogate. This saves us extra code for extracting the fourth-last byte of each sequence
+and avoids the costly use of 32-bit words for intermediate results.
+     To illustrate this idea, consider the following example, translating the Unicode characters U+40 (@), U+A7 (§),
+U+2208 (∈), and U+1D4AA (O) from UTF-8 to UTF-16:
+
+
+                                           @       §          ∈             O
+                                           40 C2 A7 E2 88 88 F0 9D 92 AA
+
+                                           40
+                                                C2 A7
+                                                                                                                        (5)
+                                                         E2 88 88
+                                                                     F0 9D 92
+                                                                            92 AA
+
+                                            0040       00A7   2208   D835       DCAA
+
+These four characters demonstrate the behavior of the algorithm on the four UTF-8 cases, representing ASCII, 2-
+byte, 3-byte, and 4-byte respectively. Observe especially how the code sequence F0 9D 92 AA for O is split into two
+overlapping sequences F0 9D 92 and 92 AA. The ﬁrst of these two is translated into the high surrogate D835 with the
+second one becoming the low surrogate DCAA.
+     The algorithm can be roughly described with the following plan of attack:
+
+1.   Read a vector of 64 bytes.
+2.   Classify each byte according to whether it is an ASCII byte, continuation byte, 2-byte lead byte, 3-byte lead byte,
+     or 4-byte lead byte.
+3.   Construct a mask indicating the last byte of each UTF-8 sequence. For 4-byte characters, the third byte is indi-
+     cated, too, treating them as a 3-byte sequence for the high surrogate and a 2-byte sequence for the low surrogate.
+4.   Use the mask to gather the last, 2nd last, and 3rd last byte of each sequence.
+5.   Strip tag bits, shift bits into place and or them into UTF-16 words.
+6.   Postprocess surrogates by shifting their bits into place, and applying tag bits and surrogate plane shift.
+7. Write the resulting bytes to the output, incrementing the input and output pointers by the number of bytes
+     consumed/generated.
+8.   Repeat until the end of input or an encoding error are encountered.
+
+     Apart from this general plan, there are also fast paths for the cases (a) ASCII characters only, (b) ASCII, and 2-byte
+sequences only, and (c) 1–3-byte sequences only.
+     Validation is performed throughout the transcoding process, as explained in § 6.4. In comparison to previous
+algorithms, it is simpliﬁed by advancing the input only by complete UTF-8 sequences; if the input is correct UTF-8,
+Robert Clausecker and Daniel Lemire                                                                                    13
+
+
+each vector of input thus begins with a complete sequence.
+
+
+
+6.1 |      Classiﬁcation and Masks
+After reading a vector of bytes from the input buﬀer, the characters in it are classiﬁed according to the range they
+fall into. Various masks are then built from this classiﬁcation. In the following explanations, we follow the convention
+from § 4 where names of the form m ... refer to masks about the input vector w in while names of the form M ... refer
+to masks about the output vector.
+    These two kinds of masks are connected through the pext and pdep operations, relating the end bytes of the
+decoded UTF-8 sequences to the UTF-16 words they correspond to and vice versa.
+    The ﬁrst set of masks is derived directly from w in , classifying the input into ASCII
+
+
+                                                   m 1 = (w in < 0x80),                                                (6)
+
+
+2/3/4-byte sequence lead bytes
+
+
+                                                  m 234 = (0xc0 ≤ w in ),                                              (7)
+
+
+3/4-byte sequence lead bytes
+
+
+                                                   m 34 = (0xe0 ≤ w in )                                               (8)
+
+
+and 4-byte sequence lead bytes
+
+
+                                                   m 4 = (0xf0 ≤ w in ).                                               (9)
+
+
+From these we then derive a mask
+
+
+                                                   m 1234 = m 1 ∨ m 234                                             (10)
+
+
+indicating the presence of any kind of lead byte. All other bytes (¬m 1234 ) are continuation bytes.
+    Then we construct the important mask m end identifying the last bytes of each sequence to be decoded. These
+are the last bytes of each UTF-8 sequence as well as the third byte of each 4-byte sequence. Working backwards
+from these last bytes, we later use this mask to gather the last, second-last and third-last bytes of each sequence.
+    The key insight in constructing m end is that as each UTF-8 sequence is followed by another UTF-8 sequence, we
+can ﬁnd the positions of the last bytes as those preceding the lead bytes of the next sequence (m 1234 ≫ 1). The third
+byte of each 4-byte sequence is added by ﬁrst computing the fourth byte of each sequence
+
+
+                                                     m +3 = m 4 ≪ 3                                                 (11)
+
+
+and then shifting the result to the right to obtain the last third bytes
+
+
+                                           m end = (m +3 ∨ m 1234 ) ≫ 1 ∨ m +3 .                                    (12)
+  14                                                                                                               Robert Clausecker and Daniel Lemire
+
+
+        An unfortunate consequence of deﬁning m end by going backwards from the lead bytes of the next characters is
+  that we only catch the last character of the vector when it is followed by an incomplete character whose lead byte
+  we can shift to the right. For 4-byte sequences right at the end of the vector, this leads to us only detecting the third
+  last byte in the character. Oring in m +3 at the end ﬁxes this problem for the 4-byte case.
+        For the other cases, the only eﬀect of this process is that if w in does not end in a partial character, decodes to
+  no more than 32 words of UTF-16, and the last character is not a 4-byte sequence, we process one less character
+  in the current iteration than possible. However, the minor performance impact of hitting this edge case is more than
+  outweighed by not spending extra time computing the mask correctly.11
+        To visualize the various masks, consider the strings “x+P” and “ε ≤±1” with a vector length of n = 8 bytes:
+
+
+                                                                 x         +               P                   ε           ≤           ±      1
+                   w in                                         78 e2 88 87 f0 9d 94 93                    ce b5 e2 89 a4 c2 b1 31
+
+                   m 1 = w in < 0x80                             1 0 0 0 0 0 0 0                            0 0 0 0 0 0 0 1
+                 m 234 = 0xc0 ≤ w in                             0 1 0 0 1 0 0 0                            1 0 1 0 0 1 0 0
+                  m 34 = 0xe0 ≤ w in                             0 1 0 0 1 0 0 0                            0 0 1 0 0 0 0 0                             (13)
+                   m 4 = 0xf0 ≤ w in                             0 0 0 0 1 0 0 0                            0 0 0 0 0 0 0 0
+               m 1234 = m 1 ∨ m 234                              1 1 0 0 1 0 0 0                            1 0 1 0 0 1 0 1
+                  m +3 = m 4 ≪ 3                                 0 0 0 0 0 0 0 1                            0 0 0 0 0 0 0 0
+                m end = (m +3 ∨ m 1234 ) ≫ 1 ∨ m +3              1 0 0 1 0 0 1 1                            0 1 0 0 1 0 1 0
+
+  In this example, masks are arrays of eight bits corresponding to eight-byte sequences: in our actual implementation,
+  we use 64-bit masks. Note in particular how m end accounts for the last character in the left string (being a 4-byte
+  character), but not in the right string, where it is an ASCII character. Also note how the character P has two end bits,
+  being treated as a 3-byte sequence overlapping a 2-byte sequence.
+
+
+
+  6.2 |         Assembling Characters
+  With these masks in hand, we can strip oﬀ the tag bits and assemble characters. The UTF-8 tag bits are stripped oﬀ
+  by clearing the most signiﬁcant two bit of each non-ASCII byte in w in , giving
+
+
+                                                          w stripped = m 1 ? w in : w in ∧ 0x3f.                                                        (14)
+
+
+  The tag bits of 3/4-byte lead bytes are not completely removed by this step; this is suﬃcient for our purposes as these
+  tag bits get shifted out later on.
+        Characters are assembled by selecting from w stripped the last (Wend ), second-last (W−1 ) and third-last bytes (W−2 )
+  of each sequence, zero-extending them to 16 bits and joining their bits into a UTF-16 word. We do this by ﬁrst
+  preparing a permutation vector P that holds for each word in the output vector, the index of the last byte of the
+
+
+11 If a perfect mask is desired, you can instead use
+
+
+                                                                                                                
+                                         m ′end = (m 1 ∨ m 2 ≪ 1 ∨ m 34 ≪ 2 ∨ m 4 ≪ 3) ∧ ¬ m 4 ≪ 2 ∧ 1 ≪ (n − 1) ,
+
+  where m 2 = m 234 ∧ ¬m 34 indicates 2-byte sequence lead bytes. The ﬁrst byte of each sequence is shifted to the position of its last byte (and the third
+  byte of a 4-byte sequence). The mask is then post-processed by clearing the third byte of a 4-byte sequence starting in the third-last byte of win , as only
+  complete sequences can be processed.
+  Robert Clausecker and Daniel Lemire                                                                                                                      15
+
+
+  corresponding sequence. This vector is prepared by compressing (vpcompressb) a byte vector holding an identity
+  permutation (0, 1, . . . , 63) subject to m end . The compressed vector is then zero-extended (vpmovzxbw) to 16-bit words,
+  keeping its ﬁrst n/2 elements:
+
+                                                                                                 
+                                                       P = compress m end , (0, 1, . . . , n − 1) .                                                      (15)
+
+
+  We only generate one vector of UTF-16 words per iteration representing at most 32 characters. When the input
+  contains ASCII characters, it might be possible for m end to contain more than 32 set bits. Bits set in m end past the
+  32nd bit are discarded during the processing: P contains only n/2 (or 32) elements. With P in hand, we can load the
+  last byte of each sequence
+
+                                                                                            
+                                                               Wend [i ] = w stripped P [i ]                                                             (16)
+
+
+  with a single permutation instruction (vpermb).12
+        By decrementing the entries of P , we produce index vectors corresponding to the second-last and third-last bytes
+  of each sequence. To avoid loading the third-last byte of a 1/2-byte sequence or the second-last byte of an ASCII
+  sequence, we mask w stripped with masks
+
+
+                                                                 m −1 = ¬m 1 ≫ 1          and                                                            (17)
+
+                                                                 m −2 = m 34 ∧ ¬0 ≫ 2                                                                    (18)
+
+
+  to clear out bytes before ASCII characters resp. those that do not start a 3/4-byte sequence, accounting for possible
+  wrap around.13 We then obtain our vectors
+
+                                                                                           
+                                                 W−1 [i ] = m −1 ? w stripped : 0 P [i ] − 1              and                                            (19)
+                                                                                           
+                                                 W−2 [i ] = m −2 ? w stripped : 0 P [i ] − 2                                                             (20)
+
+
+  as desired. The last, second-last, and third-last bytes are shifted into place and ored such that the bits A–W are con-
+  tiguous, giving
+
+
+                                                      Wsum = W−2 ≪ 12 ∨ W−1 ≪ 6 ∨ Wend .                                                                 (21)
+
+
+
+
+12 as vpermb permutes each byte, we zero-mask its result with 0x5555555555555555 to only permute into the less signiﬁcant byte of each 16-bit word, zero-
+
+  extending for free.
+13 P [i ] − 1 and P [i ] − 2 may yield negative numbers; we assume that in a permutation, such indices either wrap around to the end of the vector or produce 0
+
+  as an output. If negative permutation indices yield zeroes, the term ¬0 ≫ 2, serving as wraparound protection, can be omitted from m −2 .
+  16                                                                                                                 Robert Clausecker and Daniel Lemire
+
+
+  The value of Wsum depending on the case taken can be visualized as follows:
+
+
+                                case                          byte sequence                                          Wsum
+
+                              ASCII                                                    0GFE DCBA              0000 0000 0GFE DCBA
+                             2 byte                                     110L KJHG 10FE DCBA                   0000 0LKJ HGFE DCBA                  (22)
+                             3 byte                      1110 RQPN 10ML KJHG 10FE DCBA                        RQPN MLKJ HGFE DCBA
+                             hi surr      1111 0WVU 10TS RQPN 10ML KJHG                                       0WVU TSRQ PNML KJHG
+                             lo surr                                    10ML KJHG 10FE DCBA                   0000 MLKJ HGFE DCBA
+
+        This representation is close to UTF-16LE format with only the surrogate cases diverging. To address this diﬀer-
+  ence, we ﬁrst identify the locations of surrogates in Wout . Sequences in w in corresponding to low surrogates end at
+  the fourth bytes of 4-byte sequences. By extracting the locations of these through m end into the space of Wout , we
+  obtain the locations of low surrogates
+
+
+                                                                  M lo = pext(m end , m +3 )                                                       (23)
+
+
+  in Wout . High surrogates
+
+
+                                                                       M hi = M lo ≫ 1                                                             (24)
+
+
+  always precede low surrogates.
+        Surrogates are ﬁxed up by shifting high surrogates into position and applying surrogate plane shift and tag bits,14
+  giving
+
+                                                         
+                                                         
+                                                          (W   ≫ 4) + 0xd7c0                       if M hi
+                                                          sum
+                                                         
+                                                         
+                                                         
+                                                   Wout = Wsum ∨ 0xdc00                             if M lo                                        (25)
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         Wsum                                      otherwise.
+                                                         
+
+  The operation of Eq. 25 can be visualized as follows, where 0vuts = WVUTS − 1:
+
+
+                                                    case                 Wsum                                 Wout
+
+                                       high surrogate          0WVU TSRQ PNML KJHG              1101 10vu tsRQ PNML                                (26)
+                                       low surrogate           0000 MLKJ HGFE DCBA              1101 11KJ HGFE DCBA
+                                                   other       RQPN MLKJ HGFE DCBA              RQPN MLKJ HGFE DCBA
+
+  For illustration purposes, we provide C code implementing equation Eq. 25 using Intel intrinsic functions: see Fig. 2.
+        The vector Wout holds the UTF-16LE encoded characters we want to write out. There is a ﬁnal issue: the 64 bytes
+  of UTF-8 data in the input may correspond to anywhere from 21 to 64 words of output, of which the ﬁrst up to
+  32 words are processed.15 If a surrogate pair happened to straddle the end of Wout , we would discard the correspond-
+  ing low surrogate and produce an incorrect result. So once again, special care must be taken to omit the 32nd word of
+
+
+14 Adding 0xd7c0 = 0xd800 − 0x0020 applies the tag bits and the surrogate plane shift in one step.
+
+15 Input data corresponding to the remaining words (if any) is reprocessed in the next iteration.
+Robert Clausecker and Daniel Lemire                                                                                   17
+
+                        __m512i mask_d7c0d7c0 = _mm512_set1_epi32(0xd7c0d7c0);
+                        __m512i mask_dc00dc00 = _mm512_set1_epi32(0xdc00dc00);
+                        //...
+                        // Mlo, Mhi and Wsum have been computed, we compute Wout.
+                        __m512i lo_surr_mask = _mm512_maskz_mov_epi16(Mlo, mask_dc00dc00);
+                        __m512i shifted4_Wsum = _mm512_srli_epi16(Wsum, 4);
+                        __m512i tagged_lo_surrogates = _mm512_or_si512(Wsum, lo_surr_mask);
+                        __m512i Wout = _mm512_mask_add_epi16(tagged_lo_surrogates, Mhi,
+                                     shifted4_Wsum, mask_d7c0d7c0);
+
+FIGURE 2     C code using Intel intrinsic functions equivalent to Eq. 25.
+
+
+
+output if it is a high surrogate. We do so by computing a mask
+
+                                                                                  
+                                            M out = ¬ M hi ∧ 1 ≪ (n/2 − 1)                                          (27)
+
+
+of the elements of Wout excluding the last element if it happens to be a high surrogate. We introduce a variable b
+which is set to all ones (b = ¬0) except at the end of the input (cf. § 6.3). By depositing the mask M out into the last
+bytes of each sequence, we obtain a mask
+
+
+                                           m processed = pdep(b ∧ m end , M out )                                   (28)
+
+
+holding the locations of the last byte of each sequence that has been processed into a word in Wout .
+
+    With this mask, we can compute the number of bytes of input processed
+
+
+                                                 n in = width(m processed )                                         (29)
+
+
+and the number of words of output produced
+
+
+                                             n out = popcount(m processed ).                                        (30)
+
+
+The ﬁrst n out bytes of the output vector are then deposited into the output buﬀer, input and output buﬀers are
+advanced by n in and n out and we continue with the next iteration.
+
+    To visualize the generation of m processed , consider the example string “±1= O” with a vector length of n = 8 bytes:
+
+
+                                                       ±       1 =       O
+                                             w in C2 B1 31 3D F0 9D 92 AA                                           (31)
+                                           m end 0 1 1 1 0 0 1 1
+
+As the character D835 DCAA straddles the end of the vector, it cannot be processed in the current iteration:
+
+
+                                                           ±     1   =            O
+                                               Wout 00B1 0031 003D D835 (DCAA)
+                                                M hi       0     0   0        1                                     (32)
+                                      1 ≪ (n/2 − 1)        0     0   0        1
+                                               M out       1     1   1        0
+18                                                                                      Robert Clausecker and Daniel Lemire
+
+
+Depositing the bits of M out through m end , we then obtain
+
+
+                                            m processed 0 1 1 1 0 0 0 0
+                                     bytes processed C2 B1 31 3D -- -- -- --                                          (33)
+                                     words produced 00B1       0031     003D   ----
+
+and advance buﬀers by n in = 4 bytes and n out = 3 words respectively. The bytes corresponding to O will be processed
+again in the next iteration.
+
+
+
+6.3 |         Processing the Tail
+
+The ﬁnal bit of input with less than 64 characters remaining (tail) is handled through the variable b. This variable holds
+a mask of those bytes in w in we are permitted to process. Initially we set b = ¬0, permitting all bytes to be processed.
+When the end of the input with ℓ < n bytes remaining to be processed is reached, we set b to a mask of the ﬁrst
+ℓ bytes of w in , giving
+
+
+                                                    b = (1 ≪ ℓ ) − 1.                                                 (34)
+
+
+The tail of input is read zero-masked by b, padding it with NUL bytes. Then, a ﬁnal iteration of the main loop is
+performed, processing only the bytes accounted for in b.
+
+
+
+6.4 |         Input Validation
+
+Throughout the transcoding process, we check the input for encoding errors and abort transcoding if any such error
+occurs. Aborting is done by determining the location of the encoding error and setting the remaining input length ℓ
+to the number of bytes preceding the ﬁrst error. We then clear all input bytes starting at the ﬁrst erroneous byte and
+jump to the tail-handling code from § 6.3, eﬀectively restarting the current iteration as “ﬁnal” iteration.
+
+     Having talked about how to continue after an error has occurred, we shall now direct our attention to the kinds
+of errors we have to check for. A UTF-8 encoded document must conform to the following rules:
+
+1.   Bytes 0xf5–0xff must not occur.
+2.   Lead and continuation bytes must match: each byte in 0xc0 to 0xdf must be followed by one continuation byte,
+     each byte from 0xe0 to 0xef by two continuation bytes and each byte from 0xf0 to 0xf4 by three continuation
+     bytes.
+3.   Continuation bytes may not otherwise occur.
+4.   The decoded character must be larger than U+7F for 2-byte sequences, larger than U+7FF for 3-byte sequences,
+     and larger than U+FFFF for 4-byte sequences.
+5.   The character must be no greater than U+10FFFF.
+6.   The character must not be in the range U+D800–U+DFFF.
+
+     We check for these rules throughout the algorithm, mostly reusing masks we already have to compute for other
+steps of the code. Three checks are performed in total:
+Robert Clausecker and Daniel Lemire                                                                                      19
+
+
+Overlong 2-byte sequences
+Right at the beginning, we check whether any of the bytes 0xc0 or 0xc1 occur. Presence of these bytes indicates a
+2-byte sequence that encodes a code point below U+80, violating condition 4. The ﬁrst invalid input byte is the ﬁrst
+0xc0 or 0xc1 byte found:
+
+                                                                              
+                                           valid if      m 234 ∧ (w in < 0xc2) = 0.                                    (35)
+
+
+Mismatched continuation bytes
+After computing the various classiﬁcation masks, we check if conditions 2 and 3 hold. As each byte of UTF-8 is either
+a lead or continuation byte, we check this by computing where continuation bytes should be (m c ) and comparing this
+with where lead bytes are not:
+
+
+                                                  valid if m c = ¬m 1234 .                                             (36)
+
+
+We compute m c from the location of the second (m +1 ), third (m +2 ), and fourth byte (m +3 , see Eq. 11) of each sequence:
+
+
+                                                 m +1 = m 234 ≪ 1,                                                     (37)
+
+                                                 m +2 = m 34 ≪ 2,                                                      (38)
+
+                                                      m c = m +1 ∨ m +2 ∨ m +3 .                                       (39)
+
+
+    Conveniently, this check also fails on the input if it starts with continuation bytes, violating the invariant estab-
+lished earlier. We do not catch a UTF-8 sequence straddling the end of the vector; such a sequence is checked properly
+in the next iteration once additional bytes have been fed in.
+    If this check fails, we must distinguish two cases to determine the location of the ﬁrst encoding error: If the ﬁrst
+mismatch of m c and m 1234 is due to a continuation byte present where there should not be one, the ﬁrst invalid byte
+is that byte, giving
+
+
+                                                  ℓ = ctz(m c ⊕ ¬m 1234 ).                                             (40)
+
+
+Otherwise a continuation byte is missing where there should be one and the corresponding lead byte is the ﬁrst invalid
+byte. This byte can be found by masking m 1234 to all bits preceding the mismatch
+
+                                                                          
+                                           m pre = 1 ≪ ctz(m c ⊕ ¬m 1234 ) − 1                                         (41)
+
+
+and then ﬁnding the last (most signiﬁcant) bit in it, corresponding to the lead byte that is missing a continuation byte.
+This gives
+
+
+                                              ℓ = width(m 1234 ∧ m pre ) − 1.                                          (42)
+
+
+Encodings out of range
+Finally, we check if the codepoints encoded by 3- and 4-byte sequences are in range (conditions 4 and 5) and that
+3-byte sequences do not encode surrogates (condition 6). The algorithm treats input bytes in the range 0xf5–0xff as
+lead bytes of 4-byte sequences. Such sequences encode code points well in excess of U+110000, allowing us to verify
+  20                                                                                                        Robert Clausecker and Daniel Lemire
+
+
+  condition 1 as a side eﬀect with no extra code.
+        We augment our existing mask set with a mask
+
+
+                                                                  m 3 = m 34 ∧ ¬m 4                                                             (43)
+
+
+  indicating the location of 3-byte sequence start bytes in w in . Shifting the mask to indicate the last byte of each 3-byte
+  sequence, extracting through m end , and truncating to n/2 bits, we obtain a mask
+
+
+                                                            M 3 = pext(m end , m 3 ≪ 2)                                                         (44)
+
+
+  indicating which words in Wout correspond to 3-byte sequences. We then use M 3 to check if any 3-byte sequences
+  encode codepoints below U+800,
+
+
+                                                        M <U+800 = M 3 ∧ (Wout < 0x800)                                                         (45)
+
+
+  indicating violations of condition 4.
+        Then we check for surrogates: words in M 3 must not encode surrogates, words in M hi must encode high surro-
+  gates (condition 6).16 A word in M hi produces a high surrogate if and only if the code point it encodes is in range
+  U+10000–U+10FFFF (conditions 1, 4, and 5). The masks
+
+
+                                                   M 3s = M 3 ∧ (0xd800 ≤ Wout < 0xe000)
+
+                                                         = M 3 ∧ (Wout − 0xd800 < 0x0800)                                                       (46)
+
+
+  and
+
+
+                                                  M 4s = M hi ∧ ¬(0xd800 ≤ Wout < 0xdc00)
+
+                                                        = M hi ∧ (Wout − 0xd800 ≥ 0x0400)                                                       (47)
+
+
+  indicate violations of these conditions.17 The check succeeds if no oﬀending words are found:
+
+
+                                                      valid if    M <U+800 ∨ M 3s ∨ M 4s = 0.                                                   (48)
+
+
+        If an oﬀending word is found, the ﬁrst invalid byte is the start byte of the corresponding sequence. As the error
+  can never occur in a low surrogate, we can ﬁnd its location by projecting its location back onto the locations of the
+  ﬁrst and fourth bytes of every sequence:
+
+                                                                                                 
+                                            ℓ = ctz pdep(m +3 ∨ m 1234 , M <U+800 ∨ M 3s ∨ M 4s ) .                                             (49)
+
+
+
+
+16 by construction, words produced from 1- and 2-byte sequences never produce surrogates and M
+                                                                                                 lo always produces low surrogates; we do not need to
+  validate these.
+17 As all comparisons are unsigned (vpcmpltuw), one comparison for each range check suﬃces.
+Robert Clausecker and Daniel Lemire                                                                                   21
+
+
+6.5 |      Fast Paths
+
+Three fast paths are provided, speeding up common cases. The ﬁrst two are programmed such that they cannot be
+triggered in the “ﬁnal” iterations for the tail or in case of an encoding error, allowing us to omit the handling of b in
+their length computations for a further performance increase.
+
+
+
+ASCII only
+
+If the ﬁrst 32 bytes of input are all ASCII bytes, we process these by zero-extension (vpmovzxbw) of the ﬁrst 32 bytes
+to 16-bit words. The number of processed bytes is always 32, the number of words written out always 32, shortening
+the dependency chain to the next iteration. No validation is needed in this case as ASCII bytes are always valid.
+
+    Only the ﬁrst 32 bytes are considered before embarking on the fast path as the default path does not process
+more than 32 characters in any case. Hence, while checking for all 64 bytes to be ASCII would allow for slightly
+faster processing in the all-ASCII case, performance for documents with short runs of ASCII characters amidst other
+characters (e. g. HTML documents) suﬀers signiﬁcantly, outweighing the beneﬁts of the other case.
+
+
+
+1/2 byte only
+
+In the absence of 3- and 4-byte sequences (m 34 = 0), we employ a simpliﬁed variant of the algorithm. While following
+the same operating principles as the main algorithm, we can take some shortcuts in the proven absence of 3- and 4-
+byte sequences. First, the computation of some masks is greatly simpliﬁed, with most masks being entirely irrelevant
+for this path:
+
+
+                                            m 2 = m 234 ,                                                            (50)
+                                          m end = ¬m 2 ,    and                                                      (51)
+                                                                                 
+                                          M out = pdep m end , (1 ≪ n/2) − 1 .                                       (52)
+
+
+
+    We then employ a simpliﬁed scheme to compute Wout : Instead of masking out tag bits, we subtract 0xc2 from
+the lead byte of each two-byte sequence to cancel out the tag bits of both lead and continuation byte, giving
+
+
+                                             w − 0xc2 = m 1 ? 0 : w in − 0xc2.                                       (53)
+
+
+Instead of ﬁrst building a permutation vector P and then using it to permute the input bytes into place, we directly
+compress the bytes into position (vpcompressb) and then zero extend to 16-bit words (vpmovzxbw), giving
+
+
+                                          Wend = compress(m end , w in )    and                                      (54)
+
+                                           W−1 = compress(m 1234 , w − 0xc2 ).                                       (55)
+
+
+Vectors Wend and W−1 must be merged by addition instead of bitwise or to correctly cancel out tag bits, giving
+
+
+                                              Wout = (W−1 ≪ 6) + Wend .                                              (56)
+  22                                                                                                   Robert Clausecker and Daniel Lemire
+
+
+  The operation on 2-byte characters can be visualized as follows; 0xc2 is subtracted separately to illustrate the idea:
+
+
+                                                                  Wend          0000 0000 10FE DCBA
+                                                         +        W−1 ≪ 6       0011 0LKJ HG00 0000
+                                                                                                                                     (57)
+                                                         −        0xc2 ≪ 6      0011 0000 1000 0000
+
+                                                         =        Wout          0000 0LKJ HGFE DCBA
+
+  We want to increment the input pointer quickly—without a long chain of operations. We ﬁnd it advantageous to
+  always process half a vector (32 bytes or 33 bytes to include a ﬁnal continuation byte) of input data per iteration
+  like in the ASCII-only fast path. While this approach usually processes less data than ﬁrst determining the maximum
+  number of input bytes we can process, being able to load the next data quicker is more important. We avoid accessing
+  the SIMD masks to determine whether we advance by 32 bytes or 33 bytes.
+        Thus we have
+
+                                                               
+                                                               
+                                                                n/2 + 1 if 0x80 ≤ w in [n/2] < 0xc0
+                                                               
+                                                      n in =                                                                         (58)
+                                                                n/2
+                                                                        otherwise,
+                                                               
+
+  processing 32 bytes per iteration unless a 2-byte sequence straddles the middle of the vector18 , in which case we
+  process that extra byte, too.
+        The output buﬀer is advanced by the number of characters starting in the ﬁrst 32 bytes, giving
+
+                                                                                              
+                                                       n out = popcount m 1234 ∧ (1 ≪ n/2) − 1 .                                     (59)
+
+
+        As for validation, the checks for “encodings out of range” are omitted. The check for “mismatched continuation
+  bytes” is simpliﬁed to
+
+
+                                                                   valid if   m 2 ≪ 1 = ¬m 1234                                      (60)
+
+
+  as continuation bytes must always directly follow 2-byte sequence lead bytes. The combination of all these simpliﬁ-
+  cations yields a code path of roughly half the latency of the standard code path.
+
+
+  1/2/3 byte only
+  In the absence of 4-byte sequences (m 4 = 0), all characters are in the Basic Multilingual Plane. In this common case,
+  we can slightly simplify the main routine. We have that m +3 = m 4 ≪ 3 is zero. Consequently, we can simplify the
+  deﬁnitions of m c and m end to
+
+
+                                                                      m c = m +1 ∨ m +2   and                                        (61)
+
+                                                                    m end = m 1234 ≫ 1.                                              (62)
+
+
+
+
+18 i. e. unless the byte at position n/2 is a continuation byte
+Robert Clausecker and Daniel Lemire                                                                                      23
+
+
+The computation of Wout and M out is eliminated. As no surrogates are present, we can omit the surrogate post-
+processing and don’t need to account for surrogate pairs straddling the end of the vector. Instead, we directly get
+
+
+                                                    Wout = Wsum     and                                                (63)
+
+                                                    M out = ¬0.                                                        (64)
+
+
+Finally, the validation check for out-of-range encoding is slightly simpler: as surrogates cannot occur, we can drop the
+M 4s term oﬀ Eq. 48.
+
+
+
+7 |      TRANSCODING FROM UTF-16 TO UTF-8
+
+As explained in § 2.1, UTF-16 encodes characters in the Basic Multilingual Plane (U+0000–U+FFFF) in one 16-bit word
+and all others in two words as surrogate pairs. To encode a code point as a surrogate pair, 0x10000 is subtracted from
+the character code to obtain a 20-bit binary number. The most signiﬁcant 10 bits are added to 0xD800 to form a high
+surrogate, which is followed by the less signiﬁcant 10 bits added to 0xDC00, producing the corresponding low surrogate.
+     UTF-8 encodes Unicode characters in the range U+0000–U+007F in one byte, characters in the range U+0080–
+U+07FF in two bytes, characters in the range U+0800–U+FFFF in three bytes and the other characters in four bytes.
+Characters encoded in one UTF-16 word thus correspond to characters encoded in 1–3 bytes of UTF-8 and characters
+encoded in two UTF-16 words correspond to characters encoded in 4 bytes of UTF-8. This suggests the following
+plan of attack for transcoding UTF-16 to UTF-8:
+
+1.   Read a vector of 16-bit words.
+2.   Classify the input words into ASCII (0x0000–0x007F), 2-byte (0x0080–0x07FF), high surrogate (0xD800–0xDBFF),
+     low surrogate (0xDC00–0xDFFF), and 3-byte (0x0800–0xFFFF).
+3.   Zero extend each 16-bit word to a 32-bit word and join low and high surrogates.
+4.   Shuﬄe the bits within each 32-bit word into the right positions and apply tag bits according to the type of char-
+     acter, producing UTF-8 sequences padded with null bytes.
+5.   Compress this vector, squeezing out the padding bytes.
+6. Write the byte string to the output buﬀer and proceed to the next iteration.
+
+     Apart from this general plan, we also have fast code paths for the three cases of (a) ASCII characters only, (b) all in
+U+0000–U+07FF, and (c) no surrogates, complementing the default code path (d) surrogates present. Which code path
+to take is decided based on the characters in the current 62-byte chunk of input. We expect that most text inputs
+would consistently rely on the same code paths. Thus branches corresponding to the various fast paths are easy to
+predict, and we expect that they may provide a signiﬁcant performance boost.
+     We would now like to explain the steps in the plan of attack in detail. The steps are interlinked with information
+produced in each step being reused for the subsequent steps. Additionally, the classiﬁcation masks are reused for
+input validation.
+     First, 32 words (i. e. 64 bytes) of input are loaded from memory into Win . Of these words, 31 words are encoded
+in the iteration with the last word serving as a look ahead for surrogate processing (§ 7.2). The mask
+
+
+                                                     L = 1 ≪ n/2 − 1                                                   (65)
+
+
+indicates the position of the lookahead word in Win .
+  24                                                                                                         Robert Clausecker and Daniel Lemire
+
+
+  7.1 |          Classiﬁcation and Fast Paths
+  We ﬁrst need to ﬁnd out what UTF-8 cases the characters in our input correspond to. Comparing the 16-bit words
+  in the input vector with 0x0080 and 0x0800, we produce the masks
+
+
+                                                           M 234 = (0x0080 ≤ Win ) ∧ ¬L          and                                       (66)
+
+                                                            M 12 = (0x0800 > Win )                                                         (67)
+
+
+  telling us if non-ASCII (i. e. 2-, 3-, or 4-byte) characters and ASCII or 2-byte characters are present. ASCII characters in
+  the lookahead are ignored to simplify some later bits of the algorithm. Based on this information, we can then embark
+  on a code path suitable for this chunk of input.
+
+
+  ASCII only
+  If all input words represent ASCII characters (M 234 = 0), we handle the input in an ASCII-only fast path: the vector
+  is truncated to bytes (vpmovwb) and deposited into the output buﬀer, advancing it by 31 bytes. Though we could
+  advance by 32 bytes, we want the the algorithm to proceed with a constant stride through memory irrespective of
+  the content.
+
+
+  Default path
+  If some 3- or 4-byte characters are present (M 12 ∨ L , ¬0), we check for surrogates. We do this by masking the words
+  with 0xfc00 and then checking if the result is equal to 0xd800 (high surrogate, M hi ) or 0xdc00 (low surrogate, M lo ),
+  giving
+
+
+                                                     M hi = (0xd800 ≤ Win < 0xdc00) ∧ ¬L
+
+                                                           = (Win ∧ 0xfc00 = 0xd800) ∧ ¬L              and                                 (68)
+
+                                                     M lo = (0xdc00 ≤ Win < 0xe000)
+
+                                                           = (Win ∧ 0xfc00 = 0xdc00).                                                      (69)
+
+
+  If surrogates are found to be present (M hi ∨ M lo , 0), we proceed to § 7.2 to handle them.19 Otherwise we skip that
+  step, set Wjoined = Win zero-extended from 16-bit to 32-bit (vpmovzxwd), and directly go to § 7.3.
+
+
+  1/2 byte only
+  In the third and ﬁnal case, we know that the input is a mix of ASCII and 2-byte characters. We process this case by
+  shuﬄing the bits of two-byte characters into position.20 The most signiﬁcant two bits of each byte are cleared and
+  tag bits are applied. Through this whole process, ASCII characters are left unchanged, giving us
+
+
+                                        Wout = M 234 ? (Win ≪ 8 ∨ Win ≫ 6) ∧ 0x3f3f ∨ 0x80c0 : Win .                                       (70)
+
+
+
+
+19 Low surrogates in the lookahead are registered to permit detection of sequencing errors.
+
+20 As we are on a little-endian architecture, the lead byte is the less-signiﬁcant of the two.
+  Robert Clausecker and Daniel Lemire                                                                                               25
+
+
+  We illustrate this equation in the 2-byte case:
+
+
+                                                                       Win      0000 0LKJ HGFE DCBA
+                                                  Win ≪ 8 ∨ Win ≫ 6             HGFE DCBA 000L KJHG                                (71)
+                                                                     Wout       10FE DCBA 110L KJHG
+
+
+        The words of Wout before the lookahead are then bytewise compared with 0x080021 producing a mask
+
+
+                                                   m keep = Wout ≥byte (L ? 0xffff : 0x0800)                                       (72)
+
+
+  holding binary 01 for ASCII characters, 11 for 2-byte characters, and 00 for the lookahead. With this mask, we ﬁnally
+  compress Wout into a UTF-8 stream
+
+
+                                                           w out = compress(m keep , Wout )                                        (73)
+
+
+  and write it to the output.
+        The output buﬀer pointer is advanced by the number of bytes of output produced, which is one byte for each
+  word of input (sans lookahead) and another byte for each 2-byte character.
+
+
+                                                         n out = popcount(M 234 ) + n/2 − 1.                                       (74)
+
+
+
+  7.2 |         Surrogates
+  When surrogates are present in the input, the bits of low surrogate have to be merged into those of the corresponding
+  high surrogate, yielding the code point of the character to be encoded.
+        First, Win is zero extended to 32 bits per element.22 A vector Wlo , holding for each high surrogate in Win its
+  corresponding low surrogate, is produced by rotating Win to the right by one element.
+        Then, the surrogates are joined by subtracting the tag bits (0xd800 for the high surrogate, 0xdc00 for the low
+  surrogate), undoing the surrogate plane shift for the high surrogate, shifting the bits of the high surrogate into place
+  and then adding the two together. By pulling out the constants representing the tag bits and the plane shift, these
+  additions and subtractions can be combined into one using 32-bit unsigned arithmetic. This gives us
+
+                                                                            
+                               Wjoined = M hi ? (Win − 0xd800 + 0x0040) ≪ 10 + (Wlo − 0xdc00) : Win
+                                                                      
+                                       = M hi ? (Win ≪ 10) − 0x35f000 + (Wlo − 0xdc00) : Win
+
+                                         = M hi ? (Win ≪ 10) + Wlo + 0xfca02400 : Win .                                            (75)
+
+
+        With the surrogate pairs decoded, we can then proceed to § 7.3 to encode into UTF-8. The vector elements
+  corresponding to low surrogates are ignored for the rest of the algorithm.
+
+
+
+
+21 a constant we have already loaded into a register; any other constant with high-byte in range 0x01–0x7f and low byte 0 works.
+
+22 From here on, each vector holds 2n bytes of data. These can be implemented as pairs of n -byte vectors.
+  26                                                                                                         Robert Clausecker and Daniel Lemire
+
+
+  7.3 |          Encoding into UTF-8
+  When we reach this step, we have transformed Win into a vector Wjoined of 32-bit integers, holding the code points
+  of the characters in the input.23 We would now like to encode these code points into UTF-8, producing 1–4 bytes of
+  output per code point.
+        Consider Fig. 1a: for the 2-, 3- and 4-byte case, the bits A–W making up the code point always appear in the same
+  position. This suggests using the same encoding procedure for the 2-, 3-, and 4-byte case with merely diﬀerent tag
+  bits applied at the end. ASCII characters are handled with a shift into position.
+        The encoding procedure is based on the vpmultishiftqb instruction introduced with the VBMI instruction set
+  extension. Given a vector of 64-bit words and for each such word a vector of eight bytes, the instruction uses the
+  byte vectors as indices to pick eight 8-bit chunks of data (8 consecutive bits) from the corresponding source words.
+  By choosing these indices such that they do not cross a 32-bit boundary, we can eﬀectively use the instruction to
+  select four 8-bit chunks out of each 32-bit word.
+        Applying the index vector (18, 12, 6, 0) to each 32-bit word24 of Wjoined , we obtain Wshifted with each bit shifted
+  into the right position with some bits left over:
+
+
+                                                Wjoined        0000 0000 000w vuts RQPN MLKJ HGFE DCBA
+
+                                              index 18                    00 000w vu
+                                              index 12                                 vuts RQPN
+                                                                                                                                           (76)
+                                              index 6                                        PN MLKJ HG
+                                              index 0                                               HGFE DCBA
+
+                                               Wshifted        HGFE DCBA PNML KJHG vuts RQPN 0000 0wvu
+
+  To ﬁx up the left-over bits, we mask with 0x3f3f3f3f, reusing the mask from the 2-byte fast path. Then, appropriate
+  tag bits Wtag are applied:
+
+
+                                      case                Wshifted masked with 0x3f3f3f3f                   tag bits
+
+                                    2-byte         00FE DCBA 000L KJHG 0000 0000 0000 0000                0x80c00000                       (77)
+                                    3-byte         00FE DCBA 00ML KJHG 0000 RQPN 0000 0000                0x8080e000
+                                    4-byte         00FE DCBA 00ML KJHG 00ts RQPN 0000 0wvu                0x808080f0
+
+        Finally, the ASCII case is handled by just shifting the ASCII words into position and merging these shifted charac-
+  ters into the output of the other cases, giving us
+
+
+                                             Wout = M 234 ? Wshifted ∧ 0x3f3f3f3f ∨ Wtag : Win ≪ 24.                                       (78)
+
+
+        We end up with UTF-8 encoded characters in Wout . Each character occupies a 32-bit word and is padded
+  with 0x00 bytes to 4 bytes. Input words corresponding to low surrogates have been passed through, being decoded
+  into junk content. We get rid of the padding and the low surrogate junk by preparing a mask of bytes we want to keep
+  and compressing out the unwanted bytes using the vpcompressb instruction.
+        In the mask, we want to keep the most signiﬁcant byte of each 32-bit word and all non-zero bytes—except for
+
+23 In the presence of surrogates, some of these elements are ignored.
+
+24 i. e. the index vector (18, 12, 6, 0, 50, 44, 38, 32) applied to each 64-bit word
+  Robert Clausecker and Daniel Lemire                                                                                                                      27
+
+
+  processed low surrogates. These seemingly complex requirements can be negotiated in two steps by ﬁrst building
+  a comparison mask and then taking all bytes that are not lower than the mask. For low surrogate bytes and the
+  lookahead, the mask is 0xff which cannot occur in w out .25 For the most signiﬁcant byte of all other words, it is 0x00
+  which admits every byte. For other bytes, it is 0x01, admitting only nonzero bytes. Thus we have
+
+
+                                          Wkeep = M lo ∨ L ? 0xffffffff : 0x00010101,                      building                                      (79)
+
+                                           m keep = (Wout ≥byte Wkeep ).                                                                                 (80)
+
+
+        With this mask, we compress Wout into
+
+
+                                                           w out = compress(m keep , Wout ),                                                             (81)
+
+
+  write it to the output buﬀer and advance the output by
+
+
+                                                                n out = popcount(m keep )                                                                (82)
+
+
+  bytes. Due to the little-endian orientation of the x64 architecture, the bytes of each UTF-8 sequence end up in the
+  right order: within each 32-bit word, they are written from the least signiﬁcant byte to the most signiﬁcant byte.
+
+
+
+  7.4 |         Validation
+  In contrast to the UTF-8 to UTF-16 procedure, validation of UTF-16 input is less involved. We merely have to check
+  for the correct sequencing of surrogates: every high surrogate must be followed by a low surrogate and vice versa.
+  As this validation only pertains surrogates, it is skipped in their absence, i. e. in all fast paths; input strings without
+  surrogates are always valid.
+        To aid in this process, we only process 31 words of input in each iteration, permitting a “look ahead” into the ﬁrst
+  word of the next iteration. We also keep track of a surrogate carry c indicating if the ﬁrst word in Win was preceded by
+  a high surrogate. This carry allows us to decide if a low surrogate in W [0] is to be ignored (c = 1) or is a sequencing
+  error (c = 0).26
+        Correct sequencing is checked for by concatenating M hi with c and shifting it to the position of the corresponding
+  low surrogates M lo . The input is valid if each high surrogate corresponds to a low surrogate:
+
+
+                                                            valid if    (M hi ≪ 1 ∨ c ) = M lo .                                                         (83)
+
+
+        The carry for the next iteration is computed as the presence of a high surrogate in the vector element right before
+  the lookahead, giving
+
+
+                                                              c out = M hi ≫ (n/2 − 2) ∧ 1.                                                              (84)
+
+
+  In the absence of surrogates, i. e. in the fast paths, the carry is cleared (c out = 0).
+
+25 The byte value 0xff is not possible in valid UTF-8 (cf. Table 1). It could be generated through invalid sequencing of surrogates, but we catch such an error
+
+  when validating the content.
+26 When W [0] is not a low surrogate, c is guaranteed to be clear.
+  28                                                                                            Robert Clausecker and Daniel Lemire
+
+
+        If validation fails, we ﬁnd the location of the ﬁrst mismatched surrogate to transcode the words preceding the
+  encoding error and then terminate. This is done by setting the number of remaining input words ℓ to the number of
+  words preceding the encoding error and then jumping to the tail handling code § 7.5.
+        Computing the location requires more work than Eq. 83; for a high surrogate not followed by a low surrogate, that
+  equation indicates the missing low surrogate as the ﬁrst erroneous word when it should really be the unmatched high
+  surrogate. So we proceed more carefully and ﬁrst compute the sets of high surrogates not followed by low surrogates
+
+
+                                                              M hi−lo = M hi ∧ ¬(M lo ≫ 1)                                    (85)
+
+
+  and the set of low surrogates not preceded by high surrogates
+
+
+                                                           M lo−hi = M lo ∧ ¬(M hi ≪ 1 ∨ c ).                                 (86)
+
+
+  The number of valid bytes is then the longest preﬁx not found in either of these masks:
+
+
+                                                               ℓ = ctz(M lo−hi ∨ M hi−lo ).                                   (87)
+
+
+
+  7.5 |         Decoding Failure and Tail Handling
+  At the end of the input, there might be some UTF-16 words left to process, but not enough to load a whole 64-byte
+  vector. We deal with this remaining input in a manner similar to the UTF-8 to UTF-16 case, cf. § 6.3.
+        When ℓ < n/2 words of input remain to be processed, we compute a mask
+
+
+                                                                      B = (1 ≪ ℓ ) − 1                                        (88)
+
+
+  of input words left to be processed. We then load the remaining input zero-masked with B,27 giving us the input tail
+  padded with U+0000. This remaining input is then processed in a ﬁnal iteration of the main loop. As each null byte
+  translates into a single byte of output, this leads to an output that is precisely n/2 − 1 − ℓ bytes longer than the true
+  output length. We compensate for this by adjusting the output length reported to the caller accordingly.
+        In contrast to the other direction, this approach may write past the end of the output buﬀer if it is just long
+  enough to hold the decoded string. We avoid this problem by performing masked stores instead of potentially storing
+  null bytes past the end of the output.
+
+
+
+  8 |        EXPERIMENTS
+
+  Our initial implementation of the algorithms was written in Intel 64 assembly for systems following the System V
+  ABI [16]. Hand-tuned assembly can slightly surpass optimizing compilers due to better instruction scheduling and
+  register allocation. For the measurements and comparison with competitive libraries, we have translated the code to
+  C++ using intrinsic functions [10] to access AVX-512 instructions and integrated it into our simdutf library28 as the
+  AVX-512 kernel. This library is freely available. Despite a slight loss of performance in comparison to the assembly
+
+
+27 Or in case of an encoding error, mask the already loaded vector.
+
+28 https://github.com/simdutf/simdutf
+Robert Clausecker and Daniel Lemire                                                                                    29
+
+
+implementation, we believe that this approach facilitates better portability and integration into existing software.
+    Our library is organized in diﬀerent kernels that are automatically selected at runtime based on the features of
+the CPU, a process sometimes called runtime dispatching. During benchmarking, we can manually select the diﬀerent
+kernels. As the names suggest, the AVX2 kernel relies on AVX2 instructions (32-byte vector length) while the AVX-
+512 kernel using our new functions relies on AVX-512 instructions with a 64-byte vector length. Our new functions
+are part of the AVX-512 kernel, and the AVX2 kernel represents results presented by Lemire and Muła [2].
+    For benchmarking, we use Ubuntu 22.04 on a non-virtual (metal) server from Amazon Web Services (c6i.metal).
+These servers have 32-core Intel Xeon 8375C (Ice Lake) processors with 41 MiB of L3 memory, with 48 kB of L1 data
+cache memory and 1.25 MiB of L2 cache memory per core. The base clock frequency is 2.9 GHz, with a maximal
+frequency of 3.5 GHz. They have 256 GiB of main memory (DDR4, 3200 MHz). The benchmarks are single-threaded
+and we exclude disk and network accesses from our tests. The software is written in C++ and compiled with the
+Clang 14 C++ compiler from the LLVM project using the default cmake setting for a release build: -O3 -DNDEBUG.
+    We could use several threads. For example, we could split the input into segments, and compute the expected
+transcoded size of the segments, before transcoding each segment in its own thread. However, merely joining a
+thread under Linux can require tens of microseconds of waiting from the main thread. With the high speed of our
+functions, this penalty is equivalent to the time required to process hundreds of kilobytes of data. We could use faster
+synchronization techniques (e.g., spin locks and thread pools), but at the expense of complexity and power eﬃciency.
+We expect that multicore parallelism is only warranted for large inputs, in the megabytes or gigabytes range. Future
+work might consider such cases.
+
+
+
+8.1 |      Setup
+
+We benchmark the transcoding of data ﬁles between UTF-8 and UTF-16 in memory. We repeat the task 10 000 times,
+measuring the time of each conversion: the C++ library reports a precision of 1 ns for the std::chrono::steady_clock
+measures on our test system [17]. The distribution of timings has a long tail akin to a log-normal distribution: most
+values are close to the minimum. We verify automatically that the diﬀerence between the minimum and the average
+timing is small (less than 1 %).
+    AVX-512 capable Intel processors prior to the Ice Lake and Rocket Lake families would systematically reduce their
+frequency when using 512-bit instructions, a process that Intel referred to as licensing. Such 512-bit licensing is no
+longer present in the more recent processors [18]. However, the processor frequency may ﬂuctuate based on power
+consumption and heat production as is generally the case with Intel processors. We expect 512-bit instructions to use
+more power, and thus to run at a slightly lower frequency. Irrespective of power usage, Intel processors execute 512-
+bit instructions at a reduced speed initially (e.g., 4× slower)—for a few microseconds. We assume that our functions
+with 512-bit instructions are part of a binary executable compiled with optimizations for 512-bit capable processors
+so that this temporary eﬀect is uncommon, maybe occurring only once.
+    We are interested in the steady-state performance of our functions: we therefore always benchmark our functions
+twice: once to intuitively warm the processor so that 512-bit instructions always execute at full speed and so that
+the processor has had a chance to decode the instructions. Furthermore, we may sometimes benchmark a function
+relying on 512-bit instructions, followed by a conventional function: to ensure that the latter is not penalized by the
+power usage of the ﬁrst function, we pause for a millisecond when switching the benchmarked function.
+    We report performance results in characters per second. A given string has the same number of characters
+irrespective of the format (UTF-8, UTF-16). We also report speeds in gigabytes per second by taking the size of
+the input and dividing by the time elapsed. We focus on little-endian UTF-16, but our software supports big-endian
+ 30                                                                                             Robert Clausecker and Daniel Lemire
+
+
+
+                8
+                        Arabic                                                        Arabic
+                        Chinese                                             20        Chinese
+                        Emoji                                                         Emoji
+                6
+                                                                            15
+   GB/s
+
+
+
+
+                                                                   GB/s
+                4
+                                                                            10
+
+
+                2                                                            5
+
+
+
+                0                                                            0
+                           IC         AV        AV                                        IC          AV         AV
+                             U           X2        X-                                       U            X2         X-
+                                                      5   12                                                           5   12
+
+ (a) UTF-8 to UTF-16 transcoding                                  (b) UTF-16 to UTF-8 transcoding
+
+
+ FIGURE 3 Transcoding speeds in gigabytes of input data per second for various test ﬁles. We compare against the
+ ICU library. The simdutf library provides both AVX2 and AVX-512 functions.
+
+
+
+ UTF-16, at little cost.
+          We compare our work with the following competitors:
+ •        We use the u8u16 library [7] (last released in 2007).
+ •        We use the utf8lut library [9] (last modiﬁed April 19, 2020). We require full validation of input (cmValidate).
+ •        We use the C++ component from International Components for Unicode (ICU) [19].
+ •        We use the transcoding functions of the LLVM project, they were originally produced by the Unicode Consortium.
+ •        We use the iconv library, which is part of the C library (GNU C Library 2.35).
+          We use automatically generated (lipsum) text in Arabic, Chinese, Hebrew, Hindi, Japanese, Korean, Latin and
+ Russian, as well as a list of emojis (henceforth Emoji).29 When formatted as UTF-16, they range in size between
+ 11 KiB and 170 KiB. The Chinese, Hindi, Japanese and Korean ﬁles have a high fraction of 3-byte UTF-8 characters.
+ The Arabic, Hebrew and Russian ﬁles have a high fraction of 2-byte UTF-8 characters. Except for the Emoji ﬁle, none
+ of the ﬁle contain 4-byte UTF-8 characters. We make our ﬁles freely available.30
+
+
+
+ 8.2 |          Results
+ We present speed results in gigacharacters per second regarding the validating UTF-8 to UTF-16 transcoding functions
+ on the lipsum ﬁles in Table 4. The AVX2 and AVX-512 columns correspond to our own code, in the simdutf library
+ (version 2.0.9, git tag v2.0.9). As the AVX2 kernels are implemented with a 32-byte vector length compared to the
+ 64-byte vector length of the AVX-512 kernels, we expect a 33 % higher throughput just from using longer vectors
+ (see § 5.2).
+
+29 https://github.com/rusticstuff/simdutf8
+
+30 https://github.com/lemire/unicode_lipsum
+Robert Clausecker and Daniel Lemire                                                                                                       31
+
+                   (a) UTF-8 to UTF-16
+
+
+                                        llvm            iconv           ICU      u8u16          utf8lut           AVX2          AVX-512
+
+                     Arabic               0.17           0.39           0.80          0.87           0.92          1.3            4.3
+
+                     Chinese              0.22           0.26           0.50          0.45           0.63          1.2            1.8
+
+                     Emoji                0.18           0.19           0.22          0.31           0.18          0.40           1.0
+
+                     Hebrew               0.17           0.39           0.80          0.87           0.92          1.3            4.3
+
+                     Hindi                0.16           0.21           0.43          0.49           0.72          0.84           1.7
+
+                     Japanese             0.21           0.26           0.51          0.46           0.64          1.2            1.7
+
+                     Korean               0.13           0.30           0.62          0.54           0.72          0.89           1.8
+
+                     Latin                0.35           0.56           1.5          13.             1.0          22.            20.
+
+                     Russian              0.17           0.29           0.46          0.86           0.92          1.3            4.2
+
+                     harm. mean           0.18           0.29           0.50          0.60           0.57          1.0            2.3
+
+
+                        (b) UTF-16 to UTF-8
+
+
+                                                 llvm           iconv          ICU         utf8lut         AVX2         AVX-512
+
+                             Arabic              0.38            0.30          0.67          2.4            4.8           11.
+
+                             Chinese             0.38            0.28          0.36          2.4            2.6            3.9
+
+                             Emoji               0.29            0.20          0.27          0.37           0.38           1.6
+
+                             Hebrew              0.48            0.32          0.68          2.3            4.8           11.
+
+                             Hindi               0.31            0.21          0.21          2.4            2.6            3.8
+
+                             Japanese            0.38            0.26          0.37          2.3            2.7            3.8
+
+                             Korean              0.43            0.30          0.37          2.3            2.7            3.8
+
+                             Latin               0.58            0.56          0.91          2.3           18.            20.
+
+                             Russian             0.28            0.23          0.23          2.4            4.8           11.
+
+                             harm. mean          0.37            0.27          0.36          1.5            1.9            4.5
+
+
+
+TABLE 4 Validating transcoding speeds (gigacharacters per second) over the lipsum datasets, last row is the
+harmonic mean of the column. The last column (AVX-512) presents the results from our new algorithms.
+
+
+
+    On the Latin ﬁle, the new AVX-512 kernel fails to improve on the earlier AVX2 kernel: the Latin dataset is made
+almost entirely of ASCII inputs which the AVX-512 kernel processes 32 bytes at a time, just like the AVX2 kernel. On
+the Emoji ﬁle, the new AVX-512 kernel achieves one gigacharacter per second when transcoding from UTF-8, which
+is more than twice as fast as any competitor. When transcoding from UTF-16, the new kernel transcode the Emoji
+ﬁle at 1.6 gigacharacters per second, which is more than four times as fast as any competitor. Whether transcoding
+from UTF-8 or UTF-16, the new kernel does well when transcoding inputs dominated by 2-byte UTF-8 sequences
+(Arabic, Hebrew and Russian): it is twice as fast as any competitor. For inputs dominated by 3-byte UTF-8 sequences
+(Chinese, Hindi, Japanese and Korean), the gain compared to the earlier AVX2 kernel is of the order of 50%.
+    Fig. 3 and Table 5 present the speed results in gigabytes of inputs per second. Whereas the speeds of the AVX-
+  32                                                                                                                            Robert Clausecker and Daniel Lemire
+
+                        (a) UTF-8 to UTF-16
+
+
+                                              llvm            iconv           ICU      u8u16           utf8lut           AVX2          AVX-512
+
+                           Arabic               0.31           0.70           1.4           1.5             1.6           2.3            7.6
+
+                           Chinese              0.66           0.77           1.5           1.3             1.9           3.7            5.4
+
+                           Emoji                0.72           0.78           0.87          1.2             0.70          1.6            4.2
+
+                           Hebrew               0.31           0.70           1.4           1.6             1.6           2.3            7.7
+
+                           Hindi                0.43           0.56           1.2           1.3             1.9           2.3            4.6
+
+                           Japanese             0.60           0.74           1.5           1.3             1.9           3.5            5.0
+
+                           Korean               0.32           0.73           1.5           1.3             1.8           2.2            4.5
+
+                           Latin                0.35           0.56           1.5          13.              1.0          22.            20.
+
+                           Russian              0.31           0.52           0.83          1.6             1.7           2.4            7.7
+
+                           harm. mean           0.40           0.66           1.2           1.5             1.4           2.6            6.0
+
+
+                               (b) UTF-16 to UTF-8
+
+
+                                                       llvm           iconv          ICU          utf8lut         AVX2         AVX-512
+
+                                   Arabic              0.76            0.61          1.3            4.7            9.6           21.
+
+                                   Chinese             0.76            0.57          0.73           4.7            5.3            7.7
+
+                                   Emoji               1.2             0.82          1.1            1.5            1.5            6.5
+
+                                   Hebrew              0.96            0.63          1.3            4.7            9.6           21.
+
+                                   Hindi               0.63            0.42          0.41           4.7            5.3            7.7
+
+                                   Japanese            0.77            0.52          0.74           4.7            5.3            7.6
+
+                                   Korean              0.86            0.60          0.73           4.7            5.4            7.6
+
+                                   Latin               1.2             1.1           1.8            4.7           37.            40.
+
+                                   Russian             0.56            0.45          0.46           4.7            9.6           21.
+
+                                   harm. mean          0.80            0.59          0.77           3.8            5.1           11.
+
+
+
+  TABLE 5 Validating transcoding speeds in gigabytes of input per second over the lipsum datasets, last row is the
+  harmonic mean of the column. The last column (AVX-512) presents the results from our new algorithms.
+
+
+
+  512 function in gigacharacters per second vary by multiples (from 4.3 with Arabic to 1.0 with Emoji), the gaps are
+  much less signiﬁcant in gigabytes per second (from 7.6 with Arabic to 4.2 with Emoji).
+       Table 6 presents the number of instructions retired per character, measured using the hardware performance
+  counters provided by Intel.31 In the worst case (for the Emoji ﬁles), the new AVX-512 kernel still requires fewer than
+  6 instructions per character to transcode in either direction. Except for the Latin ﬁles, the new AVX-512 kernel requires
+  far fewer than half the number of instructions than the AVX2 kernel when transcoding from UTF-8. For example, we
+  reduce the number of instructions by a factor of three for the Arabic ﬁle. Table 7 provides the number of instructions
+
+31 Under Linux, the performance counters are made available by the operating system.               A C program can query them using the functions deﬁned in the
+  linux/perf_event.h header.
+Robert Clausecker and Daniel Lemire                                                                                                33
+
+
+per cycle. We ﬁnd that the AVX-512 kernel is associated with a lower number of instructions retired per cycle—
+especially so when transcoding from UTF-8. Correspondingly, we expect a lower number of 64-byte instructions
+being retired per cycle compared to 32-byte instructions due to the microarchitectures of the Intel CPUs (§ 5.2).
+
+    The utf8lut library, when transcoding from UTF-8, requires fewer instructions than our AVX-2 kernel, but it is
+associated with few instructions per cycle. Hence, the utf8lut library is generally slower than our AVX-2 kernel de-
+spite relying on the same instruction set. The utf8lut library relies on a 2 MiB table for UTF-8 to UTF-16 transcoding
+as opposed to a small table (11 KiB) for our AVX-2 kernel, and no table at all for our AVX-512 kernel. A large table
+may cause the CPU to wait for loads to complete and increases overall cache pressure.
+
+                    (a) UTF-8 to UTF-16
+
+
+                                        llvm          iconv         ICU         u8u16        utf8lut        AVX2         AVX-512
+
+                      Arabic            65.           52.           27.         15.            5.3           7.4           2.3
+
+                      Chinese           82.           78.           38.         31.            8.4          11.            3.2
+
+                      Emoji            100           100            93.         45.           95.           29.            5.4
+
+                      Hebrew            65.           51.           27.         15.            5.3           7.4           2.3
+
+                      Hindi             80.           71.           34.         28.            7.3          12.            3.0
+
+                      Japanese          81.           76.           37.         30.            8.2          11.            3.2
+
+                      Korean            75.           66.           31.         25.            6.9          12.            2.7
+
+                      Latin             56.           35.           11.          0.65          5.3           0.35          0.24
+
+                      Russian           66.           52.           27.         16.            5.3           7.2           2.3
+
+
+                              (b) UTF-16 to UTF-8
+
+
+                                               llvm         iconv         ICU     utf8lut       AVX2         AVX-512
+
+                               Arabic          37.          53.           27.          6.3           2.6           1.1
+
+                               Chinese         48.          67.           41.          6.3           4.5           2.2
+
+                               Emoji           62.          90.           67.         51.           48.            5.4
+
+                               Hebrew          37.          53.           27.          6.3           2.6           1.1
+
+                               Hindi           45.          62.           38.          6.3           4.5           2.2
+
+                               Japanese        47.          65.           40.          6.3           4.5           2.2
+
+                               Korean          43.          58.           35.          6.3           4.5           2.2
+
+                               Latin           31.          34.           19.          6.3           0.69          0.55
+
+                               Russian         37.          53.           27.          6.3           2.6           1.1
+
+
+
+TABLE 6 CPU instructions retired per character when transcoding with validation. The last column (AVX-512)
+presents the results from our new algorithms.
+
+
+    In Fig. 4, we present the measured transcoding speed for various small preﬁxes of the Arabic ﬁles. We ﬁnd that
+as long as the input has hundreds of characters, we can reach and exceed a billion characters decoded per second.
+34                                                                                                                  Robert Clausecker and Daniel Lemire
+
+                    (a) UTF-8 to UTF-16
+
+
+                                         llvm     iconv         ICU        u8u16           utf8lut           AVX2    AVX-512
+
+                      Arabic             3.3           5.8          6.1         3.8             1.4           2.7         2.9
+
+                      Chinese            5.2           5.7          5.3         4.0             1.5           3.9         1.7
+
+                      Emoji              5.1           5.8          5.8         3.9             4.8           3.3         1.6
+
+                      Hebrew             3.2           5.8          6.1         3.8             1.4           2.7         2.9
+
+                      Hindi              3.7           4.3          4.2         3.9             1.5           2.9         1.5
+
+                      Japanese           4.8           5.5          5.4         3.9             1.5           3.9         1.6
+
+                      Korean             2.8           5.6          5.4         3.9             1.4           3.1         1.5
+
+                      Latin              5.6           5.6          4.6         2.4             1.6           2.2         1.4
+
+                      Russian            3.2           4.3          3.6         3.9             1.4           2.7         2.9
+
+                      harm. mean         3.9           5.3          5.0         3.6             1.6           3.0         1.8
+
+
+                         (b) UTF-16 to UTF-8
+
+
+                                                llvm         iconv        ICU         utf8lut         AVX2      AVX-512
+
+                              Arabic            4.0           4.6         5.2           4.2            3.5          3.3
+
+                              Chinese           5.2           5.4         4.8           4.2            3.4          2.5
+
+                              Emoji             5.2           5.3         5.2           5.3            5.1          2.6
+
+                              Hebrew            5.1           4.8         5.2           4.2            3.5          3.3
+
+                              Hindi             4.1           3.7         2.6           4.2            3.4          2.5
+
+                              Japanese          5.2           4.9         4.7           4.2            3.4          2.5
+
+                              Korean            5.3           5.0         4.5           4.2            3.4          2.5
+
+                              Latin             5.2           5.5         5.0           4.2            3.6          3.2
+
+                              Russian           3.0           3.4         2.1           4.2            3.5          3.3
+
+                              harm. mean        4.5           4.6         3.9           4.3            3.6          2.8
+
+
+
+TABLE 7 CPU instructions retired per cycle when transcoding with validation. The last column (AVX-512) presents
+the results from our new algorithms.
+
+
+
+     Historically, some processors could only read and write data when the memory address was a multiple of the
+data size. Older Intel processors could read and write at any address, but with a severe penalty for unaligned memory
+addresses. On recent processors (e.g., Intel’s Sandy Bridge microarchitecture launched in 2011), there is reportedly
+no measurable performance penalty for reading or writing misaligned memory operands [14]. However, there might
+be indirect penalties (e.g., accessing more cache lines). In the hope of achieving better performance, we could require
+that our memory buﬀers start at an address divisible by 512 bits. However, we expect that the performance of the
+transcoding functions is generally unaﬀected by memory alignment on our test system. Thus our benchmarking code
+does not align the memory in any particular manner, relying instead on the default behavior of the memory allocator.
+To test the eﬀect of the memory alignment of the input, we transcoded the same data, but shifted by 0 to 512 bytes
+Robert Clausecker and Daniel Lemire                                                                                    35
+
+
+
+                                                             10
+
+
+
+
+                         billions of characters per second
+                                                              8
+
+
+                                                              6
+
+
+                                                              4
+
+
+                                                              2                             UTF-16 to UTF-8
+                                                                                            UTF-8 to UTF-16
+
+                                                                  500     1,000    1,500    2,000      2,500   3,000
+                                                                        number of characters (preﬁx)
+
+FIGURE 4 Validating transcoding speed in billions of characters per second for preﬁxes of various lengths of the
+Arabic ﬁles using our techniques.
+
+
+
+inside a buﬀer. Using one of our UTF-8 ﬁle (Arabic), we measured a diﬀerence of 2% between the fastest and slowest
+alignment when using our fast (AVX-512) transcoder. We get a similar result if we transcode from a ﬁxed input to
+oﬀsetted locations inside a destination buﬀer. Our results suggest that memory alignment is likely not a signiﬁcant
+factor.
+
+
+
+9 |       CONCLUSION
+
+It is not a priori obvious that character transcoding is amenable to SIMD processing. Earlier work achieved high speeds
+but it required kilobytes of lookup tables [2]. Our work indicates that the AVX-512 instruction-set extensions enables
+high speed for tasks such as character transcoding—without lookup tables and using few instructions. It suggests
+that some features of the AVX-512 instruction-set extensions might serve as a reference for future instruction-set
+extensions. In particular, we ﬁnd masked SIMD instructions (move, load, store, compress) with byte-level granularity
+useful.
+
+    Both Intel and AMD support AVX-512 instructions. They also both oﬀer specialized compilers, tuned for their
+processors. Future work could compare the performance of our routines on more varied Intel and AMD processors
+(e.g., Intel Rocket Lake and Sapphire Rapids, AMD Zen 4), using specialized compilers (e.g., from Intel and AMD) and
+hand-tuned assembly. We could extend our benchmarks to cover a wider range of string.
+
+
+
+Acknowledgements
+
+We thank W. Muła who produced an early UTF-8 to UTF-16 transcoder using AVX-512 instructions. The version
+presented in this manuscript follows a diﬀerent design but Muła’s work provided a crucial motivation. We thank
+N. Boyer for his technical work on our software library, benchmarks, and tests.
+36                                                                                        Robert Clausecker and Daniel Lemire
+
+
+references
+ [1] Keiser J, Lemire D. Validating UTF-8 in less than one instruction per byte. Software: Practice and Experience 2021;51(5).
+     doi:10.1002/spe.2920.
+
+ [2] Lemire D, Muła W. Transcoding billions of Unicode characters per second with SIMD instructions. Software: Practice
+     and Experience 2022;52(2):555–575. doi:10.1002/spe.3036.
+
+ [3] z/Architecture Principles of Operation. International Business Machines Corporation, fourteenth ed.; 2022, document
+     SA22-7832-13.
+
+ [4] Muła W, Lemire D. Base64 encoding and decoding at almost the speed of a memory copy. Software: Practice and
+     Experience 2020;50(2):89–97. doi:10.1002/spe.3036.
+
+ [5] Hoﬀman P, Yergeau F, UTF-16, an encoding of ISO 10646; 2000. Internet Engineering Task Force, Request for Com-
+     ments: 3629. https://tools.ietf.org/html/rfc2781 [last checked July 2021].
+
+ [6] Yergeau F, UTF-8, a transformation format of ISO 10646; 2003. Internet Engineering Task Force, Request for Comments:
+     3629. https://tools.ietf.org/html/rfc3629 [last checked July 2021].
+
+ [7] Cameron RD. A case study in SIMD text processing with parallel bit streams: UTF-8 to UTF-16 transcoding. In: Proceed-
+     ings of the 13th ACM SIGPLAN Symposium on Principles and practice of parallel programming ACM; 2008. p. 91–98.
+     doi:10.1145/1345206.1345222.
+
+ [8] Inoue H, Komatsu H, Nakatani T. Accelerating UTF-8 Decoding Using SIMD Instructions (in Japanese). Information
+     Processing Society of Japan Transactions on Programming 2008;1(2):1–8.
+
+ [9] Gatilov S, utf8lut: Vectorized UTF-8 converter; 2012. https://bit.ly/3qI7BVQ [last checked October 2022].
+
+[10] Intel Intrinsics Guide; 2023. https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html [last
+     checked June 2023].
+
+[11] Intel 64 and IA-32 Architectures Software Developer’s Manual Volume 2. Intel Corporation; 2022, order number
+     325383-077US.
+
+[12] Fog A. Instruction tables: Lists of instruction latencies, throughputs and micro-operation breakdowns for Intel, AMD
+     and VIA CPUs. In: Optimization Manuals, vol. 4 published online at https://agner.org/optimize; 2022.
+
+[13] Abel A, Reineke J. uops.info: Characterizing Latency, Throughput, and Port Usage of Instructions on Intel Microarchi-
+     tectures. In: ASPLOS ASPLOS ’19, New York, NY, USA: ACM; 2019. p. 673–686. doi:10.1145/3297858.3304062.
+
+[14] Fog A. The microarchitecture of Intel, AMD and VIA CPUs: An optimization guide for assembly programmers and
+     compiler makers. In: Optimization Manuals, vol. 3 published online at https://agner.org/optimize; 2022.
+
+[15] Abel A, Reineke J. uiCA: Accurate Throughput Prediction of Basic Blocks on Recent Intel Microarchitectures. In: Rauch-
+     werger L, Cameron K, Nikolopoulos DS, Pnevmatikatos D, editors. ICS ’22: 2022 International Conference on Super-
+     computing, Virtual Event, USA, June 27-30, 2022 ICS ’22, ACM; 2022. p. 1–12. doi:10.1145/3524059.3532396.
+
+[16] Matz M, Hubička J, Jaeger A, Mitchell M, System V Application Binary Interface AMD64 Architecture Processor Supple-
+     ment; 2012. Draft Version 0.99.6.
+
+[17] Najaﬁ A, Tai A, Wei M. Systems Research is Running out of Time. In: Proceedings of the Workshop on Hot Top-
+     ics in Operating Systems HotOS ’21, New York, NY, USA: Association for Computing Machinery; 2021. p. 65–71.
+     https://doi.org/10.1145/3458336.3465293, doi:10.1145/3458336.3465293.
+
+[18] Downs T, Ice Lake AVX-512 Downclocking; 2020. https://travisdowns.github.io/blog/2020/08/19/icl-avx512-freq.html
+     [last checked July 2022].
+
+[19] International Components for Unicode (ICU); 2010. http://site.icu-project.org [last checked July 2021].
+Robert Clausecker and Daniel Lemire                                                           37
+
+
+A |      UTF-8 TO UTF-16: SUMMARY OF VARIABLES
+
+
+
+
+           symbol            type         description                                  Eq.
+
+             w in        byte vector      input vector                                  —
+             m1          byte mask        1-byte sequence lead bytes in w in           (6)
+            m 234        byte mask        2/3/4-byte sequence lead bytes in w in       (7)
+             m2          byte mask        2-byte sequence lead bytes in w in            —
+             m 34        byte mask        3/4-byte sequence lead bytes in w in         (8)
+             m3          byte mask        3-byte sequence lead bytes in w in           (43)
+             m4          byte mask        4-byte sequence lead bytes in w in           (9)
+            m 1234       byte mask        lead bytes in w in                           (10)
+             m +1        byte mask        second byte of each sequence in w in         (37)
+             m +2        byte mask        third byte of each sequence in w in          (38)
+             m +3        byte mask        fourth byte of each sequence in w in         (11)
+            m end        byte mask        last byte of each sequence in w in           (12)
+             M3          word mask        3-byte characters in Wout                    (44)
+             M hi        word mask        high surrogates in Wout                      (24)
+             M lo        word mask        low surrogates in Wout                       (23)
+          w stripped     byte vector     w in with tag bits stripped oﬀ                (14)
+              P         word vector       indices of last-in-sequence bytes in w in    (15)
+             m −1        byte mask        mask to admit only 2nd -last bytes of w in   (17)
+             m −2        byte mask        mask to admit only 3rd -last bytes of w in   (18)
+            Wend        word vector       last byte of each sequence in w in           (16)
+            W−1         word vector       second-last byte of each sequence in w in    (19)
+            W−2         word vector       third-last byte of each sequence in w in     (20)
+            Wsum        word vector      Wend , W−1 , and W−2 bits assembled           (21)
+            Wout        word vector      Wend with surrogates ﬁxed up                  (25)
+            M out        word mask        valid words in Wout                          (27)
+         m processed     byte mask        last byte of each sequence in M out          (28)
+             n in          integer        number of w in bytes processed               (29)
+             n out         integer        number of words written out                  (30)
+              ℓ            integer        number of input bytes left to process         —
+              b          byte mask        input bytes left to process                  (34)
+             mc          byte mask        where continuation bytes should be in w in   (39)
+            m pre        byte mask       w in bytes preceding ﬁrst mismatch            (41)
+          M <U+800       word mask        overlong 3-byte characters in Wout           (45)
+             M 3s        word mask        3-byte characters encoding surr. in Wout     (46)
+             M 4s        word mask        surrogates not encoding surr. in Wout        (47)
+
+
+
+Variables pertaining to the fast paths are not listed.
+38                                                                          Robert Clausecker and Daniel Lemire
+
+
+B |   UTF-16 TO UTF-8: SUMMARY OF VARIABLES
+
+
+
+      symbol         type       description                                                      Eq.
+
+        Win      word vector    input vector                                                     —
+         L        word mask     position of lookahead word                                      (65)
+       M 234      word mask     words that are 2–4-byte characters                              (66)
+        M 12      word mask     words that are 1- and 2-byte characters                         (67)
+        M hi      word mask     words that are high surrogates                                  (68)
+        M lo      word mask     words that are low surrogates                                   (69)
+        Wlo      dword vector   Win shifted to the right by one element                           —
+      Wjoined    dword vector   Win with high and low surrogates joined                         (75)
+      Wshifted   dword vector   Wjoined bits shifted with vpmultishiftqb                        (76)
+       Wtag      dword vector   UTF-8 tag bits for Wout                                         (77)
+       Wout      dword vector   Win transcoded to UTF-8 with padding                            (78)
+      Wkeep      dword vector   magic constant for which bytes to keep                          (79)
+       m keep     byte mask     mask of Wout bytes we want to keep                              (80)
+       w out     byte vector    output string without padding                                   (81)
+        n out      integer      length of w out                                                 (82)
+         c         integer      surrogate carry (in)                                             —
+        c out      integer      surrogate carry out                                             (84)
+      M hi−lo     word mask     high surrogates not followed by low surr.                       (85)
+      M lo−hi     word mask     low surrogates not preceded by high surr.                       (86)
+         ℓ         integer      number of input words left to process                           (87)
+         B        word mask     input words left to process                                     (88)
+

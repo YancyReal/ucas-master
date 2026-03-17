@@ -1,0 +1,731 @@
+                      A Hybrid Just-In-Time Compiler for Android
+                               Comparing JIT Types and the Result of Cooperation
+                                           Guillermo A. Pérez                                  Chung-Min Kao
+                                      National Tsing Hua University                       National Tsing Hua University
+                                            Hsinchu, Taiwan                                     Hsinchu, Taiwan
+                                              gaperez64@                                         klozesk@
+                                          sslab.cs.nthu.edu.tw                              sslab.cs.nthu.edu.tw
+                                           Yeh-Ching Chung                                     Wei-Chung Hsu
+                                      National Tsing Hua University                   National Chiao Tung University
+                                            Hsinchu, Taiwan                                  Hsinchu, Taiwan
+                                       ychung@cs.nthu.edu.tw                                hsu@cs.nctu.edu.tw
+
+ABSTRACT                                                                                  compiled and translated into native instructions like classi-
+The Dalvik virtual machine is the main application plat-                                  cal programming languages are. Instead, a program written
+form running on Google’s Android operating system for mo-                                 using them is read line by line and executed by an inter-
+bile devices and tablets. It is a Java Virtual Machine run-                               mediate engine or virtual machine. The process of fetching
+ning a basic trace-based JIT compiler, unlike web browser                                 each instruction and the execution of it can be much slower
+JavaScript engines that usually run a combination of both                                 than how a native program is usually ran. This problem
+method and trace-based JIT types. We developed a method-                                  has traditionally been dealt with by adding a Just-In-Time
+based JIT compiler based on the Low Level Virtual Machine                                 (JIT) Compiler to the virtual machine [25] [4]. A JIT Com-
+framework that delivers performance improvement compa-                                    piler is a compiler that takes a code sequence or code block
+rable to that of an Ahead-Of-Time compiler. We compared                                   and translates it into native code during run time in order
+our method-based JIT against Dalvik’s own trace-based JIT                                 to improve its execution time.
+using common benchmarks available in the Android Market.                                     The Java language is an example of an interpreted lan-
+Our results show that our method-based JIT is better than                                 guage which runs on top of Oracle’s JavaTM Virtual Machine
+a basic trace-based JIT, and that, by sharing profiling and                               (JVM). Java allows developers to write a program once and
+compilation information among each other, a smart combi-                                  run it on any platform that implements a JVM [30]. De-
+nation of both JIT techniques can achieve a great perfor-                                 velopers might choose to write computationally intensive
+mance gain.                                                                               code using a different programming language (C and as-
+                                                                                          sembler are the most common choices) and communicate
+                                                                                          with the JVM using Java’s Native Interface (JNI) [28]. This
+Categories and Subject Descriptors                                                        approach, however, requires that the developer provide the
+D.3.4 [Programming Languages]: Processors—Compil-                                         target user with a library compiled for the user’s hardware.
+ers, Interpreters, Code generation, Optimization, Parsing,                                The use of JNI to interface with the virtual machine is also
+Retargetable compilers                                                                    a problem because of the overhead required to change from
+                                                                                          the interpreted to the native environment and back [20]. It
+General Terms                                                                             is also possible to compile an application written in Java to a
+                                                                                          native binary file using Java to native compilers [9] [32] but
+Performance, Design, Experimentation, Languages                                           the resulting binary and the libraries needed to execute it
+                                                                                          need to be compiled for the user’s platform as well, making
+Keywords                                                                                  this and the previous approaches less portable than the JVM
+Method-Based, Trace-Based, JIT, Android, Dalvik VM                                        and Google’s Dalvik virtual machine. Because of these rea-
+                                                                                          sons most Java applications are written using mostly Java
+1.     INTRODUCTION                                                                       and are therefore benefited by a VM’s JIT compiler. As
+                                                                                          of Java 1.3, the standard HotSpot became the default Sun
+  Interpreted and Dynamic languages have been on the rise                                 Java Virtual Machine [29]. The HotSpot virtual machine
+for several years now. These programming languages are not                                included a method-based (MB) JIT compiler to analyze the
+                                                                                          program’s performance for hot spots (frequently executed
+                                                                                          instructions) and compile them.
+Permission to make digital or hard copies of all or part of this work for                    Recently, trace-based (TB) JIT compilers have become
+personal or classroom use is granted without fee provided that copies are                 more popular than it’s MB counterpart because of its abil-
+not made or distributed for profit or commercial advantage and that copies                ity to define traces that range from one method to another
+bear this notice and the full citation on the first page. To copy otherwise, to           and therefore extend the scope of what is being considered
+republish, to post on servers or to redistribute to lists, requires prior specific        for compilation and optimization. TB JIT compilers can
+permission and/or a fee.
+                                                                                          also take dynamically typed languages and compile them
+CASES’12, October 7–12, 2012, Tampere, Finland.
+Copyright 2012 ACM 978-1-4503-1424-4/12/09 ...$15.00.                                     to optimized native code that handles the variables’ types
+
+
+
+
+                                                                                     41
+being observed during run time [10]. As is explained in sec-                                 Main Execution Thread
+tion 4.1.1, Java is not actually a dynamically typed language
+and therefore such an optimization does not completely ap-
+ply to the Dalvik VM. Nevertheless, short instruction se-
+quence compilation can result in smaller memory footprint
+and still improve performance by selecting the few most ex-                          Interpret                           NativeExecution
+
+ecuted instructions for JIT compilation. Because of these
+reasons, and also because of the speed at which a simple TB
+                                                                                                  [hascompiledversion]
+JIT can start delivering performance improvements, Google
+chose to implement a TB JIT compiler for their Android
+operating system for mobile devices [6]. However, with the
+advantage of method structures as basic block delimiters and
+                                                                                                   [MBthreshold]          JITcompile
+considering that Android’s TB JIT, currently does not have
+                                                                                                                          orderqueue
+the ability to create traces containing code from more than                                      [TBthreshold]
+one method, it is not really clear and no one has really stud-
+                                                                                                   SelectTrace
+ied if a MB JIT would have the same effect or achieve even
+better performance.
+   Both JIT compiler types have their own strengths and
+                                                                             Figure 1: Main Thread State Diagram
+outperform the other in terms of memory usage or delivered
+code quality depending on the situation and the platform’s
+resources. Simple TB JIT compilers, such as Dalvik’s, might
+                                                                      tion executed a certain amount of times can trigger a trace
+seem better suited for resource-constrained devices such as
+                                                                      selection phase inside the interpreter and then a trace com-
+cellphones because of their ability to avoid compiling cold
+                                                                      pile order will be emitted for the compiler to transform the
+code and their fast compilation times. However, more robust
+                                                                      trace into native code. Our work adds a second threshold
+TB JIT compilers or MB JIT compilers, although slower and
+                                                                      to the process. The new threshold applies only for invoca-
+even though they might have a bigger memory footprint,
+                                                                      tion opcodes and is tuned to allow the TB JIT to run as
+deliver faster, more efficient, code. This paper compares
+                                                                      the base JIT compiler to allow for fast optimization of the
+the performance of the code generated by a limited TB JIT
+                                                                      application by means of short traces being compiled while
+compiler and a MB JIT compiler running on a mobile device
+                                                                      the MB compiler delivers faster, heavily optimized compiled
+and suggests the usage of a fast, incomplex JIT compiler
+                                                                      methods afterwards. When the threshold for invocation in-
+combined with a slow JIT compiler capable of delivering
+                                                                      structions is reached, there is no need for a trace selection
+better optimized code.
+                                                                      phase so the compile order is emitted quicker than a trace
+   In this work we propose a MB JIT compiler based on the
+                                                                      compile order. Figure 1 depicts the first profiling phase for
+Low Level Virtual Machine (LLVM) [22] compiler frame-
+                                                                      our MB JIT and how it appends to the existing JIT profil-
+work and API to deal with methods that can be further
+                                                                      ing technique. This thread profiling phase is simpler than
+optimized by considering them as a whole block instead of
+                                                                      Dalvik’s JIT because there is no need to build a trace before
+focusing merely on the hot traces they contain, like the cur-
+                                                                      submitting a method compile order.
+rent TB compiler does. Our resulting JIT framework has
+                                                                         In recent times, the tendency has been to create software
+been shown to improve the execution speed of commonly
+                                                                      that can be executed in parallel on multi-core processors.
+used benchmarks to test the speed of Java Virtual Machines
+                                                                      This is often allowed by processes spawning new child pro-
+by up to 4 times compared to Android’s mainstream, un-
+                                                                      cesses or by processes being further divided internally as
+modified Dalvik VM. We show that a MB JIT compiler can
+                                                                      threads. Java virtual machines provide a mechanism to cre-
+provide similar results to those a static compiler could while
+                                                                      ate, handle and kill additional threads apart from the main
+having the advantage of run-time profiling information and
+                                                                      execution thread [28]. Threads can be created and started
+taking a relatively small toll on resource usage compared
+                                                                      using the Runnable interface or the Thread class and the
+to the performance gain. Finally, we propose a sharing en-
+                                                                      virtual machine is in charge of creating a new thread and
+vironment in which information resulted from the TB JIT
+                                                                      executing the code in the class’ implementation of the run
+profiling and subsequent compilation of code can be useful
+                                                                      method [27]. In the case of the Dalvik VM, this threads
+for our MB compiler and vice versa in order for each com-
+                                                                      are provided via POSIX [17] threads and the corresponding
+piler to complement each other’s weaknesses and harness
+                                                                      API. The invocation of the run() method is not profiled by
+their own advantages.
+                                                                      Dalvik’s TB JIT because it is directly invoked from the vir-
+                                                                      tual machine. We propose an additional Class-level profiling
+2.   OVERVIEW                                                         phase to be able to select when the run() should be consid-
+                                                                      ered for MB JIT compilation. Having Class-level profiling
+2.1 Method-Based JIT Compiler flow                                    information might enable us to consider related methods
+  Every time an application is launched in Android a new              from the same Class or related Classes for JIT compilation.
+copy of the Dalvik VM is spawned from the system Dalvik               This kind of semantic information is not being utilized, at
+zygote. Each DVM acts as an application sandbox with its              the moment, by the JIT compiler framework.
+own Garbage Collection and Compiler Threads. The new                     The Compiler Thread works by emptying the compile or-
+DVM opens the application file (called a dex file) and loads          der queue and processing every trace one at a time. Trace
+into memory the contents of it. In order to speed up the exe-         orders are handled by Google’s Dalvik VM TB JIT compiler.
+cution of interpreted instructions, a TB JIT compiler checks          At this moment, the only methods considered for inlining by
+for hot traces while the program is being run. Any instruc-           the TB JIT compiler are simple methods that fit the profile
+
+
+
+
+                                                                 42
+                                    Compiler Thread                                           bone and the benefits that this meant, and ones yet to ex-
+                                                                                              ploit, are explained in section 4.2.
+                                                                                                 Using a third party developed compiler such as LLVM’s
+                                                                                              allows us to focus on the comparison and cooperation be-
+                                                 dequeue             JITcompile
+                                                                                              tween JIT types. The idea of building a JVM using third
+                             process
+                              orders                                 orderqueue               party components had already been fathomed by Geoffray et
+                                                                                              al. [11] to reduce the expertise needed to implement any of
+                                                                                              its main components. The JIT compiler is just another one
+                 [method]                   [trace]
+                                                                               queue
+                                                                                              of a JVM’s components and its job is to take an intermedi-
+                                                                                method        ate representation (IR), be it DEX code or LLVM bitcode,
+                                                                                order
+                                                                                              and generate native code. The compiler thread (its state
+               checkmethod                            expandtrace
+                                                                                              diagram shown in figure 2) is in charge of calling the right
+                                                                                              JIT compiler for each work order. The Dalvik VM later sets
+                                                                       addmethod              the jump point from interpreted code to the newly compiled
+                                                                                              one.
+                                                                    [invokesmethod]
+
+
+
+                            [fitsprofile]
+                                                      compiletrace                            3. PROFILING APPROACH
+              compilemethod
+
+
+                                                                                              3.1 Existing Profiling Tools
+                                                                                                 Google provides a tool called traceview to profile the exe-
+     Figure 2: Compiler Thread State Diagram                                                  cution of applications on the Dalvik Virtual Machine. Wang’s
+                                                                                              previous work on an Ahead-Of-Time-Compiler (AOTC), Ic-
+                                                                                              ing [35], bases its profiling model on information provided by
+of getters or setters. When presented with invocations                                        traceview available after the application has been ran once.
+to other methods then inlining is not realized. In our pro-                                   The information is then considered at static time to deter-
+posed framework we consider the case in which a method is                                     mine which methods are good candidates for static compila-
+not inlined counter productive for the JIT compiler’s goal.                                   tion previous to repackaging the Android application. The
+Therefore we add a call to our MB compiler to avoid having                                    situation for a JIT is a bit different since run time informa-
+a compiled trace call an interpreted method and then return                                   tion is readily available and more valuable than any sort that
+to the native environment because of the overhead that this                                   could be obtained ahead-of-time. In most cases user behav-
+would mean (interfacing native code with interpreted usu-                                     ior will affect which methods and which code sections are
+ally implies the use of JNI or another bridge) [20]. This is                                  executed more often, this is something that can only be de-
+the third way a method can be scheduled for MB compila-                                       termined during run-time. Further differences with similar
+tion. We chose to append our MB JIT compiler to the same                                      compilers and their approaches are discussed in section 6.
+compiler thread because this, when the profiler is tuned to                                      Dalvik’s TB JIT compiler keeps track of the amount of
+favor the TB JIT as the base JIT, allows for traces to be                                     times most instructions from a program have been called.
+compiled first. In this manner, the TB compiler thread does                                   This information is stored in a hash table and is updated
+not compete with the MB compiler thread for CPU time, be-                                     any time a candidate trace entry point is about to be in-
+cause they are handled by one single compiler thread, and                                     terpreted. The choice of a hash table is definitely based on
+together deliver quicker native versions of traces while the                                  the need for the interpreter to be able to continue its job
+slower method compilations are left for later. The assump-                                    without much overhead being added by the TB JIT. Once
+tions and derivations we followed for the tuning of our pro-                                  the amount of times an instruction has been called passes
+filer are explained in section 3.2. Figure 2 shows all the                                    the threshold set for the TB JIT to kick in then the entry
+states in which the compiler thread can find itself. It also                                  in the hash table is reset and the Interpreter goes through a
+shows the method level profiling phase of our proposed JIT.                                   series of steps to decide where the trace should stop, taking
+   A second advantage of our decision to use the same com-                                    into account a parametrized maximum length for any given
+piler thread is that Dalvik’s original security scheme is left                                trace. The trace is later dispatched as a work order for the
+unmodified. Every application still runs inside its own vir-                                  Compiler Thread to take care of the JIT compilation and
+tual machine and every virtual machine has its own compiler                                   attachment of the compiled code where the Interpreter is
+thread that has access to its own native compiled code. The                                   able to call it. The compiled code, however, is not called
+only difference is that, for method work orders, after some                                   until the execution threshold is once again passed; at this
+transformations are applied to the DEX code, the MB JIT                                       moment the interpreter checks if the code has already been
+is called instead of the original TB JIT.                                                     compiled, and if it has, then jumps to the native compiled
+                                                                                              code. At this point we notice that, not only are trace com-
+2.2 The Compiler                                                                              pile orders dispatched earlier, but they will also be called
+   The compiler itself uses LLVM’s framework to translate                                     earlier (given the fact that the TB JIT threshold, threshT ,
+optimized DEX instructions directly into LLVM bitcode. Al-                                    is low enough). With a different tuning, the profiler would
+though a trace is not provided for the compiler to work on,                                   easily be able to make the MB JIT the base JIT because the
+the object oriented structures created by the DVM to hold                                     MB compile orders take less time to build and they do not
+classes, objects and such provide access to the DEX code                                      depend on the invocation threshold being passed twice for
+without having to reload the dex file from the application.                                   the native code to be installed.
+The reasons for having chosen LLVM as the compiler’s back-
+
+
+
+
+                                                                                         43
+3.2 Profiling for our Method-Based JIT                                     next time threshT is reached. The compilation of a method
+    We took advantage of the existing profiling mechanism                  also takes two passes over the instruction sequence but we
+and for every method called we check if a specific MB thresh-              devised a simple optimization (described in section 4.3) so
+old had been reached. Once the threshold is passed then a                  that we can avoid having to wait for the threshold to be met
+work order is submitted to the Compiler Thread for the                     again until the native version of the method is put in place.
+method to be compiled and made available for future calls.                    When the compiler thread is faced with a method com-
+The method is marked so that, in the future, it will not be                pilation work order it has to determine whether a compiled
+considered for MB JIT orders and rather be taken into con-                 version of it will help increase performance or not. First
+sideration only for trace compilations. This way we avoid re-              of all, the method should contain no instructions that will
+evaluating rejected methods. Since the native version of the               indicate a need to jump from native to interpreted envi-
+method will replace the invocation to a interpreted method                 ronment. In the case of DEX instructions, invocations of
+for an invocation to a native one, this only affect in the case            non-inlineable methods would end up being compiled to a
+that the method was considered not fit for the MB JIT. The                 call to the interpreter to execute the method. Instructions
+modifications we added to this profiling stage are executed                requiring access to fields in order to retrieve or save values
+in constant time and account for a minimum amount of time                  can be provided because the JIT sends a reference to the
+in the whole compilation process. The interpreter only needs               method’s owner, be it an Object or a Class, and therefore
+to check a hash table and update the counter stored in it.                 do not have to be banned. Second, the method instruction
+    In order to obtain an initial setting for the profiling model          count should amount or surpass a threshold set to avoid
+thresholds we followed a simple derivation. We defined a                   small methods, that usually only set, get or return a value,
+Method as a finite sequence of instructions: M ethod = {i0 , i1 ,          from being compiled. The described types of methods would
+i2 , ...}; and a Trace as a subsequence of instructions T race ⊆           only result in native code islands and would probably only
+M ethod so if we set our MB JIT threshold, threshM , to any                increase the amount of environment jumps between inter-
+value such that threshM > 1, the hot traces of instructions                preted and native code and would not be benefited from
+inside a method’s instruction sequence are sure to be dis-                 MB JIT compilation, they should instead be inlined.
+patched as trace compile orders if there is a flow control
+structure inside the method such that the TB JIT’s thresh-                 3.3 Trace-Based vs. Method-Based JIT
+old is reached. Actually, although loops, recursive method                    Android’s TB JIT for the Dalvik Virtual Machine focuses
+calls and repetitive event inputs are all examples of situ-                on the hot parts of a method’s code and compiles them into
+ations that might cause an instruction to be ran several                   native code that is linked to the first instruction from the
+times, only loops do not implicitly include the invocation                 original trace. Methods with loops and other flow control
+of a method (which would be profiled for the MB JIT as                     constructs that cause instructions to be executed repeatedly,
+well). With this setting then, an instruction can be called a              will trigger this behavior and cause a trace compilation work
+certain amount of times before the compiler’s behavior de-                 order to be emitted. However, if an invocation to a method
+generates into compiled traces being outdated by complete                  is included in a hot trace or if a method is being invoked too
+native methods. Consider exec(i) to be the expected amount                 often, it is probably better to compile all of the method into
+of times an instruction i ∈ M ethod = {i0 , i1 , i2 , ...} is to be        native code instead of calling an interpreted method and
+executed per method call. We can now say that the degen-                   then shift to native code once inside the method and possi-
+erate case occurs when we have the following conditions:                   bly back into interpreted code (if the trace does not extend
+                                                                           until the end of the method) before returning. The situa-
+   • ∃i ∈ M ethod | exec(i) ≥ threshT /threshM
+                                                                           tion looks even more complicated when a trace containing
+   • calls to M ethod exceed threshM                                       a method invocation is compiled and the method’s code in-
+                                                                           cludes a compiled trace of its own. Consequently, we decided
+This means that an optimal tuning should consider low MB                   that a trace compilation work order including an invocation
+thresholds compared to the numerator, otherwise the degen-                 instruction should also trigger a method compilation order
+erate case might occur too often. The usual TB threshold                   so as to avoid unnecessary environment jumps.
+for Dalvik (around 40) proved to be a good setting in combi-                  Most literature indicates that loops can be exploited so
+nation with a relatively small MB one (around 2 or 5). If the              that observed variable types are used for further optimized
+TB threshold is increased too much then the speed boosts                   code generation [10]. Short traces that are executed for a
+will be delivered too late for some benchmarks and proba-                  long period of time over and over again constitute the per-
+bly for short-lived applications as well. Of course, the TB                fect target for Dalvik’s standard JIT. The difference with
+maximum trace length and the MB minimum instruction                        most dynamic programming languages that are sped up by
+count for consideration also play a role in avoiding attempts              TB JIT compilers and DEX code is that, although being
+to compile a method that has already have most of its in-                  indeed a type-less registered based intermediate representa-
+structions or opcodes translated by the TB JIT. However,                   tion, most DEX code opcodes reveal hints as to what the
+we depend on the above formulation for the case in which a                 registers’ types could be. Translating the registers to LLVM
+method is worth being compiled completely even if it con-                  bitcode, which has to indicate variables’ types explicitly, is
+tains a loop that might trigger the TB beforehand.                         hard but not impossible if we handle registers as 32 or 64 bit
+   A compiled trace is also called earlier because the pro-                integers when only their type size is known. When a later
+cess of building the trace itself and then compiling it takes              executed instruction reveals the real type of a register it can
+two passes over a lengthT race = |T race| instructions long                be casted using the bitcast instruction [22]. When we are
+trace. Our previous derivations imply that lengthM ethod =                 done with the translation, we are left with an SSA represen-
+|M ethod| ≥ lengthT race . For most cases, at the very least               tation of the method, with information regarding all of the
+in our tests, this is enough time for the trace to be ready the            variables’ types and many options for optimizations.
+
+
+
+
+                                                                      44
+4.   THE METHOD-BASED COMPILER                                         ODEX Instruction                    Original Instruction
+   We based our JIT compiler on LLVM, translating Dalvik’s             iget-quick offset                   iget id
+DEX code into LLVM bitcode to be able to use its method-               iput-quick offset                   iput id
+based JIT. LLVM provides libraries and APIs for the trans-             invoke-virtual-quick offset         invoke-virtual id
+lation of any source language into bitcode IR, LLVM’s lingua           invoke-super-quick offset           invoke-super id
+franca, and manipulate the resulting bitcode in many forms.
+
+4.1 DEX code to LLVM bitcode                                                       Table 1: Optimized opcodes
+   The Dalvik VM is a register based Virtual Machine. Reg-
+isters have no type and can be assigned many times through
+the execution of any given method. LLVM bitcode, on the              ing system, just like libbcc (Renderscript’s execution engine)
+other hand, has to comply with SSA form and has to load              was. The other option would be to modify libbcc to allow
+and store values to and from memory if the same variable is          for it to compile methods for Dalvik. The latter would not
+to be assigned more than once. Every method compile work             be too hard a modification to our work since our translation
+order is handled by translating every DEX instruction in the         to bitcode would only have to call a different library for the
+original method to a sequence of IR instructions equivalent          last phase, native code emission. The benefits of using libbcc
+to it. The translation is dealt with in two passes: 1) search        include caching of compiled code (faster applications with-
+for backward branching targets and opcode filtering; and             out having to recompile methods) and the use of a common
+2) code translation.                                                 LLVM execution engine throughout Andoid, which roughly
+   The first pass deals with labeling of backward branch tar-        translates to less space on disk.
+gets and making sure that the method contains no banned                 In our experiments, code compiled using LLVM’s JIT com-
+opcodes (examples of undesired opcodes for MB JIT com-               piler performs better than code compiled by Dalvik’s TB JIT
+pilation are mentioned in section 3.2). The first pass also          compiler in part because of it’s use of ARM’s floating point
+makes sure the amount of instructions that will be trans-            architecture VFP [24]. The standard version of Google’s
+lated exceeds the instruction count threshold for the method         Dalvik VM and its JIT compiler don’t use vfp instructions
+to actually benefit from being JIT compiled. Finally, if the         by default and require device manufacturers to modify An-
+method contains only desired instructions then the second            droid to have the JIT compiler emit different specialized
+pass will translate all DEX instructions into LLVM IR, val-          instructions specific for their platforms. LLVM takes care
+idate and compile it to memory.                                      of generating specialized code depending on the platform it
+                                                                     was set up for.
+4.1.1    Typing the Typeless
+   Although Java is a statically typed language, Google’s dx
+                                                                     4.3 Optimizations
+tool [12] translates Java bytecode into a typeless register
+based represensation, DEX code. This presents a problem              4.3.1    Quick Field Access
+when translating into LLVM bitcode because all operations               Usually native code called from Java has to go through
+on LLVM bitcode have to be executed on operands with                 the Java Native Interface in order to have access to fields
+strictly the same type. Most DEX opcodes present hints               inside objects or classes even if the address to the container
+as to what type of data a register holds, but sometimes it           has been passed as an argument to the method. We avoid
+is necessary to infer the data from assignment operations            the situation in which we have to call back into the inter-
+or such. To overcome this problem and to avoid having                preted environment at all costs, so instead we take advantage
+many versions of the same register name, we translate every          of Dalvik’s optimized instructions, which have the offset of
+DEX register into variables representing the register name           every field to speed up the retrieval of them. Just as the in-
+and their type, i.e. v5_INTEGER, and since the variables, in         terpreter uses the optimized opcodes to get fields by adding
+most cases, are references to memory in order to preserve            the base address with the offset of any field, we use LLVM’s
+the SSA constraint, any register could represent a number            API to manage pointers to addresses and are able to load
+of different variables in its LLVM bitcode translation and           fields in constant time. Examples of instructions that are
+have many memory addresses related to it.                            optimized by dexopt [33] are shown in table 1.
+
+4.2 LLVM Advantages                                                  4.3.2    Installing the Compiled Method
+   LLVM provides an API to run several transformations                  Dalvik’s JIT delegates the job of linking the compiled code
+through code represented using its bitcode. Once the trans-          to the interpreted trace to the main execution thread. After
+lation from DEX code to bitcode is done, we can optimize             the execution count for an instruction exceeds the threshT
+the resulting code using these transformations and optimiza-         then the translation cache is checked to verify that a na-
+tion passes to get different levels of optimized code. LLVM          tive translation of the trace exists. It is then called instead
+also provides many ways of running the code. One of them,            of the interpreter continuing normally. In our case we are
+conveniently for us, is a JIT compiler that returns the ad-          changing a whole method from interpreted to native, the
+dress of the memory location of the compiled method. Aside           easiest way is to change the method’s attributes to tell the
+from the obvious reason of convenience, we chose LLVM to             interpreter that it requires a call to native code and allow
+build our compiler because of Google’s own decision to in-           for a Java Native Interface (JNI) call. However, changing
+clude it into Android with the Renderscript [34] execution           the method’s attributes would allow for bugs during the ex-
+engine. Although our compiler uses the mainstream exe-               ecution if there are more than one thread trying to call the
+cution engine to create the JIT compiled code, it can be             method (i.e. one thread calls the native method but the ad-
+slimmed down to have a smaller footprint on the operat-              dress has not yet been updated) so we modified the Method
+
+
+
+
+                                                                45
+structure inside Dalvik to be able to have additional infor-
+mation and additional checks so that no bugs are introduced.
+This also allows for faster calls to native code, avoiding some
+checks and parameter conversion routines that JNI does be-
+fore calling native code. The result is that our native code
+pinning process is quicker than how the TB JIT does it and
+allows for additional information to be available to the na-
+tive code, compared to what would normally be for a JNI
+compliant native method, while making sure that regular se-
+curity checks are still applied to external native code being
+called by the Java Native Interface (effectively giving special
+treatment to internal native code).
+
+4.3.3    Invocation to System Libraries                                 Figure 3: CaffeineMark 3.0 benchmark results (the
+                                                                        higher the better)
+   Finally, our choice of LLVM as our MB JIT compiler
+framework has the advantage that it seamlessly links exter-
+nal function calls to the standard library (i.e. sine or cosine)
+without any additional library having to be added, resulting
+in less memory wasted. This allows for static invocations
+into standard Java libraries to be translated to static native
+calls. DEX code tries to cope with this by using an opcode
+(execute-inline) to inline common static system routine
+calls, so we translate both static invocations and inlined in-
+vocations to the java\lang\* library into external method
+calls that LLVM deals with.
+
+5.   RESULTS
+   The following tests, mentioned in this section, were ran
+on a Galaxy Nexus [14] phone running our modified image                        Figure 4: CaffeineMark 3.0, second run
+of Google’s latest version of the Android - Ice Cream Sand-
+wich operating system [13]. This platform has a 1.2 GHz
+TI OMAP 4460 ARM Cortex-A9 dual-core processor and a                    so the native versions of the traces or methods are delivered
+304 MHz PowerVR SGX540 (Underclocked from 384MHz)                       and consequently used earlier, resulting in the native code
+GPU, as wel as 1 GB of memory. Note that the platform                   providing earlier perceivable performance gain. However,
+does have hardware-based floating point operation support               the proposed hybrid JIT, because of our profiling choices,
+(ARM’s Floating Point Architecture - VFP [24]).                         delivers performance gain almost as good or sometimes even
+                                                                        better than that of the TB JIT on initial runs and much
+5.1 CaffeineMark 3.0 Benchmark                                          better on following ones.
+   To test our own implemented MB JIT compiler and to                      Since our modifications to Dalvik’s profiling system cre-
+provide information we could use to compare it to the TB                ate an extra flow of work into the compiler thread, it is to
+JIT and existing ahead-of-time compilers for Java, we tar-              be expected that some of the compilation orders are not at-
+geted two of the most commonly used benchmarks for Java                 tended at the very start. The profiler settings can be tuned
+virtual machines. The calculation of the number π (pi) up               to allow for compile orders to be dispatched earlier but this
+to a specific number of digits and a series of mathemati-               would rather be a problem if the compiler thread becomes
+cal tests whose execution is counted versus a given amount              overwhelmed and neither type of JIT would deliver on time.
+of time are the main tasks carried out by the BenchmarkPi               This behavior is not unique to our proposed hybrid JIT, An-
+and CaffeineMark 3.0 Android applications. Both have been               droid’s standard TB JIT also exhibits better performance
+used by Google to test their JIT compiler and by Wang et                results during the second run (especially for the first tests
+al. [35] to prove the potential of a MB AOTC. The mathe-                that were run by the benchmark, i.e. Sieve). Figure 4 shows
+matical tests executed by the CaffeineMark benchmark in-                how some of the tests in the CaffeineMark3.0 benchmark are
+clude the Sieve of Erathosthenes, the execution of many code            much quicker during a second execution of the application
+branches, loops and floating point calculations.                        since the compiler thread has dealt with all the compile or-
+   Our tests suggest that methods compiled using our MB                 ders in queue. Code as much as twice as fast as the one
+JIT compiler can be almost twice as fast as methods that                delivered by the TB JIT is observed for the Sieve test and,
+have only been optimized by Dalvik’s standard JIT. Figure 3             although not as easily visualized on the graph, for the Logic
+shows how the Sieve, Loop, Float and Logic tests from the               test after executing it more than once.
+CaffeineBenchmark3.0 are faster when ran on our proposed                   In both figure 3 and figure 4 it is also evident that the
+hybrid JIT. Float, Loop and Logic tests being the ones that             Method and String tests were rejected by one of the MB JIT
+enjoy the most benefits from being compiled using the MB                profiling phases. Their score is almost as good as the one
+JIT. The figure also shows that the MB JIT by itself appears            corresponding to the TB and the virtual machine with no
+to be better then the proposed hybrid JIT framework (Loop               JIT compiler (the first compared to the hybrid JIT and the
+and Logic tests). This is due to the fact that the TB and MB            latter compared with the MB JIT alone). Although the MB
+JIT compilers by themselves create less compile orders and              compilation of these tests has been rejected, the additional
+
+
+
+
+                                                                   46
+           Figure 5: Pi Benchmark results
+                                                                     Figure 6: Hybrid versus trace-based JIT memory
+                                                                     overhead (Hybrid Total Memory is the sum of its
+lag introduced by our proposed profiling techniques is almost        Native Heap and Compiled Methods)
+non-existent, even though the first run of this application
+generates many compile orders (both traces and methods)
+for the compiler thread to handle all at once. Although we           6. RELATED WORK
+do not expect our present profiling tuning to be perfect for            During Google I/O 2010 [6], Google announced that the
+all situations, we observe that there at least exists such a         TB JIT they now provide for Android was only the ini-
+configuration for applications behaving similar to the ones          tial step towards improving their application platform. The
+we tested.                                                           compiler’s code reveals hints that plans for extensions to-
+                                                                     wards making the trace analysis include complete methods
+5.2 BenchmarkPi                                                      have been considered, and the outline for a basic MB com-
+                                                                     piler is also laid out but not fully implemented. Their pro-
+  Another well-known benchmark used by Google to bench-
+                                                                     posed MB compiler scheme includes an SSA transformation
+mark their JIT is the BenchmarkPi [31]. The benchmarks
+                                                                     stage, register allocation as well as translation phases to
+computes the number π up to a specific amount of digits and
+                                                                     two intermediate representations before generating native
+times the computation. Our results show that performance
+                                                                     instructions (all of which LLVM provides to our proposed
+improvement achieved by our hybrid JIT framework can ob-
+                                                                     framework without the need for more than one intermediate
+tain similar results to those of an Ahead-Of-Time-Compiler
+                                                                     representation). Google also fathomed the idea of both JIT
+such as Wang et al.’s Icing [35]. Figure 5 shows how fast the
+                                                                     types coexisting in Android but there have been no further
+benchmark can be ran once both TB and MB JIT compilers
+                                                                     comments or developments on this project.
+have done their work compared to having only a TB JIT.
+                                                                        Other authors have tried to compare mature MB compil-
+Our results show that a MB JIT outperforms Android’s TB
+                                                                     ers with their own TB JIT compilers [18] but haven’t done
+JIT by almost a factor of 4 in such computation-intensive
+                                                                     so in a resource constrained environment. Nor have they
+applications. MB JIT compilers are expected to outperform
+                                                                     measured a limited TB JIT’s capabilities versus a MB JIT.
+simple TB JIT compilers on such computations but the huge
+                                                                     The cooperation between a limited TB compiler, like the one
+difference in performance is mainly due to LLVM’s advan-
+                                                                     provided by Google for the DVM, and our proposed MB JIT
+tages previously mentioned in section 4.2.
+                                                                     delivers a speed boost quickly after starting an application
+                                                                     and replaces slow, hot methods with fast and optimized na-
+5.3 Memory Overhead                                                  tive ones after they have been invoked a few times. It does so
+   Our proposed hybrid JIT compiler framework transforms             without having to compile all the DEX code and whithout
+complete methods into a faster native version, but in doing          replacing Android’s TB JIT as the base JIT compiler be-
+so requires more memory than a TB JIT compiler which                 cause it is more mature in the Android operating system. It
+would only translate a subset of the method’s instructions.          is also worth mentioning that the work by Inoue et al. [18]
+This compilation of both hot code and cold code in meth-             does talk about a TB compiler and its advantages over a
+ods is also the reason why compiling methods takes longer            regular MB one but refers to a compiler that has the abil-
+than compiling traces, which consist only of the hot code.           ity to analyze traces that span more than one method and
+The memory overhead in which we incur by compiling whole             therefore is not comparable to our study.
+methods is proportional to the amount of instructions each
+compiled method contains. Figure 6 shows both the TB JIT             6.1 Disassemblers
+and hybrid JIT compilers and their memory usage behavior                There are many tools available for the disassembly of DEX
+throughout one of our tests. The memory usage of the hy-             code or complete Android packaged applications into text
+brid JIT is made up of its native heap and compiled meth-            files containing DEX source code. Most of them read the
+ods, both shown on the graph. As is expected, compiling              dex file format and obtain all the strings from the constant
+methods is costly and therefore has to be done smartly and           pool and the opcodes for each instruction in order to con-
+sparingly. This reaffirms the importance of our framework’s          struct a stream of human readable dex code. Smali and
+profiler having to be tuned in order to provide good perfor-         Baksmali [19] as well as Android’s DexDump [12] tool are
+mance without having to exhaust the system’s resources. It           some of the most popular. Baksmali can even be used to
+also confirms that the decision to keep the default TB JIT           reconstruct an application from modified DEX source files.
+compiler as the base JIT compiler for a hybrid framework is          However, all of these tools go through an unnecessary step
+the best idea for a resource constrained device.                     by transforming DEX opcodes into readable text, which our
+
+
+
+
+                                                                47
+compiler does not need, and therefore are not suited for a           instructions being called again and again. Their work con-
+fast DEX IR to LLVM IR transformation like the one we                cludes that a good interpreter matched with a JIT compiler
+implemented.                                                         that is used only when the situation really calls for it, is
+  DEX disassembler programs are able to output human                 often better than trying to compile everything. Google has
+readable code after parsing DEX code. Disassembler ap-               already adopted this idea with their quick interpreter being
+plications are similar to our DEX to LLVM IR translator              optimized only when necessary by their TB JIT. Addition-
+because they also decode DEX code and transform it into              ally, our hybrid framework builds on top of the same idea by
+another format, plain text. Understanding of the DEX code            compiling methods only when certain conditions are met.
+format is necessary to be able to read the instructions cor-
+rectly from the DEX file, be able to group them using a              6.3.1    Chrome’s V8
+common format and finally translate them (a similar pro-                Google’s JavaScript execution engine V8 [15] translates
+cess is used by the DexDump tool).                                   most of the script into native code as soon as it is down-
+                                                                     loaded. The JavaScript is translated using a MB compiler
+6.2 Method-Based Compilers                                           initially. It then uses a TB JIT to optimize the code being
+   The Icing Ahead-Of-Time-Compiler [35] provides a fairly           executed so that loops, and run time observed types can be
+good attempt at profiling the Dalvik VM’s behavior and               used to compile faster versions of portions of the code.
+determining which methods are better off being completely
+native instead of just having traces compiled. Our profiling         6.3.2    JaegerMonkey
+model is based on parts of their work, such as the avoidance           Firefox’s mature JavaScript execution engine, SpiderMon-
+of excessive environment jumping and attempting to access            key, has been upgraded to TraceMonkey and more recently
+object fields directly from object pointers. However, the            to JaegerMonkey [26] to allow the code to enjoy an initial
+impasses prompted by the use of the Java Native Interface            quick boost from the MB JIT. The TB JIT then applies late
+are no longer present in a run time compiler and cooper-             improvements to hot loops and other traces with additional
+ation with the TB JIT compiler makes it possible for eas-            run time information.
+ier method inlining and a more accurate decision on which
+methods can be considered hot.
+                                                                     7. CONCLUSIONS
+6.2.1    Zero and Shark                                                 First and most importantly, this work proves that a lim-
+   Zero and Shark [5] are an implementation of a Java Vir-           ited TB JIT compiler is still no match for a robust MB JIT
+tual Machine using zero architecture dependent code. The             such as the one provided by the LLVM compiler framework.
+project aimed at delivering a more portable version of the           More specifically, most advantages one could achieve by fa-
+Virtual Machine that could be used by Linux on other ar-             voring the implementation of a TB JIT over a MB one are
+chitectures besides x86. This zero-machine code OpenJDK              minimized by the properties of DEX code, which can be
+port is profiled by a MB JIT that works on top of the LLVM           ”lazily” transformed back into a typed representation. Al-
+framework. Shark, the JIT compiler, has dealt with all the           though type specialization and various versions of optimized
+issues involved with plugging a JIT into a Java VM. Most             code might not be good optimization approaches for DEX
+issues include dealing with the Garbage Collector and the            code, it turns out that the TB JIT works really well for con-
+way references are deemed unused. Our work takes some                siderably long loops, especially if the trace does not invoke
+ideas from their implementation, but the Dalvik VM inter-            other methods. Other DEX code properties might later be
+nals differ a lot from regular Java virtual machines, and so         studied to reveal further optimization opportunities avail-
+most of their insights are not of much use for the Android           able to either JIT compiler type.
+application platform.
+                                                                     7.1 JIT Type Comparison
+6.3 Combined JIT Frameworks                                              Dalvik’s TB JIT compiler achieves performance boost quickly
+   Most attempts at combining both trace and MB JIT com-             by compiling instruction sequences that are being called too
+pilers have been on the field of JavaScript engines. During          often, hot traces. When possible, it inlines small methods
+the past few years most web browser companies have devel-            being invoked by the instructions contained in the trace.
+oped a fairly good combination of a quick MB JIT compiler            In contrast, the MB JIT compiler we designed is capable
+to avoid having to interpret, sometimes at all, and a slower         of compiling most methods, as long as they pass the pro-
+TB compiler that applies aggressive optimizations and is             filing steps. The compiler is able to apply optimizations
+supported by run time information to replace initially com-          regarding the ”liveness” of variables and other optimization
+piled code with several versions of heavily optimized traces.        techniques that are only possible because the whole method
+Our approach is quite different since we propose the MB JIT          is being taken into consideration. Further transformations
+compiler to be the one with heavy optimization settings and          similar, if not the same as, GCC’s O3 and O2 battery of
+leave early speed boosts up to Android’s TB JIT compiler,            optimizations [8], are also available to our MB JIT compiler
+the latter providing a few optimization considerations but           through LLVM’s clang [3] and jello [21] projects. Although
+not as complete as static compilers and others have to offer.        our MB JIT does incur on more memory usage than a ba-
+   The work by Lee et al. [23] provides good insight regard-         sic TB JIT, and the average compilation time for a method
+ing whether JavaScript engines should put so much effort             might be up to one-hundred (100) times that of a small trace,
+into compiling all the script to avoid interpretation. Bench-        when hot methods are chosen correctly (and this can be fine-
+mark software exhibit many opportunities for hot traces to           tuned depending on the platform system), performance can
+be compiled into extremely efficient native code but real web        be greatly improved.
+pages’ JavaScript code does not necessarily contain so many
+
+
+
+
+                                                                48
+7.2 JIT Behavior                                                     pause threads running on native mode to allow garbage col-
+   From our tests we have also come to the conclusion that           lection. If we did not yield at this moment an interpreted
+both TB and MB JIT compilers become idle after an appli-             heap memory request might be denied because of yet uncol-
+cation has been executing for some time. A benchmark is              lected garbage, even if there is unused memory. This tech-
+a good example of this situation, when the same methods              nique, however, is an overly simplistic solution. Since the
+are ran several times and not much changes between runs.             benchmarks used to measure the performance of our frame-
+We believe this idle time can be used for further aggressive         work did not result on compilation of memory requests, fur-
+optimizations and even some unsound optimizations, as cat-           ther testing of our approach to manage native and the vir-
+egorized by Guo and Palsberg [16], could be attempted in             tual machine’s memory has to take place before being able
+order to increase the execution speed of the program un-             to conclude anything relevant on the matter.
+der the current observed state as long as a side-exit [10] is
+made available. The previously described behavior could              8.2 Future Work
+be proposed for devices that are currently connected to a               There are many other benchmark applications available in
+fixed power source, and therefore in a state where further           Android’s application market that can be tested to get more
+resource usage can be afforded without compromising the              conclusive results on how TB and MB JIT compilers behave.
+battery’s life. Google had proposed the introduction of a            There are even different versions of the CaffeineBenchmark
+dynamically adjustable profiling approach [6], but right now         which include image, graphics and other tests which are not
+Dalvik’s JIT’s behavior does not adapt much to the hard-             included in the version used for our experiments [7]. More-
+ware’s state.                                                        over, the effect of using our hybrid JIT approach on real
+                                                                     applications, apart from benchmarks, is still unknown. In
+7.3 Relevance                                                        order for further tests to be conducted more DEX opcodes
+   Our proposed hybrid JIT compiler takes ideas from what            have to be translated into LLVM bitcode.
+current web browsers are trying to do to speed up the inter-            Although the cooperation between both types of JIT com-
+pretation of a scripted language. Java and .NET technolo-            piler has been shown to improve performance and each one
+gies, however, do not output a script but instead transform          has covered many of the other’s weaknesses, these compilers
+code into an intermediate representation, which could be             are far from finished. Google’s TB JIT for the Dalvik VM
+stack or register based and that is easily transformed into          still lacks support for traces spanning through more than one
+machine code by the respective implementations of their vir-         method. The implementation of this feature would mean
+tual machines for all the architectures they support. Each           that the profiling model proposed in section 3.2 would have
+intermediate representation has been conceived with specific         to be reevaluated. The TB JIT could also be extended to
+features that may allow a TB or MB JIT to compile it easily          profile MB JIT compiled code and attach optimized versions
+into native code. As we have proven in our work, hybrid JIT          of hot traces inside hot methods as was proposed by Bala
+compilers can be easily tuned depending on how fast perfor-          et al. [4]. This extension to the TB JIT could work on
+mance gain is needed and code behavior. Although our test            top of a native version of the method as well as its original
+platform is a resource constrained device running an An-             DEX code. In this case the TB JIT would also be able to
+droid operating system, different systems run programming            inline native code invocations, like those done through the
+languages that are stored as intermediate representations            Java Native Interface, which previous work on the Dynamo
+and so these systems could possibly benefit from the inclu-          project [4] indicate would increase performance.
+sion of a similar tool.                                                 Another possibility for future comparisons would be split-
+                                                                     ting the compiler thread into a MB JIT thread and a TB JIT
+                                                                     thread. This would probably result in optimized compiled
+8.   PROJECT STATUS AND FUTURE WORK                                  methods being delivered earlier but would definitely make
+                                                                     it more difficult to avoid the problem of compiling a trace
+8.1 Tool Status                                                      only to later compile the whole method. Finally, we pro-
+  Many methods have been successfully compiled using our             pose testing different methods of communication between
+MB JIT but not all methods can be successfully emitted into          the interpreted and native parts of the code. Google has
+memory as native instructions by LLVM’s current JIT. All             already designed Renderscript [34] with a parallel thread
+previous phases (namely translation, transformations and             in charge of the execution of the compiled script and As-
+optimizations) are completed correctly and promptly but              ghar et al. also describe an alternative way, A-JUMP [1] for
+the JIT’s support for ARM is limited and probably buggy              parallel applications using multiple programming languages.
+or broken in some parts. To overcome this problem with               Such techniques could reduce the amount of time wasted in
+some methods the profiler indicated had to be processed by           environment jumps and would allow both environments to
+the MB JIT, we were forced to execute the last step (compil-         communicate more often without having to avoid it for per-
+ing from assembler to native code) manually using LLVM’s             formance’s sake [20].
+static compiler. The LLVM team is currently working on a
+new version of the compiler, MCJIT [2], and will deprecate           9. REFERENCES
+the current JIT framework.
+  Our framework also supports memory petitions to the                 [1] S. Asghar, M. Hafeez, U. A. Malik, A. ur Rehman,
+Dalvik VM from MB JIT compiled code, and therefore re-                    and N. Riaz. A-jump, architecture for java universal
+quires that we handle garbage collection in an efficient man-             message passing. In Proceedings of the 8th
+ner. We currently yield to the garbage collection thread                  International Conference on Frontiers of Information
+every time we have a request for virtual machine managed                  Technology, FIT ’10, pages 34:1–34:6, New York, NY,
+memory. This is necessary because the Dalvik VM does not                  USA, 2010. ACM.
+
+
+
+
+                                                                49
+ [2] C. S. D. at the University of Illinois at                           android’s dex format.
+     Urbana-Champaign. The llvm target-independent                       http://code.google.com/p/smali/, 2009.
+     code generator.                                                [20] D. Kurzyniec and V. Sunderam. Efficient cooperation
+     http://llvm.org/docs/CodeGenerator.html#mc, 16                      between java and native codes âĂŞ jni performance
+     January, 2012.                                                      benchmark. In In The 2001 International Conference
+ [3] C. S. D. at the University of Illinois at                           on Parallel and Distributed Processing Techniques and
+     Urbana-Champaign. clang: a c language family                        Applications, 2001.
+     frontend for llvm. http://clang.llvm.org/, 2012.               [21] C. Lattner, M. Brukman, and B. Gaeke. Jello: a
+ [4] V. Bala, E. Duesterwald, and S. Banerjia. Dynamo: a                 retargetable just-in-time compiler for llvm bytecode,
+     transparent dynamic optimization system. SIGPLAN                    2002.
+     Not., 35(5):1–12, May 2000.                                    [22] C. A. Lattner. Llvm: An infrastructure for multi-stage
+ [5] G. Benson. Zero and shark: a zero-assembly port of                  optimization. Technical report, 2002.
+     openjdk. http://today.java.net/pub/a/today/                    [23] S.-W. Lee and S.-M. Moon. Selective just-in-time
+     2009/05/21/zero-and-shark-openjdk-port.html,                        compilation for client-side mobile javascript engine. In
+     2009.                                                               Proceedings of the 14th international conference on
+ [6] B. Cheng and B. Buzbee. A jit compiler for android’s                Compilers, architectures and synthesis for embedded
+     dalvik vm. http://dl.google.com/googleio/2010/                      systems, CASES ’11, pages 5–14, New York, NY,
+     android-jit-compiler-androids-dalvik-vm.pdf,                        USA, 2011. ACM.
+     2010.                                                          [24] A. Ltd. Arm: Floating point architecture.
+ [7] P. S. Corporation. Caffeinemark 3.0 benchmark.                      http://www.arm.com/products/processors/
+     http://www.benchmarkhq.ru/cm30/, 1997.                              technologies/vector-floating-point.php, 2012.
+ [8] I. Free Software Foundation. Gcc, the gnu c compiler.          [25] J. McCarthy. Recursive functions of symbolic
+     http://gcc.gnu.org/, 05 March, 2012.                                expressions and their computation by machine, part i.
+ [9] I. Free Software Foundation. Gcj - the gnu compiler                 Commun. ACM, 3(4):184–195, Apr. 1960.
+     for the java programming.                                      [26] Mozilla. Jaegermonkey.
+     http://gcc.gnu.org/java/, 2012.                                     https://wiki.mozilla.org/JaegerMonkey, 2010.
+[10] A. Gal, B. Eich, M. Shaver, D. Anderson,                       [27] S. Oaks and H. Wong. Java Threads. O’Reilly Media,
+     D. Mandelin, M. R. Haghighat, B. Kaplan, G. Hoare,                  Inc., 2004.
+     B. Zbarsky, J. Orendorff, J. Ruderman, E. W. Smith,            [28] Oracle. Java se specifications.
+     R. Reitmaier, M. Bebenita, M. Chang, and M. Franz.                  http://docs.oracle.com/javase/specs/, 2012.
+     Trace-based just-in-time type specialization for               [29] Oracle. Openjdk’s hotspot vm.
+     dynamic languages. SIGPLAN Not., 44:465–478, June                   http://openjdk.java.net/groups/hotspot/, 2012.
+     2009.                                                          [30] Oracle. Oracle. http://www.java.com/en/about/,
+[11] N. Geoffray, G. Thomas, C. Clément, and B. Folliot.                2012.
+     A lazy developer approach: building a jvm with third           [31] V. K. Polychronis. Benchmarkpi - android
+     party software. In Proceedings of the 6th international             benchmarking tool. http://androidbenchmark.com/,
+     symposium on Principles and practice of programming                 2009.
+     in Java, PPPJ ’08, pages 73–82, New York, NY, USA,
+                                                                    [32] T. A. Proebsting, G. Townsend, P. Bridges, J. H.
+     2008. ACM.
+                                                                         Hartman, T. Newsham, and S. A. Watterson. Toba:
+[12] Google. Android developer tools. http://developer.                  Java for applications - a way ahead of time (wat)
+     android.com/guide/developing/tools/index.html,                      compiler. In In Proceedings of the 3rd Conference on
+     2007.                                                               Object-Oriented Technologies and Systems, pages
+[13] Google. Google android - an open handset alliance                   41–53, 1997.
+     project. http://code.google.com/android/, 2008.                [33] T. A. O. S. Project. Dalvik optimization and
+[14] Google. Galaxy nexus.                                               verification with dexopt. http://www.netmite.com/
+     http://www.google.com/nexus/, 2011.                                 android/mydroid/dalvik/docs/dexopt.html, 2008.
+[15] Google. V8 javascript engine.                                  [34] G. Tim Bray. Renderscript.
+     http://code.google.com/p/v8/, 2011.                                 http://android-developers.blogspot.com/2011/
+[16] S.-y. Guo and J. Palsberg. The essence of compiling                 02/introducing-renderscript.html, 09 February,
+     with traces. SIGPLAN Not., 46(1):563–574, Jan. 2011.                2011.
+[17] T. IEEE and T. O. Group. Posix.1-2008: The open                [35] C.-S. Wang, G. Perez, Y.-C. Chung, W.-C. Hsu,
+     group base specifications issue 7. http:                            W.-K. Shih, and H.-R. Hsu. A method-based
+     //pubs.opengroup.org/onlinepubs/9699919799/,                        ahead-of-time compiler for android applications. In
+     2001 - 2008.                                                        Proceedings of the 14th international conference on
+[18] H. Inoue, H. Hayashizaki, P. Wu, and T. Nakatani. A                 Compilers, architectures and synthesis for embedded
+     trace-based java jit compiler retrofitted from a                    systems, CASES ’11, pages 15–24, New York, NY,
+     method-based compiler. In Code Generation and                       USA, 2011. ACM.
+     Optimization (CGO), 2011 9th Annual IEEE/ACM
+     International Symposium on, pages 246 –256, april
+     2011.
+[19] JesusFreke. smali/baksmali: An assembler for
+
+
+
+
+                                                               50
+

@@ -1,0 +1,279 @@
+\begin{thebibliography}{38}
+\providecommand{\biband}{和}
+\providecommand{\bibetal}{等}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{#1}
+\expandafter\ifx\csname urlstyle\endcsname\relax\else
+  \urlstyle{same}\fi
+\expandafter\ifx\csname href\endcsname\relax
+  \DeclareUrlCommand\doi{\urlstyle{rm}}
+  \def\eprint#1#2{#2}
+\else
+  \def\doi#1{\href{https://doi.org/#1}{\nolinkurl{#1}}}
+  \let\eprint\href
+\fi
+
+\bibitem[Hu {\bibetal}(2023)Hu, Gao, and Wang]{Hu2023LoongArch}
+Hu~W, Gao~J, Wang~H.
+\newblock {LoongArch}: A new {RISC} {ISA} [C]//\allowbreak
+Proceedings of the 50th Annual International Symposium on Computer Architecture
+  (ISCA).
+\newblock ACM, 2023.
+
+\bibitem[陈华才\ {\bibetal}(2024)陈华才, 张福新, and
+  武成岗]{Chen2024LoongsonEco}
+陈华才, 张福新, 武成岗.
+\newblock 龙芯处理器生态建设：挑战与进展 [J].
+\newblock 计算机研究与发展, 2024, 61\penalty0 (6): 1280-1295.
+
+\bibitem[{龙芯中科技术股份有限公司}(2023{\natexlab{a}})]{LoongArchISA2023}
+{龙芯中科技术股份有限公司}.
+\newblock 龙芯架构参考手册 卷一：基础架构 [M].
+\newblock 2023{\natexlab{a}}.
+
+\bibitem[{StatCounter}(2025)]{StatCounter2025}
+{StatCounter}.
+\newblock Mobile operating system market share worldwide [J/OL].
+\newblock StatCounter Global Stats, 2025.
+\newblock
+  \url{https://gs.statcounter.com/os-market-share/mobile/worldwide}，访问于
+  2026-03-01.
+
+\bibitem[{Google}(2024{\natexlab{a}})]{AndroidRuntime2024}
+{Google}.
+\newblock Android runtime ({ART}) and dalvik [EB/OL].
+\newblock 2024.
+\newblock \url{https://source.android.com/docs/core/runtime}.
+
+\bibitem[{Google}(2024{\natexlab{b}})]{ArtJitCompiler2024}
+{Google}.
+\newblock Implementing {ART} just-in-time ({JIT}) compiler [EB/OL].
+\newblock 2024.
+\newblock \url{https://source.android.com/docs/core/runtime/jit-compiler}.
+
+\bibitem[Ghuloum {\bibetal}(2014)Ghuloum, Carlstrom, and Rogers]{Ghuloum2014}
+Ghuloum~A, Carlstrom~B, Rogers~I.
+\newblock {ART}: {Android}'s runtime evolved [C]//\allowbreak
+Google I/O Developer Conference.
+\newblock San Francisco, CA, 2014.
+
+\bibitem[Bornstein(2008)]{Bornstein2008}
+Bornstein~D.
+\newblock Dalvik vm internals [C]//\allowbreak
+Google I/O Developer Conference.
+\newblock San Francisco, CA, 2008.
+
+\bibitem[Cheng {\bibetal}(2010)Cheng and Buzbee]{Cheng2010}
+Cheng~B, Buzbee~B.
+\newblock A jit compiler for android's dalvik vm [C]//\allowbreak
+Google I/O Developer Conference.
+\newblock San Francisco, CA, 2010.
+
+\bibitem[Paleczny {\bibetal}(2001)Paleczny, Vick, and Click]{Paleczny2001}
+Paleczny~M, Vick~C, Click~C.
+\newblock The {Java} {Hotspot} server compiler [C]//\allowbreak
+Proceedings of the Java Virtual Machine Research and Technology Symposium.
+\newblock USENIX Association, 2001: 1-12.
+
+\bibitem[Suganuma {\bibetal}(2001)Suganuma, Yasue, Kawahito, Komatsu, and
+  Nakatani]{Suganuma2001}
+Suganuma~T, Yasue~T, Kawahito~M, et~al.
+\newblock A dynamic optimization framework for a {Java} just-in-time compiler
+  [C]//\allowbreak
+Proceedings of the 16th ACM SIGPLAN Conference on Object-Oriented Programming,
+  Systems, Languages, and Applications (OOPSLA).
+\newblock ACM, 2001: 180-195.
+
+\bibitem[Shi {\bibetal}(2008)Shi, Casey, Ertl, and Gregg]{Shi2008}
+Shi~Y, Casey~K, Ertl~M~A, et~al.
+\newblock Virtual machine showdown: Stack versus registers [J].
+\newblock ACM Transactions on Architecture and Code Optimization, 2008,
+  4\penalty0 (4): 1-36.
+
+\bibitem[Kotzmann {\bibetal}(2008)Kotzmann, Wimmer, M\"{o}ssenb\"{o}ck,
+  Rodriguez, Russell, and Cox]{Kotzmann2008}
+Kotzmann~T, Wimmer~C, M\"{o}ssenb\"{o}ck~H, et~al.
+\newblock Design of the {Java HotSpot} client compiler for {Java} 6 [J].
+\newblock ACM Transactions on Architecture and Code Optimization, 2008,
+  5\penalty0 (1): 1-32.
+
+\bibitem[Lee {\bibetal}(2020)Lee, Rajan, and Park]{Lee2020}
+Lee~B, Rajan~K, Park~S.
+\newblock Configuration-aware optimization for {Android} runtime
+  [C]//\allowbreak
+Proceedings of the International Conference on Compilers, Architecture, and
+  Synthesis for Embedded Systems (CASES).
+\newblock IEEE, 2020.
+
+\bibitem[Wang {\bibetal}(2022)Wang, Liu, and Chen]{JavART2022}
+Wang~P, Liu~Y, Chen~H.
+\newblock {JavART}: Rule-driven {JIT} compilation for {Android} application
+  startup acceleration [C]//\allowbreak
+Proceedings of the ACM SIGPLAN International Conference on Object-Oriented
+  Programming, Systems, Languages, and Applications (OOPSLA).
+\newblock ACM, 2022.
+
+\bibitem[Ertl {\bibetal}(2003)Ertl and Gregg]{Ertl2003}
+Ertl~M~A, Gregg~D.
+\newblock The structure and performance of efficient interpreters [J].
+\newblock Journal of Instruction-Level Parallelism, 2003, 5: 1-25.
+
+\bibitem[Arnold {\bibetal}(2005)Arnold, Fink, Grove, Hind, and
+  Sweeney]{Arnold2005}
+Arnold~M, Fink~S~J, Grove~D, et~al.
+\newblock A survey of adaptive optimization in virtual machines [J].
+\newblock Proceedings of the IEEE, 2005, 93\penalty0 (2): 449-466.
+
+\bibitem[Fink {\bibetal}(2003)Fink and Qian]{Fink2003}
+Fink~S~J, Qian~F.
+\newblock Design, implementation and evaluation of adaptive recompilation with
+  on-stack replacement [C]//\allowbreak
+Proceedings of the International Symposium on Code Generation and Optimization
+  (CGO).
+\newblock IEEE, 2003: 241-252.
+
+\bibitem[Lameed {\bibetal}(2013)Lameed and Hendren]{Lameed2013}
+Lameed~N~A, Hendren~L~J.
+\newblock A modular approach to on-stack replacement in {LLVM} [C]//\allowbreak
+Proceedings of the 9th ACM SIGPLAN/SIGOPS International Conference on Virtual
+  Execution Environments (VEE).
+\newblock ACM, 2013: 143-154.
+
+\bibitem[黄佳(2021)]{Huang2021}
+黄佳.
+\newblock 面向龙芯平台的{Android}运行时环境移植与优化 [D].
+\newblock 中国科学院大学, 2021.
+
+\bibitem[李泽京(2019)]{Li2019}
+李泽京.
+\newblock 面向{MIPS}平台的{Android ART}运行时技术研究 [D].
+\newblock 中国科学院大学, 2019.
+
+\bibitem[Brunthaler(2010{\natexlab{a}})]{Brunthaler2010Quickening}
+Brunthaler~S.
+\newblock Efficient interpretation using quickening [C]//\allowbreak
+Proceedings of the Dynamic Languages Symposium (DLS).
+\newblock ACM, 2010{\natexlab{a}}.
+
+\bibitem[Brunthaler(2010{\natexlab{b}})]{Brunthaler2010InlineCaching}
+Brunthaler~S.
+\newblock Inline caching meets quickening [C]//\allowbreak
+Proceedings of the 24th European Conference on Object-Oriented Programming
+  (ECOOP).
+\newblock Springer, 2010{\natexlab{b}}.
+
+\bibitem[P{\'e}rez {\bibetal}(2012)P{\'e}rez, Kao, Chung, and
+  Hsu]{Perez2012HybridJIT}
+P{\'e}rez~G~A, Kao~C~M, Chung~Y~C, et~al.
+\newblock A hybrid just-in-time compiler for {Android}: Comparing {JIT} types
+  and the result of cooperation [C]//\allowbreak
+Proceedings of the International Conference on Compilers, Architecture, and
+  Synthesis for Embedded Systems (CASES).
+\newblock ACM, 2012.
+
+\bibitem[H{\"a}ubl {\bibetal}(2008)H{\"a}ubl, Wimmer, and
+  M{\"o}ssenb{\"o}ck]{Haubl2008OptimizedStrings}
+H{\"a}ubl~C, Wimmer~C, M{\"o}ssenb{\"o}ck~H.
+\newblock Optimized strings for the {Java HotSpot} virtual machine
+  [C]//\allowbreak
+Proceedings of the 6th International Symposium on Principles and Practice of
+  Programming in Java (PPPJ).
+\newblock ACM, 2008.
+
+\bibitem[Blackburn {\bibetal}(2006)Blackburn, Garner, Hoffmann, Khang,
+  McKinley, Bentzur, Diwan, Feinberg, Frampton, Guyer, Hirzel, Hosking, Jump,
+  Lee, Moss, Phansalkar, Stefanovi\'{c}, VanDrunen, von Dincklage, and
+  Wiedermann]{Blackburn2006}
+Blackburn~S~M, Garner~R, Hoffmann~C, et~al.
+\newblock The {DaCapo} benchmarks: {Java} benchmarking development and analysis
+  [C]//\allowbreak
+Proceedings of the 21st ACM SIGPLAN Conference on Object-Oriented Programming,
+  Systems, Languages, and Applications (OOPSLA).
+\newblock ACM, 2006: 169-190.
+
+\bibitem[{Standard Performance Evaluation Corporation}(2008)]{SPECjvm2008}
+{Standard Performance Evaluation Corporation}.
+\newblock {SPECjvm2008} benchmarks [EB/OL].
+\newblock 2008.
+\newblock \url{https://www.spec.org/jvm2008/}.
+
+\bibitem[Prokopec {\bibetal}(2019)Prokopec, Ros{\`a}, Leopoldseder, Duboscq,
+  T{\r{u}}ma, Studener, Bulej, Zheng, Villaz{\'o}n, Simon, W{\"u}rthinger, and
+  Binder]{Prokopec2019Renaissance}
+Prokopec~A, Ros{\`a}~A, Leopoldseder~D, et~al.
+\newblock Renaissance: Benchmarking suite for parallel applications on the
+  {JVM} [C]//\allowbreak
+Proceedings of the ACM SIGPLAN Conference on Programming Language Design and
+  Implementation (PLDI).
+\newblock ACM, 2019.
+
+\bibitem[Georges {\bibetal}(2007)Georges, Buytaert, and Eeckhout]{Georges2007}
+Georges~A, Buytaert~D, Eeckhout~L.
+\newblock Statistically rigorous {Java} performance evaluation [C]//\allowbreak
+Proceedings of the 22nd ACM SIGPLAN Conference on Object-Oriented Programming,
+  Systems, Languages, and Applications (OOPSLA).
+\newblock ACM, 2007.
+
+\bibitem[Barrett {\bibetal}(2017)Barrett, Bolz-Tereick, Killick, Mount, and
+  Tratt]{Barrett2017Warmup}
+Barrett~E, Bolz-Tereick~C~F, Killick~R, et~al.
+\newblock Virtual machine warmup blows hot and cold [J].
+\newblock arXiv preprint arXiv:1602.00602, 2017.
+
+\bibitem[Luo {\bibetal}(2022)Luo, Rodrigues, Li, Zhang, Jiang, Xia, Lion, and
+  Yuan]{Luo2022Hubble}
+Luo~Y, Rodrigues~K, Li~C, et~al.
+\newblock {Hubble}: Performance debugging with in-production, just-in-time
+  method tracing on {Android} [C]//\allowbreak
+Proceedings of the 16th USENIX Symposium on Operating Systems Design and
+  Implementation (OSDI).
+\newblock USENIX Association, 2022.
+
+\bibitem[Wimmer {\bibetal}(2013)Wimmer, W\"{u}rthinger, and
+  M\"{o}ssenb\"{o}ck]{Wimmer2013}
+Wimmer~C, W\"{u}rthinger~T, M\"{o}ssenb\"{o}ck~H.
+\newblock Cross-platform code generation with {Graal} [C]//\allowbreak
+Proceedings of the ACM SIGPLAN International Workshop on Virtual Machines and
+  Intermediate Languages (VMIL).
+\newblock ACM, 2013.
+
+\bibitem[{Loongson Technology Corporation
+  Limited}(2025{\natexlab{a}})]{LoongArchELFABI2025}
+{Loongson Technology Corporation Limited}.
+\newblock Loongarch {ELF} {ABI} specification [M/OL].
+\newblock 2025{\natexlab{a}}.
+\newblock
+  \url{https://loongson.github.io/LoongArch-Documentation/LoongArch-ELF-ABI-EN.html}.
+
+\bibitem[{Loongson Technology Corporation
+  Limited}(2025{\natexlab{b}})]{LoongArchToolchain2025}
+{Loongson Technology Corporation Limited}.
+\newblock Toolchain conventions of the loongarch architecture [M/OL].
+\newblock 2025{\natexlab{b}}.
+\newblock \url{https://github.com/loongson/la-toolchain-conventions}.
+
+\bibitem[{龙芯中科}(2023)]{OpenJDKLoongArch2023}
+{龙芯中科}.
+\newblock {OpenJDK} {LoongArch} 移植 [EB/OL].
+\newblock 2023.
+\newblock \url{https://github.com/ABI-of-LoongArch}.
+
+\bibitem[Aho {\bibetal}(2006)Aho, Lam, Sethi, and Ullman]{Aho2006}
+Aho~A~V, Lam~M~S, Sethi~R, et~al.
+\newblock Compilers: Principles, techniques, and tools [M].
+\newblock 2nd ed.
+\newblock Addison-Wesley, 2006.
+
+\bibitem[Xu {\bibetal}(2018)Xu, Cooper, Brock, Zhang, and Ye]{Xu2018ShareJIT}
+Xu~X, Cooper~K, Brock~J, et~al.
+\newblock {ShareJIT}: {JIT} code cache sharing across processes and its
+  practical implementation [C]//\allowbreak
+Proceedings of the ACM on Programming Languages.
+\newblock 2018.
+
+\bibitem[{龙芯中科技术股份有限公司}(2023{\natexlab{b}})]{LoongArchISAv2}
+{龙芯中科技术股份有限公司}.
+\newblock 龙芯架构参考手册 卷二：向量扩展 [M].
+\newblock 2023{\natexlab{b}}.
+
+\end{thebibliography}

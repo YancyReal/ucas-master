@@ -1,0 +1,1047 @@
+             Renaissance: Benchmarking Suite for Parallel
+                      Applications on the JVM
+            Aleksandar Prokopec                                            Andrea Rosà                          David Leopoldseder
+                Oracle Labs                                    Università della Svizzera italiana          Johannes Kepler Universität Linz
+                Switzerland                                              Switzerland                                   Austria
+      aleksandar.prokopec@oracle.com                                 andrea.rosa@usi.ch                       david.leopoldseder@jku.at
+
+                 Gilles Duboscq                                             Petr Tůma                             Martin Studener
+                   Oracle Labs                                         Charles University                  Johannes Kepler Universität Linz
+                   Switzerland                                           Czech Republic                               Austria
+         gilles.m.duboscq@oracle.com                               petr.tuma@d3s.mff.cuni.cz                 martinstudener@gmail.com
+
+                  Lubomír Bulej                                             Yudi Zheng                              Alex Villazón
+               Charles University                                          Oracle Labs                       Universidad Privada Boliviana
+                 Czech Republic                                            Switzerland                                   Bolivia
+              bulej@d3s.mff.cuni.cz                                  yudi.zheng@oracle.com                        avillazon@upb.edu
+
+                   Doug Simon                                       Thomas Würthinger                               Walter Binder
+                  Oracle Labs                                          Oracle Labs                         Università della Svizzera italiana
+                  Switzerland                                          Switzerland                                   Switzerland
+            doug.simon@oracle.com                             thomas.wuerthinger@oracle.com                     walter.binder@usi.ch
+
+Abstract                                                                             We use Renaissance to compare performance of two state-
+Established benchmark suites for the Java Virtual Machine                            of-the-art, production-quality JIT compilers (HotSpot C2
+(JVM), such as DaCapo, ScalaBench, and SPECjvm2008, lack                             and Graal), and show that the performance differences are
+workloads that take advantage of the parallel programming                            more significant than on existing suites such as DaCapo and
+abstractions and concurrency primitives offered by the JVM                           SPECjvm2008. We also use Renaissance to expose four new
+and the Java Class Library. However, such workloads are                              compiler optimizations, and we analyze the behavior of sev-
+fundamental for understanding the way in which modern                                eral existing ones. Evaluating these optimizations using four
+applications and data-processing frameworks use the JVM’s                            benchmark suites shows a more prominent impact on the
+concurrency features, and for validating new just-in-time                            Renaissance workloads than on those of other suites.
+(JIT) compiler optimizations that enable more efficient execu-
+tion of such workloads. We present Renaissance, a new bench-                         CCS Concepts • General and reference → Empirical
+mark suite composed of modern, real-world, concurrent, and                           studies; Evaluation; Metrics; • Software and its engineer-
+object-oriented workloads that exercise various concurrency                          ing → Just-in-time compilers; Dynamic compilers; Run-
+primitives of the JVM. We show that the use of concurrency                           time environments; Object oriented languages; Functional
+primitives in these workloads reveals optimization oppor-                            languages; • Computing methodologies → Parallel pro-
+tunities that were not visible with the existing workloads.                          gramming languages; Concurrent programming languages.
+
+                                                                                     Keywords benchmarks, JIT compilation, parallelism, con-
+                                                                                     currency, JVM, object-oriented programming benchmarks,
+Permission to make digital or hard copies of all or part of this work for
+personal or classroom use is granted without fee provided that copies
+                                                                                     functional programming benchmarks, Big Data benchmarks
+are not made or distributed for profit or commercial advantage and that
+copies bear this notice and the full citation on the first page. Copyrights          ACM Reference Format:
+for components of this work owned by others than the author(s) must
+                                                                                     Aleksandar Prokopec, Andrea Rosà, David Leopoldseder, Gilles
+be honored. Abstracting with credit is permitted. To copy otherwise, or
+republish, to post on servers or to redistribute to lists, requires prior specific   Duboscq, Petr Tůma, Martin Studener, Lubomír Bulej, Yudi Zheng,
+permission and/or a fee. Request permissions from permissions@acm.org.               Alex Villazón, Doug Simon, Thomas Würthinger, and Walter Binder.
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                         2019. Renaissance: Benchmarking Suite for Parallel Applications
+© 2019 Copyright held by the owner/author(s). Publication rights licensed            on the JVM. In Proceedings of the 40th ACM SIGPLAN Conference on
+to ACM.                                                                              Programming Language Design and Implementation (PLDI ’19), June
+ACM ISBN 978-1-4503-6712-7/19/06. . . $15.00                                         22–26, 2019, Phoenix, AZ, USA. ACM, New York, NY, USA, 17 pages.
+https://doi.org/10.1145/3314221.3314637                                              https://doi.org/10.1145/3314221.3314637
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                                                            A. Prokopec et al.
+
+1    Introduction                                                          • We show that the proposed benchmarks are diverse
+To drive innovation in managed runtimes and just-in-time                     in the sense that they span the space of concurrency
+(JIT) compilers, researchers and practitioners rely on bench-                metrics better than the existing suites (Section 4).
+marks suites that capture representative patterns of appli-                • We demonstrate that the proposed benchmarks reveal
+cation behavior. This allows developing and validating new                   new opportunities for JIT compilers by implementing
+optimizations and memory management techniques. Even                         four new optimizations in the Graal JIT compiler [32]
+though an improvement demonstrated on a benchmark is not                     (Section 5).
+always a sufficient condition, it is usually a necessary condi-            • We evaluate the impact of the four new optimizations,
+tion for a new optimization or technique to be considered                    plus three pre-existing optimizations, on Renaissance,
+useful. The Java Virtual Machine (JVM) is at the forefront of                DaCapo, ScalaBench and SPECjvm2008 suites, show-
+managed runtime research and development, and due to its                     ing that all 7 optimizations exhibit over 5% impact on
+popularity and widespread use, many benchmarking suites                      Renaissance, compared to only 2 on ScalaBench, 1 on
+targeting the JVM have been developed. Of those most es-                     DaCapo, and 3 on SPECjvm2008 (Section 6).
+tablished, the DaCapo benchmark suite introduced a set of                  • We show that the proposed benchmark suite is as com-
+workloads to help understand memory behavior of complex                      plex as DaCapo and ScalaBench, and much more com-
+Java applications [21]. The ScalaBench suite [100] focused                   plex than SPECjvm2008, by evaluating six Chidamber
+on Scala programs, which exhibit a significantly different be-               and Kemerer metrics, and by inspecting the compiled
+havior compared to Java programs [99], despite Scala being                   code size and the hot method count of all the bench-
+compiled to Java bytecode and executed on the JVM. The                       marks (Section 7),
+SPECjvm2008 focused on computationally intensive work-                 We present related work in Section 8, and we summarize
+loads [1], while the more recent SPECjbb2015 benchmark               our observations in Section 9.
+simulates the IT infrastructure of an online supermarket [4].
+   Still, as we argue in this paper, neither of the existing
+benchmark suites for the JVM was specifically focused on             2     Motivation and Benchmark Selection
+concurrency and parallelism. Moreover, the JVM has evolved           Our work has several motivating factors. First, we realized
+considerably over the years, and gained support for atomic           that the state-of-the-art JIT compilers, such as C2 and Graal,
+operations [54], lock-free concurrent data structures [51],          have very comparable performance, e.g., on the DaCapo
+and non-blocking I/O [19], as well as new language and               suite, and that it has become extremely difficult to demon-
+JVM features such as Java Lambdas [36], invokedynamic                strate significant performance gains on the existing work-
+and method handles [97], to name a few. At the same time,            loads when exploring new compiler optimizations. Second,
+the arrival of multicore processors prompted a plethora of           we determined that many modern programming abstractions,
+new programming models and frameworks, such as soft-                 such as Java Lambdas [36], Streams [33], or Futures [53],
+ware transactional memory [24, 41, 101], fork-join [50], data-       were not represented in the existing benchmark suites. More-
+parallel collections [33, 81, 111], and actors [5, 39, 105]. These   over, we found that the optimizations in existing JIT compil-
+workloads potentially present new optimization opportuni-            ers rarely focused on concurrency-related primitives.
+ties for compilers and virtual machines.
+   This paper proposes a new representative set of bench-            2.1    Selection Methodology
+marks that cover modern JVM concurrency and parallelism              To identify a core set of benchmarks which would reflect
+paradigms. While we do not argue that the proposed bench-            the use of modern concurrency-related abstractions and pro-
+mark suite is exhaustive in that it represents all relevant          gramming paradigms, we manually collected a large number
+workloads or optimization opportunities, we have found               of candidate workloads using popular Java and Scala frame-
+these benchmarks useful, since they helped us identify, im-          works. In addition to manual filtering, we also developed
+plement and assess new compiler optimizations. As we show            a tool, inspired by the AutoBench toolchain [113], to scan
+in the paper, three other established benchmark suites did           the online corpus of open-source projects on GitHub1 for
+not exhibit similar characteristics.                                 candidate workloads. When selecting benchmarks for the
+   The contributions in this work are as follows:                    Renaissance suite, our main goals were as follows.
+    • We propose a new benchmark suite, which consists of            Modern Concurrency. Benchmarks in the suite should rely
+      21 parallelism- and concurrency-oriented benchmarks            on different styles of concurrent and parallel programming.
+      for the JVM, and relies on multiple existing state-of-         These include data-parallelism, task-parallelism, streaming
+      the-art Java and Scala frameworks (Section 2).
+    • We identify a set of metrics that reflect the usage of
+      the basic concurrency primitives on the JVM, along             1 We included GitHub projects with updates in the last 3 years (2015–2017)
+
+      with a normalization technique (Section 3).                    and higher number of recent commits, pull requests, and number of stars.
+Renaissance: Benchmarking Suite for Parallel Applications on the JVM              PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA
+
+and pipelined parallelism, message-based concurrency, soft-         with resource leaks and, especially in the case of concurrent
+ware transactional memory, lock-based and lock-free con-            benchmarks, data races and deadlocks.
+current data structures and in-memory databases, as well as
+asynchronous programming and network communication.                 2.2   Renaissance Benchmarks and Harness
+Realistic Workloads. Benchmarks should reflect real-world           The set of benchmarks that we ultimately decided to include
+applications. To this end, we focused on workloads using pop-       in the Renaissance suite is shown in Table 1, along with
+ular Java and Scala frameworks, such as Java Stream API [33],       short descriptions. In total, 14 out of 21 benchmarks were
+Apache Spark [111], the Java Reactive Extensions [15, 16], the      adapted from existing standalone benchmarks (akka-uct,
+Java Fork/Join framework [50], ScalaSTM [22], and Twitter           als, chi-square, dec-tree, fj-kmeans, log-regression, movie-lens,
+Finagle [12]. We reused existing workloads where possible,          naive-bays, philosophers, reactors-savina, rx-scrabble, scrab-
+and we adopted several standalone benchmarks that target            ble, stm-bench7 and streams-mnemonics), and the rest were
+specific paradigms, such as STMBench7 [38], J. Paumard’s            gathered from production usages of different companies, and
+Scrabble benchmark [69], and the CloudSuite MovieLens               usages in existing applications.
+benchmark for Apache Spark [35]. Overall, we collected                 All benchmarks run within a single JVM process, and only
+roughly 100 benchmarks since starting the effort in 2016.           rely on the JDK as an external dependency. Some of the
+Workload Diversity. Benchmarks should be sufficiently di-           benchmarks use network communication, and they are en-
+verse so that they exercise different concurrency-related fea-      coded as multiple threads that exercise the network stack
+tures of the JVM, such as atomic instructions, Java synchro-        within a single process (using the loopback interface). We
+nized blocks, thread-park operations, or guarded blocks (i.e.,      realize that this does not reflect realistic network conditions,
+the wait-notify pattern). At the same time, the benchmarks          but it does exercise code responsible for spanning multiple
+should be object-oriented to exercise the parts of the JVM re-      address spaces, which is common for data-parallel compu-
+sponsible for efficient execution of code patterns commonly         tational frameworks. The default execution time of each
+associated with abstraction in object-oriented programs, i.e.,      benchmark is tuned to take several seconds.
+frequent object allocation and virtual dispatch. To this end,          We provide a harness that allows to run the benchmarks
+we analyzed candidate projects by running their testing code        and collect the results, and also allows to easily add new
+and recording various concurrency-related metrics (details          benchmarks. The harness also provides an interface for cus-
+in Section 3) to ensure adequate coverage of the metric space.      tom measurement plugins, which can latch onto benchmark
+This served as the basis for the diversity analysis in Section 4.   execution events to perform additional operations. For ex-
+Deterministic Execution. Benchmarks should run deter-               ample, most of the metrics in Section 3 were collected using
+ministically, even though it is not possible to achieve full de-    custom plugins. In addition, the harness allows running the
+terminism in concurrent benchmarks due to non-determinism           benchmarks with JMH [102] (a standard microbenchmarking
+inherent to thread scheduling. However, apart from that,            tool for the JVM) as a frontend to avoid common measure-
+the control flow of a benchmark should not include non-             ment pitfalls associated with benchmarking.
+deterministic choices on data produced, e.g., by a random
+generator seeded by the current time instead of a constant.
+                                                                    3     Characterizing Metrics
+Open-Source Availability. Benchmarks should be open-
+source, and rely only on open-source frameworks, whenever           To meet the goals outlined in Section 2.1, we define a set of
+possible. This goal is important for several reasons. First of      metrics to characterize the usage of concurrency primitives,
+all, it enables inspection of the workloads by the community        basic primitives of object-oriented programming, and mod-
+and allows multiple parties to collaborate on improving and         ern programming primitives introduced in JDK 7 or later.
+maintaining the suite so that it can evolve along with the          Notably, our goal is not to define an exhaustive set of metrics
+target platform ecosystem. Moreover, it enables source-code         to cover all of these features. Instead, we aim at profiling
+level analysis of the benchmarks, and allows evaluating the         metrics that 1) can reasonably characterize the use of these
+actionability of profiler results. And last, but not least, open-   features, 2) can be collected with simple instrumentation,
+source software is less likely to cause licensing issues.           and 3) can be easily understood.
+Avoiding Known Pitfalls. The benchmarks should avoid                   In this section, we present the metrics used in benchmark
+pitfalls that were identified in other benchmark suites over        selection, and the details of how we collect them. Subsequent
+time and which hinder adoption in a broader community.              sections compare these metrics across different benchmarks
+The lack of benchmark source code is one such pitfall. An-          and relate them with compiler optimizations.
+other pitfall is the use of timeouts, which make it difficult
+to analyze the benchmark execution using dynamic analysis           3.1   Description of the Metrics
+tools that require heavy-weight instrumentation, because            Table 2 presents the metrics used during benchmark selec-
+the timeouts keep triggering due to high overhead. Yet an-          tion. The initial several metrics in the list reflect the us-
+other pitfall is benchmark correctness, avoiding benchmarks         age of some basic concurrency primitives on the JVM [94]:
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                                                                             A. Prokopec et al.
+
+                                           Table 1. Summary of benchmarks included in Renaissance.
+
+     Benchmark              Description                                                                         Focus
+
+     akka-uct               Unbalanced Cobwebbed Tree computation using Akka [5].                               actors, message-passing
+     als                    Alternating Least Squares algorithm using Spark.                                    data-parallel, compute-bound
+     chi-square             Computes a Chi-Square Test in parallel using Spark ML [62].                         data-parallel, machine learning
+     db-shootout            Parallel shootout test on Java in-memory databases.                                 query-processing, data structures
+     dec-tree               Classification decision tree algorithm using Spark ML [62].                         data-parallel, machine learning
+     dotty                  Compiles a Scala codebase using the Dotty compiler for Scala.                       data-structures, synchronization
+     finagle-chirper        Simulates a microblogging service using Twitter Finagle [12].                       network stack, futures, atomics
+     finagle-http           Simulates a high server load with Twitter Finagle [12] and Netty [11].              network stack, message-passing
+     fj-kmeans              K-means algorithm using the Fork/Join framework [50].                               task-parallel, concurrent data structures
+     future-genetic         Genetic algorithm function optimization using Jenetics [9].                         task-parallel, contention
+     log-regression         Performs the logistic regression algorithm on a large dataset.                      data-parallel, machine learning
+     movie-lens             Recommender for the MovieLens dataset using Spark ML [62].                          data-parallel, compute-bound
+     naive-bayes            Multinomial Naive Bayes algorithm using Spark ML [62].                              data-parallel, machine learning
+     neo4j-analytics        Analytical queries and transactions on the Neo4J database [10].                     query processing, transactions
+     page-rank              PageRank using the Apache Spark framework [111].                                    data-parallel, atomics
+     philosophers           Dining philosophers using the ScalaSTM framework [22].                              STM, atomics, guarded blocks
+     reactors               A set of message-passing workloads encoded in the Reactors framework [90].          actors, message-passing, critical sections
+     rx-scrabble            Solves the Scrabble puzzle [69] using the RxJava framework.                         streaming
+     scrabble               Solves the Scrabble puzzle [69] using Java 8 Streams.                               data-parallel, memory-bound
+     stm-bench7             STMBench7 workload [38] using the ScalaSTM framework [22].                          STM, atomics
+     streams-mnemonics Computes phone mnemonics [64] using Java 8 Streams.                                      data-parallel, memory-bound
+
+
+ Table 2. Metrics considered during benchmark selection.                               Next, we define a metric for the average CPU utilization,
+                                                                                    and a metric for the number of cache misses during execution.
+ Name           Description                                                         Both these metrics are indirectly related to concurrency –
+ synch          synchronized methods and blocks executed.                           for example, unless several CPUs or cores are utilized by the
+ wait           Invocations of Object.wait().                                       benchmark, it is unlikely that the benchmark will exhibit
+ notify         Invocations of Object.notify() and Object.notifyAll() .             interesting synchronization behavior. Similarly, a high cache-
+ atomic         Atomic operations executed.                                         miss rate may indicate contention between threads.
+ park           Park operations.                                                       Then, we track the object-allocation rate, the array-alloca-
+ cpu            Average CPU utilization (user and kernel).
+                                                                                    tion rate, and the dynamic-dispatch rate (i.e., the execu-
+ cachemiss      Cache misses, including L1 cache (instruction and data), last-
+                layer cache (LLC), and translation lookaside buffer (TLB; in-
+                                                                                    tion counts of the invokedynamic, invokeinterface, or
+                struction and data).                                                invokevirtual bytecodes). These metrics estimate the us-
+ object         Objects allocated.                                                  age of the basic primitives in object-oriented programming,
+ array          Arrays allocated.                                                   and usually correlate with the complexity of the code3 .
+ method         Methods invoked with invokevirtual, invokeinterface or                 Finally, we track the execution rate of the invokedynamic
+                invokedynamic bytecodes.
+                                                                                    bytecode (introduced in JDK 7 [97]), which supports dy-
+ idynamic       invokedynamic bytecodes executed.
+                                                                                    namic languages on the JVM [66], and is also used to im-
+                                                                                    plement Lambdas [36]. Java Lambdas are used in various
+(1) synchronized blocks and methods (i.e. critical sections),                       data-processing libraries – for example, Java Streams [33]
+(2) wait/notify calls (i.e. guarded blocks), (3) atomic memory-                     or Reactive Extensions [15] expose operations such as map
+access operations (e.g., compare-and-swap), (4) thread park-                        and reduce that typically take Lambda values as arguments.
+ing and unparking. Since most high-level concurrency ab-                            Therefore, counting the invokedynamic occurrences allows
+stractions are implemented from these basic primitives, their                       estimating the usage rate of high-level operations.
+usage rates estimate the use of concurrency abstractions dur-
+ing execution. We therefore collect the dynamic invocation
+counts of these primitives2 .
+2 We omitted unparks, since they correlated with parks in all benchmarks.           3 Some data-parallel and streaming frameworks allocate intermediate arrays.
+Renaissance: Benchmarking Suite for Parallel Applications on the JVM               PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA
+
+3.2    Normalization                                               that it is comparable to suites such as DaCapo and Scal-
+Absolute values of the metrics from Table 2 are not very           aBench in terms of object-allocation rates and dynamic dis-
+indicative, since a high value may reflect a long execution        patch, and that it exercises invokedynamic more often.
+rather than a frequent usage of a given primitive, which is
+our focus. To this end, we use rates instead of absolute values,   4.1    Benchmark Suites
+and we normalize each metric (except cpu) by the number            We compare Renaissance with benchmarks included in sev-
+of references cycles executed by the benchmark, defined as         eral established and widely-used benchmark suites for the
+machine cycles measured at a constant nominal frequency,           JVM: DaCapo [21], ScalaBench [100], and SPECjvm2008 [1]5 .
+even if the real CPU frequency scales up or down [46].             These suites can be executed with different input sizes. In
+   We use reference cycles as a measure of the amount of com-      DaCapo and ScalaBench, we use the largest input defined for
+putations executed by an application. Using reference cycles       each benchmark, while in SPECjvm2008 we use the “lagom”
+allows comparing the metrics between different benchmarks,         workload (a fixed-size workload, intended for research pur-
+even if they are executed under different or fluctuating CPU       poses [2]). Table 6 in Section A of the supplemental material
+frequencies. Moreover, reference cycles represent runtime          lists all benchmarks that we considered.
+conditions more accurately, since they account for instruc-           All benchmarks have a warm-up phase, which takes either
+tion complexity (as complex instructions take more cycles)         a number of iterations (Renaissance, DaCapo, ScalaBench)
+and for latencies due to e.g. cache misses.                        or some execution time (SPECjvm2008). Execution after the
+                                                                   warmup is classified as steady-state, and we always measure
+3.3    Metric Collection                                           steady-state execution in this paper.
+To collect the metrics, we rely on several tools. To pro-
+file the usage of concurrency primitives (synch, wait, no-         4.2    Methodology
+tify, atomic, park), allocations (object, array), invocations      To study the differences between Renaissance and other
+(method), and invokedynamic executions (idynamic), we de-          suites, we first collect the metrics defined in Section 3 for
+veloped a profiler based on bytecode instrumentation, built        all workloads;6 then, we visually compare them by means of
+on top of the open-source dynamic program-analysis frame-          scatter plots. Rather than analyzing benchmarks on a coor-
+work DiSL4 [61]. The profiler exploits the full bytecode cov-      dinate system composed of 11 dimensions (one dimension
+erage offered by DiSL (i.e., it can instrument every method        for each collected metric) we resort to principal component
+that has a bytecode representation), so the metrics can be         analysis (PCA) [48] to reduce data dimensionality, comparing
+collected in every loaded class, including the JDK classes, as     benchmarks on the resulting coordinate system. PCA is a
+well as the classes that are dynamically generated or fetched      statistical technique that transforms a K-dimensional space
+from a remote location. The profiler uses a deployment set-        into another space of linearly uncorrelated variables, called
+ting of DiSL called Shadow VM [60] to enforce isolation            principal components (PCs). PCA applies linear transforma-
+between analysis and application code, preventing certain          tions such that the first PC has the largest possible variance,
+well-known problems that may be introduced by less isolated        while each subsequent component has the highest possible
+approaches [49]. We profile atomic and park by intercept-          variance, under the constraint of being orthogonal to the pre-
+ing the respective method calls in sun.misc.Unsafe. CPU            ceeding components. Considering variance as a measure of
+utilization is sampled every ∼150ms using top [57]. Finally,       information, PCA allows one to reduce the dimensionality of
+we use perf [70] to collect cache misses and reference cy-         the original dataset by considering only the first components
+cles (used for normalization). While instrumentation may           (i.e., those retaining most of the variance) while preserving
+influence thread interleaving and bias the collection, we          as much information as possible from the original dataset.
+made sure to keep the perturbations low with minimal in-               We apply PCA as follows. Matrix X contains the set of
+strumentation that avoids heap allocations, and by keeping         collected metrics. Each component x i j ∈ X (i ∈ [1, N ];
+the profiling data structures in a separate process, on a sep-     j ∈ [1, K]; where N is the number of benchmarks analyzed
+arate NUMA node. Additional details of the experimental            and K the number of collected metrics) is the normalized
+setup are in Section B of the supplemental material.               value of metric j obtained on benchmark i. The metrics are
+                                                                   profiled during a single steady-state benchmark execution,
+4     Diversity                                                    as discussed in Section B of the supplemental material.
+Having collected the metrics described in Section 3, we used
+these metrics to narrow down the list of benchmarks, and to        5 We use the latest released versions of the suites at the time of writing:
+compare Renaissance to the established benchmark suites.           DaCapo v.9.12-MR1 (dated Jan. 2018), ScalaBench v.0.1.0 (dated Feb. 2012)
+In this section, we show that Renaissance represents the se-       and SPECjvm2008 v.1.01 (dated May 2009). According to the guidelines on
+lected concurrency primitives better than the existing suites,     the DaCapo website, we use the lusearch-fix benchmark instead of lusearch.
+                                                                   6 Table 7 in Section D of the supplemental material reports the collected
+4 https://disl.ow2.org/                                            unnormalized metrics for all analyzed benchmarks.
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                                                                          A. Prokopec et al.
+
+Table 3. Loadings of metrics (defined in Table 2) on the first                      As shown in Table 3, object allocation, dynamic dispatch,
+four principal components (PCs), sorted by absolute value                        and array allocation correlate positively with PC1, and CPU
+(descending order).                                                              utilization correlates negatively. Figure 1(a) shows that the
+                                                                                 SPECjvm2008 benchmarks are clustered in the bottom-left
+        PC1                 PC2                 PC3                 PC4
+ Metric      load.   Metric      load.   Metric      load.   Metric      load.
+                                                                                 portion of the figure, while the benchmarks of the other
+ object     +0.50    atomic     +0.67    cachemiss +0.58     idynamic +0.56      suites are well distributed along PC1. This is a sign that
+ cpu        -0.49    park       +0.65    notify     +0.50    array      +0.42    Renaissance, DaCapo and ScalaBench contain applications
+ method +0.44        method +0.20        wait       +0.41    notify     +0.42
+ array      +0.40    notify     +0.18    cpu        -0.28    method -0.35        that nicely exercise object allocation and dynamic dispatch,
+ idynamic +0.27      idynamic -0.17      synch      -0.25    cachemiss +0.28     which is often a sign of using abstractions in those workloads.
+ synch      -0.17    cpu        -0.16    park       -0.20    cpu        +0.22
+ notify     -0.13    cachemiss -0.08     idynamic -0.18      atomic     +0.18       In contrast, PC2 exhibits a strong positive correlation with
+ atomic     -0.13    object     +0.05    array      -0.13    wait       -0.15    two concurrency primitives, i.e., atomic and park. As demon-
+ cachemiss -0.07     array      -0.03    method +0.10        object     +0.13
+ park       -0.06    synch      -0.02    object     -0.04    synch      +0.11
+                                                                                 strated by the wide distribution of Renaissance benchmarks
+ wait       -0.02    wait       -0.00    atomic     -0.03    park       +0.05    along PC2, as shown in Figure 1(a), Renaissance benchmarks
+                                                                                 extensively use these primitives. On the other hand, bench-
+                                                                                 marks from the other suites span a limited space along PC2.
+                                                                                 Similarly to PC2, PC3 is well correlated with metrics esti-
+                                                                                 mating concurrency, particularly cache misses and the usage
+                                                                                 of wait/notify. The benchmark distribution along PC3 is
+                                                                                 similar to the one along PC2 (as shown in Figure 1(b)), which
+                                                                                 suggests that generally, the use of concurrency primitives in
+                                                                                 DaCapo, ScalaBench, and SPECjvm2008 is limited.
+                                                                                    Finally, idynamic contributes most to PC4, with a strong
+                                                                                 positive correlation. The presence of numerous Renaissance
+                                                                                 benchmarks in the top part of Figure 1(b) demonstrates the
+           (a) PC1 vs PC2.                        (b) PC3 vs PC4.                frequent execution of invokedynamic bytecodes in the work-
+                                                                                 loads (indeed, 10 out of 21 benchmarks execute this byte-
+Figure 1. Scatter plots of benchmark scores over the first                       code at runtime), which in turn may represent the use of
+four principal components (PCs).                                                 functional-style operations commonly found in parallelism
+                                                                                 frameworks. This is expected, as other suites were released
+                                                                                 before the introduction of invokedynamic in JDK 7 [97] and
+    Each metric vector X j is standardized to zero mean and                      of Lambas and Streams in JDK 8 [36] (while a recent DaCapo
+                                             X −x                                version was released in Jan. 2018, there was no major change
+unit variance, yielding a new vector Yj = js j j ∈ Y (where
+                                                                                 to the constituent benchmarks, originally released in 2009).
+x j and s j are the mean and variance of X j , respectively).
+According to established practices, we apply PCA on the
+standardized matrix Y rather than on X. PCA produces a new
+                                                                                 5    Optimization Opportunities
+matrix S = YL, where each row vector in S is the projection                      Once we identified a sufficiently diverse set of benchmarks,
+of the corresponding row vector in Y on the new coordinate                       as explained previously in Sections 2, 3 and 4, we wanted
+system formed by the PCs (called score), while li j ∈ L (li j ∈                  to check if these benchmarks help us in identifying new
+[−1, 1]; i, j ∈ [1, K]) is the loading of metric i on the j-th                   optimization opportunities. We therefore investigated if we
+PC (henceforth called PCj). The absolute value of a loading                      can develop new JIT-compiler optimizations that are useful
+quantifies the correlation of a metric to a given PC, while its                  for the code patterns that appear in Renaissance benchmarks.
+sign determines if the correlation is positive or negative.                         In this section, we analyze several compiler optimizations
+                                                                                 for which we noticed a significant impact on Renaissance
+4.3    Analysis                                                                  benchmarks, and we explain the reason for the impact. For
+Table 3 reports the loading of each metric on the first four                     the purposes of the analysis, we used the Graal JIT com-
+PCs, ranked by their absolute values in descending order,                        piler to implement 4 new optimizations9 (escape analysis
+while in Figure 1, we plot the scores of the considered bench-                   with atomic operations, loop-wide lock coarsening, atomic-
+marks against the four PCs. 7 The first four components                          operation coalescing, and method-handle simplification), and
+account for ∼60% of the variance present in the data. 8                          to study 3 existing optimizations (speculative guard move-
+                                                                                 ment, loop vectorization, and dominance-based duplication
+7 A larger version of Figure 1 can be found in Section E of the supplemental     simulation). Notably, we do not claim that these are the
+material.
+8 As discussed in Section B of the supplemental material, we excluded bench-     9 Graal’s compliance test suite is available at GitHub [6], and we ran it to
+
+marks tradebeans, actors and scimark.monte_carlo from the PCA.                   check that our implementations are correct.
+Renaissance: Benchmarking Suite for Parallel Applications on the JVM                    PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA
+
+only optimizations that are important for the Renaissance
+benchmarks – we only discuss those parallelism-related op-
+timizations that we were able to identify. Also, we focused
+on high-level optimizations for the existing backends of the
+Graal compiler. In particular, we did not study fence opti-
+mizations although they are interesting for platforms such
+as PowerPC or AArch6410 .
+   In the rest of the section, we briefly explain each opti-
+mization and discuss its impact on the benchmarks. We also
+establish a relationship to the metrics from Section 3 and
+illustrate performance with data cited from Section 6. We
+                                                                          Figure 2. Number of atomic operations executed, normal-
+present a minimal example for each optimization – while
+                                                                          ized by reference cycles.
+such examples are rare in the source code, they do appear in
+the compiler after transformations such as inlining.
+   In sections where optimization soundness is not apparent,
+we reason as follows. Each program P has some set R of                    also helps when the objects escape later, because the CAS
+possible results, where a result is a sequence of external side-          operation can be removed and the objects can be directly ini-
+effects that the program’s threads make. An external side-                tialized in their mutated state before being published. In par-
+effect is an output of the program that the user can observe              ticular, this initialization can be performed with—potentially
+(for example, the exit status or the I/O). Program’s executions           cheaper—regular writes rather than with atomic instructions.
+can produce different results because the program-threads’                    For example, in the previous
+                                                                                                                   return new B ( v3 ) ;
+execution schedule is non-deterministic. When writing a                   code, assuming the constructors
+concurrent program, users consider the program correct if                 don’t let the objects escape, the allocation of the A object can
+its executions produce some result from the set of allowed                be completely eliminated and the value of the field in the B
+results R. However, users are not allowed to assume any prob-             object can directly be set to its updated value (v3).
+ability distribution of the program’s results across executions.              We observed this pattern in usages of java.util.Random,
+Thus, for an optimization to be valid, it must transform an               com.twitter.util.Promise, and java.util.concurrent.
+original program P with a set of possible results R into a                atomic.AtomicReference. These classes change their inter-
+program P ′ with a set of possible results R ′, such that R ′ ⊆ R.        nal state using a CAS operation. An application can create an
+For each optimization, we informally reason why the set of                instance of these classes and change its internal state a few
+results of the transformed program is either equal to that of             times before discarding it (full escape analysis), or publishing
+the original program or its strict subset.                                it to the rest of the program (partial escape analysis).
+                                                                              This optimization has a 24% impact on finagle-chirper. As
+5.1    Escape Analysis with Atomic Operations                             seen in Figure 2, this benchmark exhibits a higher value
+                                                                          for the atomic metric than any of the benchmarks from
+Partial Escape Analysis (PEA) [106] is an optimization that
+                                                                          the existing suites. This is coherent, since the optimization
+reduces the amount of object allocations by postponing heap
+                                                                          targets an operation counted by the atomic metric.
+allocation of an object until it escapes and can be seen by
+                                                                          Soundness. Objects that have not yet escaped cannot be
+other threads. PEA does this by analyzing the reads and
+                                                                          observed or mutated by other threads by definition. Conse-
+writes to the allocated objects. So far, the PEA in Graal was
+                                                                          quently, any schedule of the original program P will yield the
+limited to regular reads and writes, but it did not consider
+                                                                          same outcome for the CAS operation: the transformed pro-
+atomic operations such as Compare-And-Swap (CAS).
+                                                                          gram P ′ emulates this behavior on the thread which executed
+   Consider the example on the      1 o = new A ( v ) ;                   the CAS in P. If the object containing the memory location
+right: if the CASes are not ac- 2 CAS ( o . x , v , new B ( v2 ) ) ;
+                                                                          subject to CAS can be entirely escape-analyzed away in P ′,
+counted for during PEA, then        3 CAS ( o . x . y , v2 , v3 )
+                                                                          no other thread can observe the effects of this CAS in P. In
+the A and B objects must be al- 4 return o . x ;
+                                                                          this case, P ′ does not contain any external side-effect for this
+located before the first CAS.
+                                                                          CAS and any result of P ′ is a possible result of P. If the object
+   A CAS operation involves up to three objects: the object
+                                                                          escapes at a later point in the program, its fully initialized
+containing the field, the expected value and the new value. If
+                                                                          state containing the emulated effects of the CAS is safely
+the object containing the field has not yet escaped, the CAS
+                                                                          published during the side-effect that causes the object to
+can simply update the state of the scalar-replaced object.
+                                                                          escape. In this case any schedule of P ′ can be mapped to a
+This might replace the two other objects with scalars. This
+                                                                          schedule of P where all side-effects due to the initialization
+10 Graal has no PowerPC backend that we know of and its AArch64 backend
+                                                                          of this object happened before the escape point.
+has not yet been optimized for fine-grained use of fences.
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                                                                               A. Prokopec et al.
+
+                                                                                    uses the synchronized primitive considerably more often,
+                                                                                    which made it possible to identify this optimization.
+                                                                                    Soundness. Any schedule s ′ of the transformed program
+                                                                                    P ′ can be mapped to a schedule s of the original program
+                                                                                    P, such that the respective external side-effects r ′ and r are
+                                                                                    equal. Consider a schedule s ′ of P ′ in which some thread T is
+                                                                                    about to execute a loop that contains a synchronized region,
+                                                                                    and which has external side-effects r 0 and the memory state
+                                                                                    m 0 before executing that loop. There exists some execution
+                                                                                    schedule s of P in which all other threads pause during the
+                                                                                    execution of the C iterations of the loop. That execution
+Figure 3. Number of synchronized methods or blocks exe-
+                                                                                    schedule has the same external side-effects r 0 and the mem-
+cuted, normalized by reference cycles.
+                                                                                    ory state m 0 before executing that loop. Since condition
+                                                                                    does not acquire any locks, it is easy to show that both s and
+                                                                                    s ′ have the same set of external side-effects and the same
+5.2    Loop-Wide Lock Coarsening                                                    memory state after executing C iterations of the loop. By in-
+Consider the Java loop shown in                   1 for ( ; c o n d i t i o n ; )
+                                                                                    duction, the two execution schedules have the same external
+the snippet on the right enclosing                2   synchronized ( x ) {          side-effects r ′ = r , so the transformation is correct.
+a synchronized statement, which                   3        . . . region . . .
+protects a critical region. The time              4   }                             5.3    Atomic-Operation Coalescing
+spent entering and exiting the critical region can critically                       A typical retry-loop in lock-free             1 do {
+affect performance if the loop is frequently executed.                              algorithms reads the value at a               2   v = READ ( x )
+ 1 int b = 0 ;                            This synchronization pattern              memory address, and uses a CAS                3   nv = f 1 ( v )
+                                                                                                                                  4 } while ( ! CAS ( x , v , nv ) )
+ 2 for ( ; c o n d i t i o n ; )       occurs when accessing syn-                   instruction to atomically replace             5 do {
+ 3   synchronized ( x ) {
+ 4     for ( ; c o n d i t i o n ; ) {
+                                       chronized collections such as                the old value with the newly com- 6 v = READ ( x )
+ 5         . . . region . . .          the JDK java.util.Vector and                 puted value. If the CAS fails due             7   nv = f 2 ( v )
+                                                                                                                                  8 } while ( ! CAS ( x , v , nv ) )
+ 6         b ++;                       SynchronizedList (whose op-                  to a concurrent write by another
+ 7         if ( b % T == 0 )
+ 8             break ; } }
+                                       erations use locks [13, 14]) inside          thread, the loop repeats, or otherwise terminates. The code
+                                       a loop.                                      snippet on the right shows two such consecutive retry-loops.
+   To reduce the cost of locking and unlocking within the                           This pattern rarely appears directly in user programs, but
+synchronized block, we extended Graal with an optimiza-                             it does occur after inlining high-level operations, such as
+tion that coarsens the lock [30] by tiling the iteration space                      random-number generators or concurrent counters.
+into C-sized chunks, as seen in the second snippet. The lock                           Consider an execution schedule in which no other thread
+is held in the entire nested loop, so the total number of                           makes progress between the READ in line 2 up to the CAS in
+monitor operations decreases. The necessary condition is                            line 8, In this execution schedule, the intermediate CAS in
+that the code motion on condition and region is legal (e.g.,                        line 4 is not observed by any other thread. According to
+condition must not obtain another lock).                                            the Java Memory Model [94], threads are not guaranteed to
+   Existing lock optimizations in HotSpot’s C2 [68] compiler                        observe other execution schedules of this snippet, so user
+can optimize loops that have a statically known number                              programs should not assume that they will ever see f1(v).
+of iterations, by completely unrolling and coarsening the                            1 do {
+                                                                                                                           Consequently, if the functions
+lock across the unrolled iterations. By contrast, our optimiza-                      2   v = READ ( x )                 f1 and f2 are referentially trans-
+tion tiles the iteration space of any loop to coarsen the lock,                      3   nv = f 2 ( f 1 ( v ) )         parent, the new value nv of the
+                                                                                     4 } while ( ! CAS ( x , v , nv ) )
+without pulling the lock out of the loop completely. Lock                                                               first CAS can be directly replaced
+coarsening has an effect on fairness, but since synchronized                        with the new value nv of the second CAS, and the second CAS
+regions in Java are inherently not fair, this optimization does                     can be removed; the resulting snippet is on the left.
+not change the program semantics – applications relying on                             We observed this pattern in java.util.Random usages,
+fairness must anyway use more elaborate locking mecha-                              where the method nextDouble consecutively executes a CAS
+nisms, such as the ReentrantLock class from the JDK.                                twice. This optimization mostly affects future-genetic, im-
+   Loop-wide lock coarsening improves fj-kmeans by about                            proving it by ≈24%. The high atomic operations rate in future-
+71%. We found that a chunk size of C = 32 works well for                            genetic, shown previously in Figure 2, is due to the shared
+this benchmark. Generally, the impact depends on the size of                        use of a pseudo-random generator, and this optimization
+the critical region, as well as the number of loop iterations.                      reduces the overall contention by eliminating some CASes.
+Figure 3 shows the synchronization counts across the suites,                        Soundness. Call the original program P, and the transformed
+normalized by the CPU reference cycles. Note that fj-kmeans                         program P ′. Let S be the subset of all the execution schedules
+Renaissance: Benchmarking Suite for Parallel Applications on the JVM                      PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA
+
+of P in which some thread T executes the CAS instructions
+in lines 4-8, during which all other threads are paused. We
+will show that any schedule of P ′ can be mapped to s ∈ S.
+   First, consider some schedule s ′ of P ′ in which the CAS in
+line 4 succeeds. There must exist an execution schedule s ∈ S
+of P that is exactly the same as s ′ until the lines 4-8. Before
+T executes the CAS in line 4 of P ′, the set of external side-
+effects must have been r 0 in both s and s ′, and the state of the
+memory must have been m 0 ∪· {x→v}. After T executes the
+CAS in line 4 of P ′, external side-effects remain r 0 because
+f1 and f2 are referentially transparent, and memory state
+                                                                         Figure 4. Number of invokedynamic bytecodes executed,
+becomes m 0 ∪· {x→f2(f1(v))}. Since the CAS in line 4 of
+                                                                         normalized by reference cycles.
+P ′ succeeds in s ′, then CAS in line 4 of P succeeds in s. Since
+s ∈ S, the CAS in line 8 must also succeed. Consequently, after
+T executes the lines 4-8 of P, the set of external side-effects
+is r 0 , and m 0 ∪· {x→f2(f1(v))} is the state of the memory.
+   Therefore, in the schedule s ∈ S, after the other threads
+resume, P has the same memory state as P ′ in s ′, so the                method-handle-object address to the JVM method that is
+remaining external side-effects r 1 must be the same in both s           encapsulated within the method handle. This allowed us to
+and s ′, and the execution has the same result r ′ = r = r 0 · r 1 .     replace method-handle calls with direct calls, which can be
+The proof is similar when the CAS in line 4 of P ′ fails.                inlined in the subsequent phases in the compiler.
+   In conclusion, any schedule s ′ of P ′ can be mapped to                  We found that this generally improves performance across
+a schedule s in P that has the same result r = r ′. By the               multiple methods. For example, using Oracle Developer Stu-
+previous definition, R ′ ⊆ R and the transformation is correct.          dio 12.6, we recorded the hottest methods in scrabble, along
+                                                                         with the execution times with and without this optimization.
+5.4   Method-Handle Simplification                                          with     w/o
+                                                                                         Compilation unit
+Java 8 Lambdas are used to express declarative operations in                (ms)    (ms)
+multiple frameworks such as Java Streams [33], futures [12,                303.4 350.0 <Total>
+51, 53, 54], and Rx [15]. In the bytecode, the lambda-value                 25.9 29.6 JavaScrabble.lambda$run$2
+creation is encoded with an invokedynamic instruction [97].                 23.7 23.1 java.util.Spliterator$OfInt.forEachRemaining
+                                                                            22.4 28.8 java.util.stream.ReferencePipeline$3$1.accept
+The first time this instruction is executed, a special boot-
+                                                                            18.1 20.4 JavaScrabble.lambda$run$5
+strap method generates an anonymous class for the lambda,
+and returns a method handle. The method handle’s invoke                      In the preceding table, method-handle simplification re-
+method is then used to call the lambda.                                  duces the execution time for most methods, but not for the
+ ...                                   Consider the sequence of byte-    forEachRemainining method of the Spliterator interface.
+ invokedynamic #14 , 0
+ a l o a d 11
+                                     codes shown on the left. By the     The reason is as follows: parallel Stream operations split col-
+ i n v o k e v i r t u a l # 1 5 , 2 time this code gets compiled, the   lections into subsets, pass some subsets to worker threads,
+ ...                                 invokedynamic gets replaced with    and some to the calling thread. The invokedynamic instruc-
+the address of the generated method-handle object.                       tion that creates the method-handle is executed on the calling
+     The figure on the right shows the cor- C(0x2FB7B44C)                thread. Thus, the method-handle type can be statically deter-
+responding program segment in the inter-                    Arguments
+                                                                         mined on the calling thread, but not on the worker threads,
+mediate representation used by Graal [32]. Invoke                        which invoke the forEachRemaining method. This indicates
+The Invoke node represents the second                                    additional opportunities for optimizations in the future.
+invoke, while Arguments encapsulates the argument list. Im-                1 h i s t o g r a m = word −>                Method lambda$run$2 corre-
+                                                                           2     word . c h a r s ( ) . boxed ( )
+portantly, the first argument C is a constant that represents              3          . c o l l e c t ( groupingBy (
+                                                                                                                     sponds   to the Java code on the
+the address of the method-handle in memory.                                4              identity () ,              left: a lambda   that produces a
+     In frameworks that parameterize operations with lambda                5              counting ( ) ) ) ;         histogram of characters for a
+values, inlining the body of the lambda typically triggers               given string. Using Graal, we inspected the intermediate
+other optimizations. Unfortunately, the method handle’s                  representation of this method, both with and without the
+invoke method is polymorphic, which prevents the inlining.               optimization. The additional inlining induced by method-
+Even though the method-handle object has a constant ad-                  handle simplification triggers other optimizations that re-
+dress, the compiler does not know the actual code of the JVM             duce the number of callsites from 19 to 1, remove 37 out of 61
+method that the method-handle object refers to. We therefore             dynamic type- and null-checks, and reduce the total number
+used the existing JVM compiler interface [96] to resolve the             of IR nodes in that method from 696 to 490.
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                                                                   A. Prokopec et al.
+
+   Overall, method-handle simplification impacts the run-                         First, note that the total number of executed guards is re-
+ning time of finagle-chirper by 4%, scrabble by 22%, streams-                 duced by 83%. Moreover, note the entry for speculative guard
+mnemonics by 7%, and rx-scrabble by 1%. These results cor-                    variants, which accounts for the hoisted guards. In particular,
+relate with the invokedynamic counts normalized by CPU                        we can see the large effect on BoundsCheckException and
+reference cycles, shown in Figure 4. On DaCapo, ScalaBench,                   NullCheckException guards where most occurrences have
+and SPECjvm2008 (which precede invokedynamic), the calls                      been replaced by the lower-frequency speculative versions.
+to invokedynamic usually occur only indirectly through the                        In some cases, removing the guards enables additional
+Java class library.                                                           optimizations. Loop vectorization, discussed next, is one
+                                                                              such example – we found that by disabling speculative guard
+5.5    Speculative Guard Motion                                               motion, loop vectorization almost never triggers.
+JIT compilers for the JVM often                                               Soundness. Hoisting guards of loop-invariant conditions is
+                                           1 for ( i = 0 ; i <N ; i + + ) {
+use speculative optimizations. 2 if ( . . . ) {                               sound since executing unnecessary guards is always sound:
+Some of these optimizations re- 3                g ua r d ( 0 < = i <L ) ;    guards have no external side-effects, they only run the risk
+quire the insertion of guards, 45 } . . .                                     of reducing performance. In this case performance is con-
+which ensure the speculation is            6 }                                served by not doing this transformation again if a deop-
+correct at runtime. If the specu-                                             timization already happened for this loop. The rewrite of
+lation is not correct, these guards divert the execution to                   loop-variant inequalities (<, >, ≤, ≥, signed and unsigned)
+an environment that does not use speculations (i.e., an in-                   involving loop induction variables requires the induction
+terpreter, or code compiled by a baseline compiler). New                      variable to change monotonically which can be statically or
+profiling then takes place and a re-compilation that does not                 dynamically checked above the loop. Once this is established,
+use the respective speculation is triggered. In order to avoid                if the inequality holds at both bounds, it holds over the whole
+useless re-compilations, guards are not typically hoisted out                 range. As a result, the hoisted guard implies the original one,
+of the branch where they are needed.                                          ensuring the transformed program will deoptimize in at least
+ 1 guard ( 0 < L && 0 <=N− 1<L ) ;   However, for some loops, it is           as many cases as the original.
+ 2 for ( i = 0 ; i <N ; i + + ) {  beneficial to speculatively hoist
+ 3   if ( . . . ) {
+                                   guards out of loops even if the            5.6   Loop Vectorization
+ 4      ...
+ 5   }                             control-flow in the loop does              Modern CPUs include vector instruction sets that ensure bet-
+ 6 }                               not always lead to that guard.             ter performance by operating on multiple memory addresses
+This is beneficial because the hoisted guards are executed                    at once [3]. Most languages do not have dedicated abstrac-
+less often. To capture typical cases such as bounds checks,                   tions for these instructions, so the compiler transforms parts
+comparisons of induction variables can be rewritten to loop-                  of the program to use vector instructions, when possible.
+invariant versions. Speculative Guard Motion is described in                     Consider a simple Java loop
+more details by Duboscq [31]. This optimization has a 15%                     shown on the right. When sep-          1 for ( i = 0 ; i <N ; i + + ) {
+impact on the log-regression benchmark and an 8% impact                       arate loop iterations have no          2   c[ i ] = a[ i ] + b[ i ];
+                                                                                                                     3 }
+on the dec-tree benchmark. To better understand this dif-                     data dependencies, a compiler
+ference, we measured the number of guards executed with                       can aggregate arithmetic opera-
+and without speculative guard motion for the log-regression                   tions from several consecutive iterations into a single vector
+benchmark.                                                                    operation. However, on the JVM, the code must also perform
+                                                                              a bounds check on each array access, which introduces addi-
+           Executions         Guard type
+                                                                              tional guards into the loop, and normally prevents vector-
+                                Without                                       ization. Speculative guard motion makes loop vectorization
+          57 487 131   1%     Others                                          possible, since it moves the bounds-check guards outside of
+         529 958 424 10%      UnreachedCode                                   the loop.
+       1 639 903 998 32%      NullCheckException                                 We found that combining loop vectorization with specu-
+       2 917 610 059 57%      BoundsCheckException
+                                                                              lative guard motion results in a ≈10% impact on als, and a
+       5 144 959 612 100%     Total
+                                                                              ≈3% impact on dec-tree.
+                                  With
+          55 660 483   7%     Others                                          5.7   Dominance-Based Duplication Simulation
+          18 314 637   2%     Speculative NullCheckException                  Dominance-based duplication 1 if ( x instanceof C ) a ( )
+          22 056 283   3%     Speculative UnreachedCode                       simulation (DBDS) [56] is an 2 else b ( )
+          28 570 247   3%     Speculative BoundsCheckException
+          62 046 637   7%     BoundsCheckException
+                                                                              optimization that simplifies 3 if ( x instanceof C ) c ( )
+         166 341 946 20%      NullCheckException                              control flow by duplicating the code after control-flow
+         499 933 160 59%      UnreachedCode                                   merges. Consider the pattern on the right, which consists of
+         852 923 393 100%     Total                                           two subsequent instanceof-checks on the same class C.
+Renaissance: Benchmarking Suite for Parallel Applications on the JVM           PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA
+
+    After duplicating the second instanceof-check within            Graal provides better performance than C2 in 51 out of
+both preceding branches, this second check becomes domi-         68 benchmarks, the opposite is true in 10 benchmarks, for
+nated by the first check. It can therefore be eliminated, re-    the remaining 7 benchmarks the difference is not statisti-
+sulting in the code shown on the left.                           cally significant as the 99% confidence interval straddles 1.0.
+  1 if ( x instanceof C ) {     Since tail-duplication opti-     On benchmarks where Graal is better than C2, the median
+  2   a() ; c ()              mizations typically enable other   speedup is 20%. On benchmarks where C2 is better than
+  3 } else b ( )
+                              optimizations by devirtualizing    Graal, the median slowdown is 4%. This justifies our choice
+the callsites, we decided to include DBDS in the impact anal-    of Graal as the experimental evaluation platform.
+ysis. We found that this optimization mostly affects streams-
+mnemonics, with a performance impact of around 22%.
+                                                                 7     Code Complexity
+                                                                 In this section, we compare the software complexity and
+6   Performance Evaluation                                       the compiled code size of Renaissance against the one of
+To investigate how the new optimization opportunities in         DaCapo, ScalaBench and SPECjvm2008.
+Renaissance compare to the other suites, we provide a com-
+prehensive performance evaluation that identifies the impact
+of each optimization discussed in Section 5 on each individual   7.1   Software Complexity Metrics
+benchmark. As a consistent measure of impact across differ-      Here, we compare Renaissance against the other benchmark
+ent optimizations and benchmarks, we define the impact of        suites by computing the Chidamber and Kemerer (CK) met-
+an optimization as the change in the benchmark execution         rics [27], which were previously used to evaluate software
+time observed when the optimization is selectively disabled.     complexity of benchmarks from the DaCapo and CDx [47]
+The measure thus accounts for the cumulative impact of an        suites. We used the ckjm [104] tool to calculate the metrics.
+optimization, including its possible (enabling or disabling)     To analyze only the classes used in each benchmark (and not
+effects on other optimizations performed by the compiler.        all the classes in the classpath), we also developed a JVMTI
+   The results are summarized in Figure 5. Evaluation re-        native agent [65] for the HotSpot JVM that receives class-
+sults shown in this section have been obtained using the G1      loading events from the VM, and forwards the loaded classes
+collector. More details on the experimental setup used for       to ckjm, which then calculates the metrics.
+collecting the measurements are described in Section C of           We use the following CK metrics:
+the supplemental material. The figure supports our claim         1. Weighted methods per class (WMC), which is calculated
+that the optimizations outlined in Section 5 benefit Renais-     as the number of declared methods per loaded class.
+sance more than other benchmark suites – at significance         2. Depth of the inheritance tree (DIT), defined as the depth of
+level α = 0.01, all (7 of 7) evaluated optimizations have an     the inheritance tree along all loaded classes.
+impact of at least 5% on some Renaissance benchmark, com-        3. Number of children (NOC) is computed as the number of
+pared with 2 of 7 for ScalaBench, 1 of 7 for DaCapo, and 3       immediate subclasses of a class.
+of 7 for SPECjvm2008. At the same significance level, the        4. Coupling between object classes (CBO) counts the number
+median impact is 6.4% for Renaissance, compared with 2.8%        of classes coupled to a given class, either by method calls,
+for ScalaBench, 1.8% for DaCapo, and 3.9% for SPECjvm2008.       field accesses, inheritance, method signatures or exceptions.
+In Section G of the supplemental material, we also provide       5. Response for a class (RFC) counts the number of different
+some information on how each optimization impacts the            methods that are potentially (transitively) executed when a
+overall compilation time.                                        single method is invoked.
+   The architecture of Graal enables rapid development and       6. Lack of cohesion (LCOM) counts how many methods of a
+deployment of new optimizations, making it an obvious            class are not related by accessing the same field of that class.
+choice for our experiments with optimization opportunities
+in modern workloads. We found it relatively straightfor-            The summarized results of the analysis are shown in Ta-
+ward to implement new optimizations in the open-source           ble 4. For each benchmark suite, we report a geometric mean,
+Graal compiler. However, if Graal were a poorly performing       the minimum, and the maximum for the sum and for the av-
+compiler, the impact of each optimization relative to baseline   erage (arithmetic mean) of each metric across all benchmarks
+might appear magnified. To prove that Graal can serve as         of the suite. When looking at the sums, we overall observed
+a reasonable baseline, we also compared performance of           the highest values on five out of six metrics on Renaissance,
+the four benchmark suites on two variants of the HotSpot         while the LCOM metric was the highest on ScalaBench. With
+JVM, one equipped with the standard C2 compiler, other           respect to the average complexity across all benchmarks of
+with Graal, both in the role of the final-tier compiler. The     the suite, we can see that ScalaBench has higher values than
+results, relative to the baseline HotSpot JVM using the C2       Renaissance in 5 cases. In general we cannot say whether
+compiler, are shown in Figure 6.                                 Renaissance is more complex than ScalaBench. However,
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                                               A. Prokopec et al.
+
+
+
+
+        Figure 5. Optimization impact on individual benchmarks. Results with black outline significant at α = 0.01.
+
+
+
+
+                    Figure 6. Graal compiler performance relative to HotSpot second tier JIT compiler.
+
+we see that Renaissance is in the same ball park as Scal-       method count refer to the hot code, compiled with the second-
+aBench and the other suites. The reason why Renaissance is      tier optimizing compiler, and were measured using Oracle’s
+more complex on some of the metrics is highly related to the    Graal compiler [7] by letting the benchmark run for 120
+number of loaded classes of the benchmark suites. We took       seconds.
+a look at the sum of all loaded classes across each bench-         The JVM uses the method’s invocation count and its loop
+mark suite and the number of unique loaded classes for each     iteration counts to decide if a method is hot (i.e. frequently
+benchmark suite in Table 5. We observed that Renaissance        executed). Hot methods are compiled using the second-tier
+benchmarks on average load many classes, compared to the        optimizing compiler, so the total size and the method count of
+other benchmark suites.                                         the hot code indicate how much of the program was deemed
+                                                                important for the overall performance.
+                                                                   The geomean of the compiled code size (across all bench-
+7.2   Compiled Code Size                                        marks) is ≈6.87MB for Renaissance, which is slightly lower
+This section presents several metrics about the size of the     than ≈7.98MB for DaCapo, and ≈10.03MB for ScalaBench.
+compiled programs. Figure 7 shows the code size and compiled-   The geomean of the total number of hot methods is ≈1 636
+method count distribution for the DaCapo, ScalaBench, SPEC-     for Renaissance, which is slightly higher than ≈1 599 for
+jvm2008, and Renaissance suites. Both the code size and the     DaCapo, and somewhat lower than ≈1 853 for Scalabench.
+Renaissance: Benchmarking Suite for Parallel Applications on the JVM                   PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA
+
+Table 4. CK Metrics Summary: Minimum, maximum and
+geometric mean across the sum and arithmetic mean of all
+loaded classes of a benchmark suite. Bold values indicate the
+highest value for a metric across all benchmark suites.
+
+                  WMC       DIT      CBO      NOC       RFC     LCOM
+                              Renaissance
+    min-sum        21830    3066    21757      1571    41799    455958
+    max-sum       206933   23936 184901       14029   369131   7360650
+    geomean-sum    55533    7842    55147      4212   105105   1358042
+    min-avg       11.07    1.79   12.57        0.97    20.78    141.02
+    max-avg       18.48    2.29   17.54        1.16    33.84    706.54
+    geomean-avg   13.58    1.92   13.49        1.03    25.71    332.19
+                             DaCapo [21]
+    min-sum        12466   1687   10640         857    22378    161333
+    max-sum       124191   5753   45597        6421    97757    616524
+    geomean-sum    32470   3377   23275        2160    48461    336192
+    min-avg       11.74    1.24    11.90       0.97    22.07    130.36
+    max-avg       42.43    2.13    14.45       2.19    32.27    310.86
+    geomean-avg   17.97    1.87    12.88       1.20    26.82    186.05
+                           ScalaBench [100]
+    min-sum        24693   2657    19713       1481    45364   1080228
+    max-sum       150895   7789    66036       7890   124240   2298594
+    geomean-sum    44505   4291    32810       2735    71840   1489515
+    min-avg       14.04    1.70   12.67    1.00        27.82    440.66
+    max-avg       42.60    1.97   16.17    2.49        34.26    836.09
+    geomean-avg   18.85    1.82   13.90    1.16        30.43    631.02
+                           SPECjvm2008 [1]
+    min-sum       30560    3832   29966    2190        65741    546396
+    max-sum       55044    5744   45745    3480       103373   1131251
+    geomean-sum   33195    4142   32187    2383        70280    578408
+    min-avg       13.55    1.72    13.48       0.99    28.69    206.19
+    max-avg       16.90    1.86    14.04       1.07    31.73    347.22
+    geomean-avg   14.00    1.75    13.58       1.01    29.65    244.03
+
+
+
+         Table 5. Loaded classes per benchmark suite.
+                                                                                         Figure 7. Code Size Metrics
+                                  Sum All          Sum Unique
+        Benchmark Suite
+                            Loaded Classes       Loaded Classes
+        Renaissance                  109 004               29 157
+        DaCapo                        27 923               12 073        but also tools such as profilers [25, 98], data-race detec-
+        ScalaBench                    27 911               12 207        tors [20, 110], memory monitors and contention analyz-
+        SPECjvm2008                   50 099                5 274
+                                                                         ers [42, 109], static analyzers [37, 107], and debuggers [58].
+                                                                            The subsequently proposed ScalaBench suite [99, 100]
+                                                                         identified a range of typical Scala programs, and argued
+   While DaCapo, ScalaBench and Renaissance are roughly                  that Scala and Java programs have considerably different
+in the same range, the SPECjvm2008 has a geomean of ≈486                 distributions of instructions, polymorphic calls, object allo-
+hot methods, and a geomean code size of ≈1.17MB (for                     cations, and method sizes. This observation that benchmark
+readability, the names of individual SPECjvm2008 bench-                  suites tend to over-represent certain programming styles
+marks are not shown in Figure 7). This indicates that the                was also noticed in other languages, (e.g., JavaScript [95]).
+SPECjvm2008 workloads are considerably smaller.                          On the other hand, the SPECjvm2008 benchmark suite [1]
+                                                                         focused more on the core Java functionality. Most of the
+8     Related Work                                                       SPECjvm2008 benchmarks are considerably smaller than
+By differentiating between the optimizations that are worth              the DaCapo and ScalaBench benchmarks, and do not use
+pursuing, benchmark suites were at the core of innovation                a lot of object-oriented abstractions – SPECjvm2008 exer-
+throughout the JVM’s history. Since its introduction in 2006,            cises classic JIT compiler optimizations, such as instruction
+the DaCapo suite [21] has been a de facto standard for JVM               scheduling and loop optimizations [31].
+benchmarking. While much of the original motivation for                     We did not include SPECjbb2015 [4] in our analysis, be-
+the DaCapo suite was to understand object and memory be-                 cause it consists of a single benchmark designed to run over
+havior in complex Java applications, this suite is still actively        2 hours, typically executed on multiple JVM instances. Using
+used to evaluate not only JVM components such as JIT com-                SPECjbb2015 to detect small statistically significant changes
+pilers [34, 56, 83, 85, 106] and garbage collectors [17, 63],            is therefore relatively costly (needs long execution time).
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                                                   A. Prokopec et al.
+
+A brief evaluation suggests that the combined effect of all            The Unbalanced Cobwebbed Tree (UCT) benchmark [112]
+optimizations considered here accounts for about 1.2% im-           was designed for better actor-scheduler comparison on non-
+provement in the reported peak throughput (max jOPS) in             uniform workloads, and our akka-uct benchmark is the im-
+single JVM configuration.                                           plementation of that benchmark in the Akka actor frame-
+   Another older JVM benchmark suite is Java Grande [103],          work for the JVM [5]. A suite that specialized exclusively on
+but it consists mostly of microbenchmarks.                          benchmarks for the actor model is the Savina suite [43].
+   The tuning of compilers such as C2 [68] and Graal [7, 32]           Several other benchmarks were either inspired by or adapted
+was heavily influenced by the DaCapo, ScalaBench, and               from existing workloads. The naive-bayes, log-regression, als,
+SPECjvm2008 suites. Given that these existing benchmark             dec-tree and chi-square benchmarks directly work with sev-
+suites do not exercise many frameworks and language ex-             eral machine-learning algorithms from Apache Spark ML-
+tensions that gained popularity in the recent years, we looked      Lib, and some of these benchmarks were inspired by the
+for workloads exercising frameworks such as Java Streams [33]       SparkPerf suite [29]. The Shakespeare plays Scrabble bench-
+and Parallel Collections [81, 92, 93], Reactive Extensions [15],    mark [69] was presented by José Paumard at the Virtual
+Akka [5], Scala actors [39] and Reactors [72, 75, 84, 90], corou-   Technology Summit 2015 to demonstrate an advanced usage
+tines [8, 86, 87], Apache Spark [111], futures and promises [40],   of Java Streams, and we directly adopted it as our scrabble
+Netty [11], Twitter Finagle [12], and Neo4J [10]. Most of these     benchmark. The rx-scrabble is a version of the scrabble bench-
+frameworks either assist in structuring concurrent programs,        mark that uses the Reactive Extensions framework instead of
+or enable programmers to declaratively specify data-parallel        Java Streams. The streams-mnemonics benchmark is rewrit-
+processing tasks. In both cases, they achieve these goals by        ten from the Phone Mnemonics benchmark that was origi-
+providing a higher level of abstraction – for example, Finagle      nally used to demonstrate the usage of Scala collections [64].
+supports functional-style composition of future values, while       The stm-bench7 benchmark is STMBench7 [38] applied to
+Apache Spark exposes data-processing combinators for dis-           ScalaSTM [22, 24], a software transactional memory imple-
+tributed datasets. By inspecting the IR of the open-source          mentation for Scala, while the philosophers benchmark is
+Graal compiler (c.f. Section 5), we found that many of the          ScalaSTM’s Reality-Show Philosophers usage example.
+benchmarks exercise the interaction between different types
+of JIT compiler optimizations: optimizations, such as inlining,
+duplication [56], and partial escape analysis [106], typically      9   Conclusion
+start by reducing the level of abstraction in these frame-          We presented Renaissance – a benchmark suite consisting of
+works, and then trigger more low-level optimizations such           21 benchmarks that represent modern concurrency and par-
+as guard motion [31], vectorization, or atomic-operation            allelism workloads, written in popular Java and Scala frame-
+coalescing. Aside from a challenge in dealing with high-            works. To obtain these benchmarks, we gathered a large list
+level abstractions, the new concurrency primitives in mod-          of candidate workloads, both manually and by scanning an
+ern benchmarks pose new optimization opportunities, such            online corpus of GitHub projects. We then defined a set of
+as contention elimination [59], application-specific work-          basic metrics to filter potentially interesting workloads, and
+stealing [89], NUMA-aware node replication [26], specula-           to ensure that the selection is sufficiently diverse. Our PCA
+tive spinning [73], access path caching [74, 76–78], or other       analysis revealed that the set of benchmarks selected this way
+traditional compiler optimizations applied to concurrent pro-       covers the metric space differently than the existing bench-
+grams [108]. Many of these newer optimizations may be               mark suites. To confirm that the thus-selected benchmarks
+applicable to domains such as concurrent data structures,           are useful, we then analyzed them for performance-critical
+which have been extensively studied on the JVM [18, 23, 28,         patterns, which lead us to implement four new optimiza-
+52, 67, 71, 79, 80, 82, 88, 91].                                    tions in the Graal JIT compiler. These optimizations have
+   Unlike some other suites whose goal was to simulate de-          a considerably smaller impact on existing suites, such as
+ployment in clusters and Cloud environments, such as Cloud-         DaCapo, ScalaBench and SPECjvm2008, indicating that Re-
+Suite [35], our design decision was to follow the philosophy        naissance helped in identifying new compiler optimizations.
+of DaCapo and ScalaBench, in which benchmarks are exe-              We also identified three existing optimizations whose per-
+cuted within a single JVM instance, whose execution charac-         formance impact is prominent. Furthermore, by comparing
+teristics can be understood more easily. Still, we found some       two production-quality JIT compilers, Graal and HotSpot
+alternative suites useful: for example, we took the movie-          C2, we determined that performance varies much more on
+lens benchmark for Apache Spark from CloudSuite, and we             Renaissance than on DaCapo and SPECjvm2008.
+adapted it to use Spark’s single-process mode.                         While we showed that Renaissance aids in identifying
+                                                                    new compiler optimizations, we believe that the suite might
+                                                                    be beneficial for other domains as well, such as garbage
+                                                                    collectors, profilers, data-race detectors, and debuggers. We
+                                                                    leave these and other investigations to future work.
+Renaissance: Benchmarking Suite for Parallel Applications on the JVM                          PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA
+
+References                                                                    [26] Irina Calciu, Siddhartha Sen, Mahesh Balakrishnan, and Marcos K.
+ [1] 2008. SPECjvm2008. https://www.spec.org/jvm2008/.                             Aguilera. 2017. Black-box Concurrent Data Structures for NUMA
+ [2] 2008. SPECjvm2008 User’s Guide. https://www.spec.org/jvm2008/                 Architectures. In Proceedings of the Twenty-Second International Con-
+     docs/UserGuide.html                                                           ference on Architectural Support for Programming Languages and Op-
+ [3] 2013. AVX 512 Instructions. https://software.intel.com/en-us/blogs/           erating Systems (ASPLOS ’17). ACM, New York, NY, USA, 207–221.
+     2013/avx-512-instructions.                                                    https://doi.org/10.1145/3037697.3037721
+ [4] 2015. SPECjbb2015. https://www.spec.org/jbb2015/.                        [27] Shyam R Chidamber and Chris F Kemerer. 1994. A Metrics Suite for
+ [5] 2018. Akka Documentation. http://akka.io/docs/.                               Object Oriented Design. IEEE Transactions on Software Engineering
+ [6] 2018. Graal JTTTest Source Code. https://github.com/oracle/graal/             20, 6 (1994), 476–493.
+     blob/master/compiler/src/org.graalvm.compiler.jtt/src/org/graalvm/       [28] Cliff Click. 2007.      Towards a Scalable Non-Blocking Coding
+     compiler/jtt/JTTTest.java.                                                    Style.     http://www.azulsystems.com/events/javaone_2007/2007_
+ [7] 2018. GraalVM Website. https://www.graalvm.org/downloads/                     LockFreeHash.pdf
+ [8] 2018.      Kotlin Coroutines.       https://github.com/Kotlin/kotlinx.   [29] Databricks. 2018. Spark Performance Tests. https://github.com/
+     coroutines/blob/master/coroutines-guide.md. Accessed: 2018-11-15.             databricks/spark-perf.
+ [9] 2018. Open-Source Jenetics Repository at GitHub. https://github.         [30] Pedro C. Diniz and Martin C. Rinard. 1998. Lock Coarsening: Elim-
+     com/jenetics/jenetics.                                                        inating Lock Overhead in Automatically Parallelized Object-based
+[10] 2018. Open-Source Neo4J Repository at GitHub. https://github.com/             Programs. J. Parallel and Distrib. Comput. 49, 2 (1998), 218–244.
+     neo4j/neo4j.                                                             [31] Gilles Duboscq. 2016. Combining Speculative Optimizations with
+[11] 2018. Open-Source Netty Repository at GitHub. https://github.com/             Flexible Scheduling of Side-effects. Ph.D. Dissertation. Johannes Kepler
+     netty/netty.                                                                  University, Linz.
+[12] 2018. Open-Source Twitter Finagle Repository at GitHub. https:
+                                                                              [32] Gilles Duboscq, Thomas Würthinger, Lukas Stadler, Christian Wim-
+     //github.com/twitter/finagle.
+                                                                                   mer, Doug Simon, and Hanspeter Mössenböck. 2013. An Intermediate
+[13] 2018.     OpenJDK SynchronizedList Source Code.                 http:
+                                                                                   Representation for Speculative Optimizations in a Dynamic Compiler.
+     //hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/share/
+                                                                                   In VMIL. 1–10.
+     classes/java/util/Collections.java.
+                                                                              [33] Michael Duigou. 2011. Java Enhancement Proposal 107: Bulk Data
+[14] 2018. OpenJDK Vector Source Code. http://hg.openjdk.java.net/jdk8/
+                                                                                   Operations for Collections. http://openjdk.java.net/jeps/107.
+     jdk8/jdk/file/687fd7c7986d/src/share/classes/java/util/Vector.java.
+[15] 2018. ReactiveX project. http://reactivex.io/languages.html.             [34] Josef Eisl, Matthias Grimmer, Doug Simon, Thomas Würthinger, and
+[16] 2018. RxJava repository. https://github.com/ReactiveX/RxJava.                 Hanspeter Mössenböck. 2016. Trace-based Register Allocation in a
+[17] Shoaib Akram, Jennifer B. Sartor, Kathryn S. McKinley, and Lieven             JIT Compiler. In PPPJ. 14:1–14:11.
+     Eeckhout. 2018. Write-rationing Garbage Collection for Hybrid Mem-       [35] Michael Ferdman, Almutaz Adileh, Onur Kocberber, Stavros Volos,
+     ories. In PLDI. 62–77.                                                        Mohammad Alisafaee, Djordje Jevdjic, Cansu Kaynak, Adrian Daniel
+[18] Dmitry Basin, Edward Bortnikov, Anastasia Braginsky, Guy Golan-               Popescu, Anastasia Ailamaki, and Babak Falsafi. 2012. Clearing the
+     Gueta, Eshcar Hillel, Idit Keidar, and Moshe Sulamy. 2017. KiWi:              Clouds: A Study of Emerging Scale-out Workloads on Modern Hard-
+     A Key-Value Map for Scalable Real-Time Analytics. In Proceedings              ware. SIGPLAN Not. 47, 4 (March 2012), 37–48.
+     of the 22Nd ACM SIGPLAN Symposium on Principles and Practice of          [36] Rémi Forax, Vladimir Zakharov, Kevin Bourrillion, Dan Heidinga,
+     Parallel Programming (PPoPP ’17). ACM, New York, NY, USA, 357–369.            Srikanth Sankaran, Andrey Breslav, Doug Lea, Bob Lee, Brian Goetz,
+     https://doi.org/10.1145/3018743.3018761                                       Daniel Smith, Samuel Pullara, and David Lloyd. 2014. Java Specifica-
+[19] Alan Bateman and Doug Lea. 2011. Java Specification Request 203:              tion Request 335: Lambda Expressions for the JavaTM Programming
+     More New I/O APIs for the JavaTM Platform ("NIO.2").           https:         Language. https://jcp.org/en/jsr/detail?id=335.
+     //jcp.org/en/jsr/detail?id=203.                                          [37] Neville Grech, George Fourtounis, Adrian Francalanza, and Yannis
+[20] Swarnendu Biswas, Man Cao, Minjia Zhang, Michael D. Bond, and                 Smaragdakis. 2018. Shooting from the Heap: Ultra-scalable Static
+     Benjamin P. Wood. 2017. Lightweight Data Race Detection for Pro-              Analysis with Heap Snapshots. In ISSTA. 198–208.
+     duction Runs. In CC. 11–21.                                              [38] Rachid Guerraoui, Michal Kapalka, and Jan Vitek. 2007. STMBench7:
+[21] Stephen M. Blackburn, Robin Garner, Chris Hoffmann, Asjad M.                  A Benchmark for Software Transactional Memory. In EuroSys. 315–
+     Khang, Kathryn S. McKinley, Rotem Bentzur, Amer Diwan, Daniel                 324.
+     Feinberg, Daniel Frampton, Samuel Z. Guyer, Martin Hirzel, Antony        [39] Philipp Haller and Martin Odersky. 2007. Actors That Unify Threads
+     Hosking, Maria Jump, Han Lee, J. Eliot B. Moss, Aashish Phansalkar,           and Events. In COORDINATION. 171–190.
+     Darko Stefanović, Thomas VanDrunen, Daniel von Dincklage, and            [40] Philipp Haller, Aleksandar Prokopec, Heather Miller, Viktor Klang,
+     Ben Wiedermann. 2006. The DaCapo Benchmarks: Java Benchmark-                  Roland Kuhn, and Vojin Jovanovic. 2012. Scala Improvement Pro-
+     ing Development and Analysis. SIGPLAN Not. 41, 10 (Oct. 2006),                posal: Futures and Promises (SIP-14). http://docs.scala-lang.org/sips/
+     169–190.                                                                      pending/futures-promises.html
+[22] Nathan Bronson, Jonas Boner, Guy Korland, Aleksandar Prokopec,
+                                                                              [41] Tim Harris, Simon Marlow, Simon Peyton-Jones, and Maurice Herlihy.
+     Krishna Sankar, Daniel Spiewak, and Peter Veentjer. 2011. ScalaSTM
+                                                                                   2005. Composable Memory Transactions. In PPoPP. 48–60.
+     Expert Group. https://nbronson.github.io/scala-stm/expert_group.
+     html.                                                                    [42] Peter Hofer, David Gnedt, Andreas Schörgenhumer, and Hanspeter
+[23] Nathan G. Bronson, Jared Casper, Hassan Chafi, and Kunle Olukotun.            Mössenböck. 2016. Efficient Tracing and Versatile Analysis of Lock
+     2010. A Practical Concurrent Binary Search Tree. SIGPLAN Not. 45,             Contention in Java Applications on the Virtual Machine Level. In
+     5 (Jan. 2010), 257–268. https://doi.org/10.1145/1837853.1693488               ICPE. 263–274.
+[24] Nathan G. Bronson, Hassan Chafi, and Kunle Olukotun. 2010. CCSTM:        [43] Shams M. Imam and Vivek Sarkar. 2014. Savina - An Actor Benchmark
+     A library-based STM for Scala. In The First Annual Scala Workshop at          Suite: Enabling Empirical Evaluation of Actor Libraries. In AGERE!
+     Scala Days.                                                                   67–80.
+[25] Rodrigo Bruno and Paulo Ferreira. 2017. POLM2: Automatic Profiling       [44] Intel. 2018.       Hyper-Threading Technology.              https://www.
+     for Object Lifetime-aware Memory Management for Hotspot Big                   intel.com/content/www/us/en/architecture-and-technology/
+     Data Applications. In Middleware. 147–160.                                    hyper-threading/hyper-threading-technology.html.
+PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA                                                                                     A. Prokopec et al.
+
+[45] Intel. 2018. Turbo Boost Technology 2.0. https://www.intel.com/          [67] Rotem Oshman and Nir Shavit. 2013. The SkipTrie: Low-depth Con-
+     content/www/us/en/architecture-and-technology/turbo-boost/                    current Search Without Rebalancing. In Proceedings of the 2013 ACM
+     turbo-boost-technology.html.                                                  Symposium on Principles of Distributed Computing (PODC ’13). ACM,
+[46] Intel. 2019.           Intel 64 and IA-32 Architectures De-                   New York, NY, USA, 23–32. https://doi.org/10.1145/2484239.2484270
+     veloper’s Manual, Section 18.18.                   https://www.intel.    [68] Michael Paleczny, Christopher Vick, and Cliff Click. 2001. The Java
+     com/content/www/us/en/architecture-and-technology/                            HotspotTM Server Compiler. In JVM.
+     64-ia-32-architectures-software-developer-manual-325462.html.            [69] José Paumard. 2018. JDK8 Stream/Rx Comparison. https://github.
+[47] Tomas Kalibera, Jeff Hagelberg, Petr Maj, Filip Pizlo, Ben Titzer, and        com/JosePaumard/jdk8-stream-rx-comparison.
+     Jan Vitek. 2010. A Family of Real-time Java Benchmarks. Concurrency      [70] perf. 2015. Linux profiling with performance counters. https://perf.
+     and Computation: Practice and Experience 23, 14 (2010), 1679–1700.            wiki.kernel.org.
+[48] Karl Pearson. 1901. On lines and planes of closest fit to systems of     [71] Aleksandar Prokopec. 2015. SnapQueue: Lock-free Queue with Con-
+     points in space. Philos. Mag. 2, 11 (1901), 559–572.                          stant Time Snapshots. In Proceedings of the 6th ACM SIGPLAN Sym-
+[49] Stephen Kell, Danilo Ansaloni, Walter Binder, and Lukáš Marek. 2012.          posium on Scala (SCALA 2015). ACM, New York, NY, USA, 1–12.
+     The JVM is Not Observable Enough (and What to Do About It). In                https://doi.org/10.1145/2774975.2774976
+     VMIL. 33–38.                                                             [72] Aleksandar Prokopec. 2016. Pluggable Scheduling for the Reactor
+[50] Doug Lea. 2000. A Java Fork/Join Framework. In JAVA. 36–43.                   Programming Model. In AGERE! 41–50.
+[51] Doug Lea. 2012. Java Enhancement Proposal 155: Concurrency Up-           [73] Aleksandar Prokopec. 2017. Accelerating by Idling: How Speculative
+     dates. http://openjdk.java.net/jeps/155.                                      Delays Improve Performance of Message-Oriented Systems. Springer
+[52] Doug Lea. 2014. Doug Lea’s Workstation. http://g.oswego.edu/                  International Publishing, Cham, 177–191. https://doi.org/10.1007/
+[53] Doug Lea. 2015. Java Enhancement Proposal 266: More Concurrency               978-3-319-64203-1_13
+     Updates. http://openjdk.java.net/jeps/266.                               [74] Aleksandar Prokopec. 2017. Analysis of Concurrent Lock-Free Hash
+                                                                                   Tries with Constant-Time Operations. ArXiv e-prints (Dec. 2017).
+[54] Doug Lea, Joshua Bloch, Sam Midkiff, David Holmes, Joseph Bowbeer,
+                                                                                   arXiv:cs.DS/1712.09636
+     and Tim Peierls. 2004. Java Specification Request 166: Concurrency
+                                                                              [75] Aleksandar Prokopec. 2017. Encoding the Building Blocks of Com-
+     Utilities. https://jcp.org/ja/jsr/detail?id=166.
+                                                                                   munication. In Proceedings of the 2017 ACM SIGPLAN International
+[55] Philipp Lengauer, Verena Bitto, Hanspeter Mössenböck, and Markus
+                                                                                   Symposium on New Ideas, New Paradigms, and Reflections on Pro-
+     Weninger. 2017. A Comprehensive Java Benchmark Study on Memory
+                                                                                   gramming and Software (Onward! 2017). ACM, New York, NY, USA,
+     and Garbage Collection Behavior of DaCapo, DaCapo Scala, and
+                                                                                   104–118. https://doi.org/10.1145/3133850.3133865
+     SPECjvm2008. In ICPE. 3–14.
+                                                                              [76] Aleksandar Prokopec. 2018. Cache-tries: Concurrent Lock-free
+[56] David Leopoldseder, Lukas Stadler, Thomas Würthinger, Josef Eisl,
+                                                                                   Hash Tries with Constant-time Operations. In Proceedings of the
+     Doug Simon, and Hanspeter Mössenböck. 2018. Dominance-based
+                                                                                   23rd ACM SIGPLAN Symposium on Principles and Practice of Paral-
+     Duplication Simulation (DBDS): Code Duplication to Enable Compiler
+                                                                                   lel Programming (PPoPP ’18). ACM, New York, NY, USA, 137–151.
+     Optimizations. In CGO. 126–137.
+                                                                                   https://doi.org/10.1145/3178487.3178498
+[57] Linux man. 2013. top(1). https://linux.die.net/man/1/top.
+                                                                              [77] Aleksandar Prokopec. 2018. Efficient Lock-Free Removing and Com-
+[58] Bozhen Liu and Jeff Huang. 2018. D4: Fast Concurrency Debugging
+                                                                                   paction for the Cache-Trie Data Structure. Springer International
+     with Parallel Differential Analysis. In PLDI. 359–373.
+                                                                                   Publishing, Cham.
+[59] Honghui Lu, Alan L. Cox, and Willy Zwaenepoel. 2001. Con-                [78] Aleksandar Prokopec. 2018.               Efficient Lock-Free Remov-
+     tention Elimination by Replication of Sequential Sections in Dis-             ing and Compaction for the Cache-Trie Data Structure.
+     tributed Shared Memory Programs. In Proceedings of the Eighth                 https://doi.org/10.6084/m9.figshare.6369134.
+     ACM SIGPLAN Symposium on Principles and Practices of Parallel Pro-       [79] Aleksandar Prokopec, Phil Bagwell, and Martin Odersky. 2011. Cache-
+     gramming (PPoPP ’01). ACM, New York, NY, USA, 53–61. https:                   Aware Lock-Free Concurrent Hash Tries. Technical Report.
+     //doi.org/10.1145/379539.379568                                          [80] Aleksandar Prokopec, Phil Bagwell, and Martin Odersky. 2011. Lock-
+[60] Lukáš Marek, Stephen Kell, Yudi Zheng, Lubomír Bulej, Walter Binder,          Free Resizeable Concurrent Tries. Springer Berlin Heidelberg, Berlin,
+     Petr Tůma, Danilo Ansaloni, Aibek Sarimbekov, and Andreas Sewe.               Heidelberg, 156–170. https://doi.org/10.1007/978-3-642-36036-7_11
+     2013. ShadowVM: Robust and Comprehensive Dynamic Program                 [81] Aleksandar Prokopec, Phil Bagwell, Tiark Rompf, and Martin Odersky.
+     Analysis for the Java Platform. In GPCE. 105–114.                             2011. A Generic Parallel Collection Framework. In Euro-Par. 136–147.
+[61] Lukáš Marek, Alex Villazón, Yudi Zheng, Danilo Ansaloni, Walter          [82] Aleksandar Prokopec, Nathan Grasso Bronson, Phil Bagwell, and
+     Binder, and Zhengwei Qi. 2012. DiSL: A Domain-specific Language               Martin Odersky. 2012. Concurrent Tries with Efficient Non-blocking
+     for Bytecode Instrumentation. In AOSD. 239–250.                               Snapshots. In Proceedings of the 17th ACM SIGPLAN Symposium on
+[62] Xiangrui Meng, Joseph Bradley, Burak Yavuz, Evan Sparks, Shivaram             Principles and Practice of Parallel Programming (PPoPP ’12). ACM, New
+     Venkataraman, Davies Liu, Jeremy Freeman, DB Tsai, Manish Amde,               York, NY, USA, 151–160. https://doi.org/10.1145/2145816.2145836
+     Sean Owen, Doris Xin, Reynold Xin, Michael J. Franklin, Reza Zadeh,      [83] Aleksandar Prokopec, Gilles Duboscq, David Leopoldseder, and
+     Matei Zaharia, and Ameet Talwalkar. 2016. MLlib: Machine Learning             Thomas Würthinger. 2019. An Optimization-driven Incremental
+     in Apache Spark. Journal of Machine Learning Research 17, 34 (2016),          Inline Substitution Algorithm for Just-in-time Compilers. In Proceed-
+     1–7.                                                                          ings of the 2019 IEEE/ACM International Symposium on Code Genera-
+[63] Khanh Nguyen, Lu Fang, Guoqing Xu, Brian Demsky, Shan Lu,                     tion and Optimization (CGO 2019). IEEE Press, Piscataway, NJ, USA,
+     Sanazsadat Alamian, and Onur Mutlu. 2016. Yak: A High-performance             164–179. http://dl.acm.org/citation.cfm?id=3314872.3314893
+     Big-data-friendly Garbage Collector. In OSDI. 349–365.                   [84] Aleksandar Prokopec, Philipp Haller, and Martin Odersky. 2014. Con-
+[64] Martin Odersky. 2011. State of Scala. http://days2011.scala-lang.org/         tainers and Aggregates, Mutators and Isolates for Reactive Program-
+     sites/days2011/files/01.%20Martin%20Odersky.pdf.                              ming. In Proceedings of the Fifth Annual Scala Workshop (SCALA ’14).
+[65] Oracle. 2018. JVM Tool Interface. https://docs.oracle.com/javase/8/           ACM, New York, NY, USA, 51–61. https://doi.org/10.1145/2637647.
+     docs/platform/jvmti/jvmti.html.                                               2637656
+[66] F. Ortin, P. Conde, D. Fernandez-Lanvin, and R. Izquierdo. 2014. The     [85] Aleksandar Prokopec, David Leopoldseder, Gilles Duboscq, and
+     Runtime Performance of invokedynamic: An Evaluation with a Java               Thomas Würthinger. 2017. Making Collection Operations Optimal
+     Library. IEEE Software 31, 4 (July 2014), 82–90.                              with Aggressive JIT Compilation. In SCALA. 29–40.
+Renaissance: Benchmarking Suite for Parallel Applications on the JVM                           PLDI ’19, June 22–26, 2019, Phoenix, AZ, USA
+
+[86] Aleksandar Prokopec and Fengyun Liu. 2018. On the Sound-                  [99] Andreas Sewe, Mira Mezini, Aibek Sarimbekov, Danilo Ansaloni,
+     ness of Coroutines with Snapshots. CoRR abs/1806.01405 (2018).                 Walter Binder, Nathan Ricci, and Samuel Z. Guyer. 2012. new Scala()
+     arXiv:1806.01405 https://arxiv.org/abs/1806.01405                              instanceof Java: A Comparison of the Memory Behaviour of Java and
+[87] Aleksandar Prokopec and Fengyun Liu. 2018. Theory and Practice of              Scala Programs. In ISMM. 97–108.
+     Coroutines with Snapshots. In 32nd European Conference on Object-        [100] Andreas Sewe, Mira Mezini, Aibek Sarimbekov, and Walter Binder.
+     Oriented Programming, ECOOP 2018, July 16-21, 2018, Amsterdam, The             2011. Da Capo Con Scala: Design and Analysis of a Scala Benchmark
+     Netherlands. 3:1–3:32. https://doi.org/10.4230/LIPIcs.ECOOP.2018.3             Suite for the Java Virtual Machine. In OOPSLA. 657–676.
+[88] Aleksandar Prokopec, Heather Miller, Tobias Schlatter, Philipp Haller,   [101] Nir Shavit and Dan Touitou. 1995. Software Transactional Memory.
+     and Martin Odersky. 2012. FlowPools: A Lock-Free Deterministic                 In PODC. 204–213.
+     Concurrent Dataflow Abstraction. In LCPC. 158–173.
+                                                                              [102] Aleksei Shipilev. 2018. Code Tools: jmh. http://openjdk.java.net/
+[89] Aleksandar Prokopec and Martin Odersky. 2014. Near Optimal Work-
+                                                                                    projects/code-tools/jmh/.
+     Stealing Tree Scheduler for Highly Irregular Data-Parallel Work-
+     loads. In Languages and Compilers for Parallel Computing, Călin Cas-     [103] L. A. Smith, J. M. Bull, and J. Obdrizalek. 2001. A Parallel Java Grande
+     caval and Pablo Montesinos (Eds.). Springer International Publishing,          Benchmark Suite. In SC.
+     Cham, 55–86.                                                             [104] Diomidis Spinellis. 2005. Tool Writing: A Forgotten Art? IEEE Soft-
+[90] Aleksandar Prokopec and Martin Odersky. 2015. Isolates, Channels,              ware 4 (2005), 9–11.
+     and Event Streams for Composable Distributed Programming. In             [105] Sriram Srinivasan and Alan Mycroft. 2008. Kilim: Isolation-Typed
+     Onward! 171–182.                                                               Actors for Java. In ECOOP. 104–128.
+[91] Aleksandar Prokopec and Martin Odersky. 2016. Conc-Trees for Func-       [106] Lukas Stadler, Thomas Würthinger, and Hanspeter Mössenböck. 2014.
+     tional and Parallel Programming. Springer International Publishing,            Partial Escape Analysis and Scalar Replacement for Java. In CGO.
+     Cham, 254–268. https://doi.org/10.1007/978-3-319-29778-1_16                    165:165–165:174.
+[92] Aleksandar Prokopec, Dmitry Petrashko, and Martin Odersky. 2014.         [107] Rei Thiessen and Ondřej Lhoták. 2017. Context Transformations for
+     On Lock-Free Work-stealing Iterators for Parallel Data Structures.             Pointer Analysis. In PLDI. 263–277.
+     (2014), 10.
+                                                                              [108] Jaroslav Ševčík. 2011. Safe Optimisations for Shared-memory Concur-
+[93] A. Prokopec, D. Petrashko, and M. Odersky. 2015. Efficient Lock-
+                                                                                    rent Programs. In Proceedings of the 32Nd ACM SIGPLAN Conference
+     Free Work-Stealing Iterators for Data-Parallel Collections. In 2015
+                                                                                    on Programming Language Design and Implementation (PLDI ’11).
+     23rd Euromicro International Conference on Parallel, Distributed, and
+                                                                                    ACM, New York, NY, USA, 306–316. https://doi.org/10.1145/1993498.
+     Network-Based Processing. 248–252. https://doi.org/10.1109/PDP.
+                                                                                    1993534
+     2015.65
+                                                                              [109] Markus Weninger and Hanspeter Mössenböck. 2018. User-defined
+[94] William Pugh, Sarita Adve, and Doug Lea. 2004. Java Specification Re-
+                                                                                    Classification and Multi-level Grouping of Objects in Memory Moni-
+     quest 133: JavaTM Memory Model and Thread Specification Revision.
+                                                                                    toring. In ICPE. 115–126.
+     https://jcp.org/ja/jsr/detail?id=133.
+[95] Paruj Ratanaworabhan, Benjamin Livshits, and Benjamin G. Zorn.           [110] Benjamin P. Wood, Man Cao, Michael D. Bond, and Dan Grossman.
+     2010. JSMeter: Comparing the Behavior of JavaScript Benchmarks                 2017. Instrumentation Bias for Dynamic Data Race Detection. Proc.
+     with Real Web Applications. In WebApps. 3–3.                                   ACM Program. Lang. 1, OOPSLA (Oct. 2017), 69:1–69:31.
+[96] John Rose. 2014. Java Enhancement Proposal 243: Java-Level JVM           [111] Matei Zaharia, Mosharaf Chowdhury, Michael J. Franklin, Scott
+     Compiler Interface. http://openjdk.java.net/jeps/243.                          Shenker, and Ion Stoica. 2010. Spark: Cluster Computing with Work-
+[97] John Rose, Bini Ola, William Cook, Rémi Forax, Samuele Pedroni, and            ing Sets. In HotCloud. 10–10.
+     Jochen Theodorou. 2011. Java Specification Request 292: Supporting       [112] Xinghui Zhao and Nadeem Jamali. 2013. Load Balancing Non-uniform
+     Dynamically Typed Languages on the JavaTM Platform. https:                     Parallel Computations. In AGERE! 97–108.
+     //jcp.org/en/jsr/detail?id=292.                                          [113] Yudi Zheng, Andrea Rosà, Luca Salucci, Yao Li, Haiyang Sun, Omar
+[98] Andreas Schörgenhumer, Peter Hofer, David Gnedt, and Hanspeter                 Javed, Lubomír Bulej, Lydia Y. Chen, Zhengwei Qi, and Walter Binder.
+     Mössenböck. 2017. Efficient Sampling-based Lock Contention Profil-             2016. AutoBench: Finding Workloads That You Need Using Pluggable
+     ing for Java. In ICPE. 331–334.                                                Hybrid Analyses.. In SANER. 639–643.
+

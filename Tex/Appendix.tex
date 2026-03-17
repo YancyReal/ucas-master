@@ -1,0 +1,26 @@
+\chapter{补充实验：DexFileVerifier阶段链实验}
+
+除正文中的正式主线外，本文还围绕 \texttt{libdexfile/DexFileVerifier} 的启动期热点进行过
+一组独立阶段链实验，用于观察 DEX 校验路径上的局部优化是否能够形成可复现收益。需要强调的是，
+这组实验采用独立 baseline \texttt{89f1971358}，与正文第 5 章所使用的固定 baseline 以及两项
+正式优化方案完全隔离，因此本文不将其并入主结论，而是作为补充材料保留。
+
+该阶段链依次包含四组累计改动：第一阶段主要引入文件边界缓存、热点 helper 内联和容器预留容量；
+第二阶段将 \texttt{offset\_to\_type\_map\_} 的访问模式调整为更紧凑的
+\texttt{vector + lower\_bound}；第三阶段加入 UTF-8 查表与 ASCII fast path；第四阶段再
+补充 LEB128 fast path。图~\ref{fig:dexfileverifier-phase-chain} 给出了这四个阶段在
+\texttt{startup.helloworld} 与 \texttt{scimark.lu.small} 上的归一化结果。
+为避免使用难以理解的内部代号，图中横轴采用“阶段号 + 机制名”的标注方式。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\textwidth]{mybenchmark/dexfileverifier-phase-chain-speedup}
+    \caption{DexFileVerifier 阶段链实验的归一化收益}
+    \label{fig:dexfileverifier-phase-chain}
+\end{figure}
+
+从结果可以看出，\texttt{startup.helloworld} 是这条阶段链的主要受益对象。第一阶段只完成了
+局部预清理，尚不足以形成稳定 benchmark 收益；第二阶段首次在 benchmark 层面形成明确正收益；
+到 \texttt{phase1234} 时，累计收益达到约 \texttt{+5.46\%}。与之相对，
+\texttt{scimark.lu.small} 并未形成稳定提升，这说明该方向更适合作为启动期和加载期路径的
+定向优化，而不宜被概括为通用 workload 加速方案。

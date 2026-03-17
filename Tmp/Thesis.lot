@@ -1,0 +1,20 @@
+\addvspace {10.0pt}
+\addvspace {10.0pt}
+\addvspace {10.0pt}
+\contentsline {table}{\numberline {3.1}{\ignorespaces LoongArch 平台 ART 执行引擎适配的阶段化策略\relax }}{16}{table.caption.15}%
+\addvspace {10.0pt}
+\contentsline {table}{\numberline {4.1}{\ignorespaces Target 侧 run-test 验证结果\relax }}{28}{table.caption.16}%
+\addvspace {10.0pt}
+\contentsline {table}{\numberline {5.1}{\ignorespaces \texttt {DaCapo/pmd} baseline 主要热点符号\relax }}{34}{table.caption.17}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces \texttt {SPECjvm2008/mpegaudio} baseline 主要热点符号\relax }}{35}{table.caption.18}%
+\contentsline {table}{\numberline {5.3}{\ignorespaces \texttt {pmd} 与 \texttt {mpegaudio} 的特征对比\relax }}{36}{table.caption.19}%
+\contentsline {table}{\numberline {5.4}{\ignorespaces JIT 分层热度阈值调整方案结果\relax }}{38}{table.caption.20}%
+\contentsline {table}{\numberline {5.5}{\ignorespaces 运行时字符串搬运批量化方案结果\relax }}{40}{table.caption.21}%
+\contentsline {table}{\numberline {5.6}{\ignorespaces LoongArch64 LSX 浮点 SIMD 向量化方案结果\relax }}{42}{table.caption.22}%
+\contentsline {table}{\numberline {5.7}{\ignorespaces 方案叠加状态与单方案结果对照\relax }}{44}{table.caption.25}%
+\contentsline {table}{\numberline {5.8}{\ignorespaces 与 JIT 热路径相关的失败方案对照\relax }}{45}{table.caption.26}%
+\contentsline {table}{\numberline {5.9}{\ignorespaces 与运行时搬运相关的失败方案对照\relax }}{46}{table.caption.27}%
+\addvspace {10.0pt}
+\addvspace {10.0pt}
+\addvspace {10.0pt}
+\addvspace {10.0pt}

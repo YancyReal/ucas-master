@@ -1,0 +1,893 @@
+  A Comprehensive Java Benchmark Study on Memory and
+   Garbage Collection Behavior of DaCapo, DaCapo Scala,
+                     and SPECjvm2008
+
+        Philipp Lengauer1                             Verena Bitto2                      Hanspeter Mössenböck1                      Markus Weninger2
+                           1                                                                       2
+                             Institute for System Software                                           Christian Doppler Laboratory MEVSS
+                       Johannes Kepler University Linz, Austria                                   Johannes Kepler University Linz, Austria
+                                 philipp.lengauer@jku.at                                                    verena.bitto@jku.at
+
+ABSTRACT                                                                                             Considerable effort has been put into building benchmark
+Benchmark suites are an indispensable part of scientific re-                                      suites to represent diverse and real-world applications. The
+search to compare different approaches against each another.                                      most widely used Java benchmark suites are DaCapo1 in-
+The diversity of benchmarks is an important asset to eval-                                        troduced by Blackburn et al. [2], DaCapo Scala2 introduced
+uate novel approaches for effectiveness and weaknesses. In                                        by Sewe et al. [7], SPECjvm20083 analyzed by Shiv et al.
+this paper, we describe the memory characteristics and the                                        [8] and SPECjbb4 . Unfortunately, those benchmarks either
+GC behavior of commonly used Java benchmarks, i.e., the                                           lack a detailed analysis of their comprising applications or
+DaCapo benchmark suite, the DaCapo Scala benchmark                                                their respective analysis is out of date. Since memory man-
+suite and the SPECjvm2008 benchmark suite. The paper                                              agement, compilers, and GC algorithms have evolved since
+can serve as a useful guide to select benchmarks in accor-                                        the introduction of those benchmarks, their actual behavior
+dance with desired application characteristics on modern                                          in modern systems is undocumented.
+virtual machines as well as with different compilers and                                             However, when reporting performance measurements, the
+garbage collectors. It also helps to put results that are                                         selection of benchmarks is paramount to be able to report
+based on these benchmarks into perspective. Additionally,                                         descriptive and comprehensive results. Moreover, interpret-
+we compare Java’s current default collector to the G1 GC.                                         ing results is difficult if one is unaware of the significant prop-
+                                                                                                  erties of the benchmarks at hand, especially if exceptional or
+                                                                                                  unexpected behavior must be explained. Consequently, re-
+Categories and Subject Descriptors                                                                searchers tediously reexamine benchmarks to find properties
+[General and reference]: Evaluation; [General and ref-                                            that might explain observed behavior.
+erence]: Performance                                                                                 The goal and contribution of this work is to provide a de-
+                                                                                                  scription of commonly used benchmarks in terms of memory
+                                                                                                  behavior and garbage collection behavior. We do not want to
+Keywords                                                                                          encourage cherry-picking benchmarks but rather enable re-
+                                                                                                  searchers and reviewers to better evaluate the work of others.
+Java, Benchmarks, Memory Behavior, GC Behavior, Da-
+                                                                                                  We will show important properties of popular Java bench-
+Capo, DaCapo Scala, SPECjvm2008
+                                                                                                  marks, as well as curiosities one should be aware of when
+                                                                                                  using them and when evaluating other work based on these
+1.     INTRODUCTION                                                                               benchmarks. Furthermore, we split the benchmarks into cat-
+   Benchmarks are a state-of-the-art method to determine                                          egories, depending on observed properties, such as allocated
+the quality of virtual machines, compiler optimizations,                                          memory, survivor ratios, live sizes, and garbage collection
+garbage collection algorithms, and monitoring tools in terms                                      times under different virtual machine configurations. We se-
+of performance. Results of such measurements are used, for                                        lected DaCapo, DaCapo Scala and SPECjvm2008 because
+example, to argue the superiority of one garbage collection                                       they are the most popular Java benchmark suites, they are
+algorithm over another, to demonstrate the benefits of a new                                      free to use, and they are open source, which makes them
+optimization technique, or to evaluate the overhead of a new                                      ideal for scientific evaluations.
+monitoring method.                                                                                   Since the observer effect in state-of-the-art monitoring ap-
+                                                                                                  proaches distorts the application behavior significantly (cf.
+                                                                                                  Bitto et al. [1] for detailed analysis on the observer effect in
+Permission to make digital or hard copies of all or part of this work for personal or
+classroom use is granted without fee provided that copies are not made or distributed
+                                                                                                  memory and GC monitoring), we will base our analysis on
+for profit or commercial advantage and that copies bear this notice and the full cita-            AntTracks, a memory monitoring tool that is accurate at the
+tion on the first page. Copyrights for components of this work owned by others than
+ACM must be honored. Abstracting with credit is permitted. To copy otherwise, or re-
+publish, to post on servers or to redistribute to lists, requires prior specific permission
+                                                                                                  1
+and/or a fee. Request permissions from permissions@acm.org.                                         http://www.dacapobench.org/
+                                                                                                  2
+ICPE’17, April 22-26, 2017, L’Aquila, Italy                                                         http://www.dacapo.scalabench.org/
+                                                                                                  3
+c 2017 ACM. ISBN 978-1-4503-4404-3/17/04. . . $15.00                                                https://www.spec.org/jvm2008/
+                                                                                                  4
+DOI: http://dx.doi.org/10.1145/3030207.3030211                                                      https://www.spec.org/jbb2015/
+
+
+
+
+                                                                                              3
+object-level and imposing only very low run-time overhead,                           Benchmark              Warmups      Input Live[MB]
+first introduced by Lengauer et al. [6].                                             avrora                      20       large      7.49
+   This paper is structured as follows: In Section 2 we de-                          batik                       80      small      24.74
+scribe our research methodology. Section 3 shows different                           eclipse                     80      small      14.26
+metrics with respect to an application’s allocation behavior                         fop                         40     default     29.57
+and garbage collection behavior per benchmark suite. Sec-                            h2                          10       huge    1300.67
+tion 4 presents related work, while Section 5 concludes this                         jython                      20       large     27.93
+
+
+
+
+                                                                      DaCapo
+paper.                                                                               luindex                     40     default      5.03
+                                                                                     lusearch                    20       large      2.64
+                                                                                     pmd                         20       large     38.06
+2.   METHODOLOGY                                                                     sunflow                     20       large     11.06
+  This section describes the research methodology, i.e., the                         tomcat                      10       huge      17.02
+benchmarks we used and their configuration, the hardware                             tradebeans                  10       huge     278.42
+setup, as well as the method of measurement.                                         tradesoap                   10       huge     110.81
+                                                                                     xalan                       20       large      5.16
+Benchmarks.                                                                          actors                       5 gargantuan      17.02
+   Figure 1 shows all benchmarks of the DaCapo (version
+                                                                                     apparat                      5 gargantuan      66.68
+9.12), DaCapo Scala (version 0.1.0-20120216.103539-3) and
+                                                                                     factorie                     5 gargantuan     558.27
+
+
+
+
+                                                                      DaCapo Scala
+SPECjvm2008 benchmark suite, i.e., all benchmarks we will
+                                                                                     kiama                       40     default      6.45
+examine in this paper. It also shows the input used, the
+                                                                                     scalac                      20       large     71.86
+number of warmups performed before measurement, and the
+                                                                                     scaladoc                    20       large     68.44
+live size of every benchmark. The live size is defined as the
+                                                                                     scalap                      20       large      5.76
+maximum number of bytes alive at any given point in time
+                                                                                     scalariform                 10       huge      19.15
+throughout the execution of the benchmark. The input size
+                                                                                     scalaxb                     10       huge     109.06
+is either identified by name (for DaCapo and DaCapo Scala)
+                                                                                     tmt                         10       huge      39.22
+or by the number of operations (for SPECjvm2008, based on
+the concurrent lagom workload). The number of warmups,                               compiler.compiler           20     160ops     229.10
+i.e., the number of times we executed the benchmark be-                              compiler.sunflow            20     160ops     144.32
+fore measuring results, is ideally 20, however, we increased                         compress                    20      40ops      85.20
+or decreased the warmups of specific benchmarks based on                             crypto.aes                  20      16ops      41.75
+the input. We chose 20 (modified according to the input                              crypto.rsa                  20     120ops       3.19
+size) as the baseline for the warmups because the DaCapo                             crypto.signverify           20      96ops      18.32
+suite’s built-in mechanism automatically detects a steady                            derby                       20     240ops     435.10
+state after at most this amount of warmups. Furthermore,                             mpegaudio                   20      40ops       4.49
+                                                                      SPECjvm2008
+
+
+
+
+we needed to increase the number of warmups until JIT-                               scimark.fft.large           20       8ops     612.17
+compilation and GC ergonomics also stabilized. As most                               scimark.fft.small           20      80ops      16.46
+benchmarks completely stabilized (i.e., DaCapo built-in con-                         scimark.lu.large            20       8ops     583.21
+vergence, JIT-compilation, GC ergonomics, and heap space                             scimark.lu.small            20      96ops      10.78
+resizing) after a similar number of warmups (close to 20, or a                       scimark.monte carlo         20      72ops       2.93
+factor thereof depending on the input size), we chose 20 as a                        scimark.sor.large           20       8ops     294.84
+round number of wamups for all benchmarks. This number                               scimark.sor.small           20      65ops       6.70
+also prooved useful for the SPECjvm benchmarks built-in                              scimark.sparse.large        20       8ops     446.93
+warmup mechanism runs for the same amount of time (the                               scimark.sparse.small        20      16ops      11.45
+SPECjvm warmup mechanism is based on time rather than                                serial                      20     200ops     367.17
+iterations). Some DaCapo and DaCapo Scala benchmarks                                 sunflow                     20     120ops      19.26
+have huge and gargantuan workloads, which we used to put                             xml.transform               20      56ops      35.12
+more pressure on the memory system. In these cases we                                xml.validation              20     320ops      92.79
+were able to decrease the number of warmups. Other bench-
+marks do not have large loads, or the large and default loads        Figure 1:    Benchmarks and their respective
+crash on Java 8 (because they rely on internal classes that          warmups, inputs (the name of the input for DaCapo
+do not exist any longer). In these cases we used the biggest         and DaCapo Scala, and the number of operations for
+functioning workload, and increased the number of warmups            SPECjvm2008), and live sizes.
+accordingly. The live size has been determined by finding
+the lowest maximum heap setting with which the bench-
+marks will execute without an OutOfMemoryError. This live            RAM and a Samsung SSD 840 PRO Series (DXM03B0Q),
+size was determined by trial and error, i.e., binary search-         running Ubuntu Wily Werewolf 15.10 with the Kernel Linux
+ing the lowest possible heap setting with the Xmx flag with          4.2.0-25-generic. All unnecessary services were disabled in
+1KB granularity. We will use a multiple of the live size to          order not to distort the experiments.
+determine a realistic heap limit.
+                                                                     Measurement.
+Setup.                                                                 All numbers reported in this paper represent the steady-
+  All measurements were run on an Intel R Core(TM) i7-               state performance of 50 runs, based on Georges et al. [4, 5].
+4770 CPU @ 3.40GHz x 4 (8 Threads) on 64-bit with 32 GB              Every benchmark has been warmed up before measurement
+
+
+
+
+                                                                 4
+to stabilize caches as well as JIT optimization. Conse-              Total Allocations.
+quently, we report peak performance only, i.e., we exclude all          Measuring the total number of allocations (per iteration)
+warmup runs and present the best value of the 50 measure-            shows us that factorie, serial, tmt, sunflow (SPECjvm2008)
+ments, whereupon the best run is defined as the measurment           and derby are the 5 most allocation-intensive benchmarks.
+with the minimal run time. Also, we forced a garbage col-            They allocate up to 5.7 ∗ 109 objects in a single iteration,
+lection before every measurement to collect leftovers from           which puts significant pressure on the GC. Looking at the
+previous warmups. This collection is not included in the             amount of memory being allocated, the 5 most memory-
+measurement (because it would not occur naturally would              intensive benchmarks are again factorie, serial, sunflow,
+we not force it).                                                    derby, and tmt. Please note, that factorie and sunflow
+   In order to record global performance numbers, such as            (SPECjvm2008) allocate up to 137GB and 134GB of mem-
+run time, compilation time, as well as garbage collection fre-       ory respectively.
+quency and time, we used a custom agent hooking into the                This metric is of particular interest when developing
+VM using the Java Virtual Machine Tool Interface (JVMTI)             new allocation algorithms or instrumentation-based mem-
+in combination with benchmark-specific mechanisms (Da-               ory monitoring tools. Memory monitoring tools often in-
+Capo Callbacks and SPECjvm2008 Analyzers). We were                   strument every new instruction to record allocations. They
+very careful not to enable any capabilities in the VM that           collect information such as the type, size, or length in case
+would change the VM’s behavior.                                      of an array. As these tools want to distort the application’s
+   To make more detailed measurements, we used AntTracks             behavior as little as possible in order to present the user with
+(version 20160101), a special HotSpot-based VM (based on             accurate analyses, benchmarks exhibiting a high number of
+OpenJDK 8u102), that records a trace of memory events                allocations are interesting to use as a baseline for overhead
+almost without changing the VM’s behavior. Based on the              measurements.
+generated trace, we extracted metrics such as allocated ob-
+jects, survivor ratios and top allocation sites.                     Allocation Rate.
+   AntTracks is able to record memory traces almost without             Measuring object allocations per second (i.e., the number
+changing the original behavior because it is implemented,            of objects allocated within one iteration divided by the run
+compared to other state-of-the-art tools, directly into the          time of that iteration), the 5 most intensive benchmarks
+VM and uses a very efficient trace format. It does not               are derby, serial, tmt, factorie, and xml.transform (please
+have to deal with heavy-weight instrumentation that im-              note, that there are several other benchmarks that are only
+pedes escape analysis and it also does not have to introduce         slightly below) with up to 3 ∗ 107 new objects per second.
+WeakReferences for finalizers to detect object deallocations.        This number will have a direct impact on the garbage collec-
+The VM and especially the GC’s are modified to efficiently           tion frequency (cf. Section 3.3). Looking at the amount of
+generate a very compact event trace, omitting everything             memory allocated every second, the most intensive bench-
+that can be reconstructed offline. A dedicated offline tool          marks are derby, serial, sunflow (SPECjvm2008), tmt, and
+then postprocesses the trace and reconstructs everything             xml.transform.
+that has been omitted. Moreover, the trace is complete,                 Similarly to the total number of allocations, this metric is
+i.e., it does not miss a single object allocation of internal        of interest for VM implementors and monitoring tool devel-
+GC operation. Thus, the only disruption that might occur             opers alike. Moreover, the allocation rate will have a signif-
+is a small overall overhead around 4%.                               icant impact if the underlying hardware is not fast enough,
+                                                                     i.e., memory monitoring tools may write their data to disk.
+3.    STUDY                                                          In addition, this metric is of interest for GC developers be-
+   The following sections describe the memory and garbage            cause a high allocation rate will lead to a high GC frequency.
+collection behavior of the benchmarks with a heap that is            Also, the allocation rate may be a vital basic information for
+limited to three times the respective live size (adaptive heap       manually tuning GC parameters, i.e., to minimize the over-
+limit). For evaluating the garbage collection behavior we            all GC time or to keep the maximum pause time below a
+used the ParallelOld GC, the current default collector in the        predefined threshold.
+HotSpotTM VM. Figures for the concurrent G1 GC, the des-
+ignated default collector in Java SE 9 allowing the handling         Object Layout.
+of big heaps more efficiently, can be found in the appendix.           In contrast to the total number of allocations, the largest
+                                                                     objects are allocated by the scimark.fft.large benchmark.
+3.1   Allocation Behavior                                            However, since all scimark benchmarks have a short run
+   This section examines the allocation behavior of every            time and a small allocation rate in common, their actual
+benchmark in detail. As allocations are only marginally              pressure on the memory is low. The ratios of instances and
+influenced by the GC, we report only the results with an             arrays vary widely, ranging from 3.2 % arrays in the case
+adaptive heap and the ParallelOld GC.                                of sunflow (SPECjvm2008) to up to 97.5 % in the case of
+   Figure 2 shows the basic allocation behavior of all ex-           mpegaudio.
+amined benchmarks. It presents the number of allocations               Compared to the DaCapo benchmark suite and the Da-
+of every benchmark (final measurement iteration only, VM             Capo Scala benchmark suite, the SPECjvm2008 bench-
+startup and warmups excluded), in number of objects as               marks show a much higher average array length in general.
+well as in bytes. The table also shows the number of objects         This is due to the fact, that many benchmarks work on either
+and the amount of memory allocated per second, as well as            big input data (e.g., compress, crypto.*, and mpegaudio) or
+the average object layout, i.e., the average object size, the        on big matrices (e.g., scimark.*), and, consequently, create
+percentage of array objects and their average length.                many big arrays.
+
+
+
+
+                                                                 5
+                    Benchmark                               Allocations                              Object layout
+                                                                                                                       Avg
+                                                    3                3                   Avg obj         Array
+                                                 [10 ]      [MB] [10 / sec] [MB / sec]                                array
+                                                                                          size [b]     rate [%]
+                                                                                                                     length
+                    avrora                    6,710.1       204.4      828.5      25.2       30.5          31.8       12.1
+                    batik                       462.3        32.4    2,454.0     171.9       70.0          38.6      112.3
+                    eclipse                     676.6         0.0    6,346.7       0.0       61.8          49.1      120.6
+                    fop                       2,511.8       106.8   14,435.4     613.9       42.5          35.1       19.8
+                    h2                      388,081.9    14,838.3    2,498.6      95.5       38.2          38.5       10.8
+                    jython                  180,707.2     7,837.1   18,653.8     809.0       43.4          32.1       58.4
+     DaCapo
+
+
+
+
+                    luindex                     217.4        10.6      618.4      30.3       48.9          38.0      182.7
+                    lusearch                 21,904.6     2,270.3    4,565.7     473.2      103.6          44.0      553.0
+                    pmd                      15,660.6       565.4   11,231.9     405.5       36.1          40.3       25.4
+                    sunflow                 138,674.2     6,254.3   24,670.7   1,112.7       45.1           3.4       10.5
+                    tomcat                  177,454.6     9,509.6    5,724.9     306.8       53.6          48.1      106.0
+                    tradebeans              925,570.5    38,817.5   15,678.1     657.5       40.0          40.0       14.3
+                    tradesoap               944,162.7    45,057.8   15,178.5     724.4       47.7          36.5       92.2
+                    xalan                   103,069.1     4,989.3    5,614.9     271.8       48.4          40.3       60.9
+                    actors                   245,235.3   6,002.2    15,843.8     387.8       24.5           3.9        6.8
+                    apparat                  399,087.3 12,837.0      4,433.0     142.6       32.2          24.9       16.3
+                    factorie               5,716,589.7 137,521.8    37,494.4     902.0       24.1           5.4        3.9
+     DaCapo Scala
+
+
+
+
+                    kiama                     11,384.6       0.0    25,885.9       0.0       35.0          27.4       22.5
+                    scalac                    42,252.8   1,335.0    13,752.4     434.5       31.6          18.9       21.5
+                    scaladoc                  38,065.2   1,471.3    14,958.0     578.2       38.7          30.6       34.8
+                    scalap                     3,454.1      87.4    16,201.3     409.7       25.3          12.3       39.2
+                    scalariform               50,745.1   1,259.1    21,352.9     529.8       24.8          17.6        7.3
+                    scalaxb                   99,651.5   2,464.6     8,419.4     208.2       24.7           4.6      107.8
+                    tmt                    2,663,579.5 65,294.7     54,697.7   1,340.9       24.5           0.8       62.4
+                    compiler.compiler        471,781.5 15,712.4     19,408.0     646.4       33.3          13.0        41.7
+                    compiler.sunflow       1,195,208.0 42,073.5     17,498.7     616.0       35.2          16.9        42.3
+                    compress                      36.7      64.9         6.3      11.2    1,767.8          40.8    15,220.5
+                    crypto.aes                    73.9     368.2         8.8      43.8    4,979.5          63.6    61,137.9
+                    crypto.rsa                32,880.1   2,081.6     2,583.7     163.6       63.3          59.6        26.7
+                    crypto.signverify          4,009.0     867.1       383.3      82.9      216.3          65.9     1,598.2
+                    derby                  2,001,219.7 77,974.7     86,931.7   3,387.2       39.0          20.6        14.9
+                    mpegaudio                    561.1     279.8        54.2      27.0      498.7          97.5     3,916.1
+     SPECjvm2008
+
+
+
+
+                    scimark.fft.large              1.1      72.6         0.1       9.2   66,335.2          45.6   157,485.6
+                    scimark.fft.small             87.1     355.5        11.1      45.4    4,080.7          66.9     6,382.7
+                    scimark.lu.large              34.5      68.5         1.0       1.9    1,985.1          98.3     2,060.3
+                    scimark.lu.small           4,023.3     875.1       309.2      67.3      217.5          99.1       222.6
+                    scimark.monte carlo           13.4       1.5         1.4       0.2      108.1          41.3       748.4
+                    scimark.sor.large             17.8      34.2         2.5       4.9    1,916.6          96.9     2,021.2
+                    scimark.sor.small             11.4       1.6         1.7       0.2      141.5          70.1       477.0
+                    scimark.sparse.large           1.1      53.9         0.1       4.8   50,820.6          48.6   141,717.1
+                    scimark.sparse.small           6.2      38.1         1.9      11.4    6,154.3          66.0    12,441.3
+                    serial                 3,361,406.2 134,122.4    64,576.1   2,576.6       39.9          48.6        16.2
+                    sunflow                2,047,771.6 93,002.4     29,547.1   1,341.9       45.4           3.2         9.7
+                    xml.transform            253,054.8   9,716.2    30,966.1   1,189.0       38.4          39.1        38.6
+                    xml.validation           807,942.9 27,876.6     30,325.7   1,046.3       34.5          33.5        12.9
+
+Figure 2: Allocations total and per second as well as the average object layout (size, array rate, array length)
+
+
+
+
+                                                                          6
+3.2    Allocating Subsystems
+   Figure 3 shows the percentage of objects allocated by VM-
+internal code (e.g., native code or filler objects for keeping
+the heap unfragmented), of objects allocated by interpreted
+code (i.e., code that has not been deemed worth compiling                                                    Allocated by [%] Comp. [%]
+yet), of objects allocated by C1-compiled code (i.e., code                             Benchmark            VM Int. C1 C2
+that has been compiled by the client compiler), and of ob-                             avrora                1.1   0.0   0.5   98.3    0.11
+jects allocated by C2-compiled code (i.e., code that has been                          batik                 0.6   0.1   1.8   97.5    1.06
+compiled by the server compiler). It also shows the overall                            eclipse               4.6   0.0   2.4   93.0    0.00
+compile time ratio, i.e., the time the application spent on                            fop                   0.2   0.1   0.9   98.9   24.48
+compiling in relation to the overall run time.                                         h2                    1.0   0.0   0.0   99.0    3.64
+                                                                                       jython                2.1   0.0   0.0   97.9    0.85
+
+
+
+
+                                                                        DaCapo
+Allocating Code.                                                                       luindex               1.6   0.3   0.8   97.3    0.70
+   When executing a method for the first time, the VM                                  lusearch             13.7   0.0   0.1   86.2    0.12
+starts interpreting the code without applying any optimiza-                            pmd                  11.6   0.0   0.1   88.3    2.91
+tions. During interpretation, statistics about the method are                          sunflow               0.2   0.0   0.0   99.8    0.01
+recorded, e.g., execution counters, branch frequencies, and                            tomcat                1.8   0.0   0.5   97.7    6.80
+value ranges for variables. Using these statistics, the method                         tradebeans            0.5   0.0   0.0   99.5    3.33
+will eventually be compiled by the client compiler. This                               tradesoap             0.4   0.0   0.0   99.6    0.25
+compiler applies some optimizations and also inserts code                              xalan                 1.8   0.0   0.0   98.2    0.01
+to continue recording statistics about executions. Finally, if
+the method is used often enough, it will be compiled by the                            actors                0.2   0.0   0.0 99.7      0.39
+server compiler. The server compiler will apply more ag-                               apparat               0.1   0.0   0.1 99.8      0.37
+                                                                                       factorie              0.0   0.0   0.0 100.0     0.18
+
+
+                                                                        DaCapo Scala
+gressive optimizations and makes assumptions based on ob-
+servations made by the interpreter or by the client-compiled                           kiama                 0.0   0.0   0.3 99.7      9.37
+code. Should an assumption turn out to be wrong, the com-                              scalac                0.1   0.3   0.6 99.0     23.59
+piled code will be discarded and the VM will fall back to                              scaladoc              0.2   0.0   0.7 99.1     13.09
+the interpreter for this method and start over recording new                           scalap                0.1   0.0   0.6 99.3     10.14
+statistics. Eventually, the VM will retry compilation.                                 scalariform           0.0   0.0   0.5 99.5      4.72
+   Looking at how much of the allocating code is compiled                              scalaxb               0.0   0.0   0.1 99.9      1.54
+can tell us how well the benchmark is warmed up because                                tmt                   0.0   0.0   0.0 100.0     0.02
+we do not want the VM to execute unoptimized methods or                                compiler.compiler     0.1 0.0 0.0 99.9          0.11
+to spend time on compiling while we are measuring. Our                                 compiler.sunflow      0.2 0.0 0.0 99.8          0.00
+measurements show that all benchmarks except some of the                               compress              1.4 0.3 29.4 68.9         0.05
+SPECjvm2008 scimark.* benchmarks have been properly                                    crypto.aes            4.3 0.3 8.9 86.5          0.08
+warmed up with our configuration.                                                      crypto.rsa            2.6 0.0 0.0 97.4          0.07
+   The scimark benchmarks perform mathematical compu-                                  crypto.signverify     1.9 0.0 0.1 98.0          0.01
+tations that are not very allocation intensive. They consist                           derby                 0.0 0.0 0.0 100.0         0.06
+of small amounts of code operating only on primitive ma-                               mpegaudio             5.1 0.0 1.3 93.6          0.12
+                                                                        SPECjvm2008
+
+
+
+
+trices as data structures if any. Consequently, they have an                           scimark.fft.large     4.9 39.1 42.3 13.7        0.05
+unusually big memory-to-object ratio. Moreover, as they                                scimark.fft.small     5.8 0.2 4.2 89.8          0.11
+have many long-running methods doing number crunching                                  scimark.lu.large      2.0 48.7 1.4 48.0         0.03
+in loops, it takes some time until they reach an execution                             scimark.lu.small     20.3 0.0 0.1 79.6          0.05
+frequency that is high enough for triggering compilation.                              scimark.monte carlo 1.6 1.0 34.7 62.7           0.09
+However, because they have neither a lot of total alloca-                              scimark.sor.large     2.7 94.3 2.1 0.8          0.42
+tions nor a large allocation rate, they are not very useful for                        scimark.sor.small     8.1 18.9 30.8 42.2        0.01
+examining allocation behavior anyway.                                                  scimark.sparse.large 9.0 38.5 31.3 21.2         0.02
+   The lusearch benchmark reports 13.7% VM-internal allo-                              scimark.sparse.small 20.3 5.2 21.6 53.0         7.23
+cations due to the unlucky use of Exceptions in normal con-                            serial                0.0 0.0 0.0 100.0         0.00
+trol flow. Creating an object of type Throwable (superclass                            sunflow               0.2 0.0 0.0 99.8          0.02
+of all exceptions and errors) results in a call to the native                          xml.transform         0.1 0.0 0.0 99.9          0.36
+method fillInStackTrace. This method walks the stack,                                  xml.validation        0.6 0.0 0.0 99.4          0.02
+creates several Object, short, and int arrays containing the
+objects, methods, and the corresponding bci offsets on the            Figure 3: Objects allocated by VM-internal code,
+stack, and finally puts those arrays in the Throwable ob-             interpreted code, C1 compiled code, or by C2 com-
+ject. The lusearch benchmark allocates more than 99.9% of             piled code respectively (green: 1st top allocator, yel-
+all VM-internally allocated objects by filling the stack trace        low: 2nd top allocator, red: 3rd top allocator), as
+of an unnecessary exception, the rest are mostly application          well as the time spent compiling in relation to the
+domain objects created by cloning. Figure 4 shows the stack           overall run time
+of an exception used to indicate the end of a character-based
+stream.
+   Like lusearch, the pmd benchmark allocates about 90%
+of all VM-internal objects by filling the stack trace of an
+
+
+
+
+                                                                  7
+java . lang . Throwable . fillInStackTrace () :16                              by the cpu time of that iteration) shows that, if the appli-
+java . lang . Throwable . < init >() :24                                       cation has been warmed up properly, the compile time is
+java . lang . Exception . < init >() :2                                        negligible in most benchmarks. Some benchmarks, however,
+java . io . IOException . < init >() :2                                        i.e., fop, scalac, and scalap, show a high compilation time
+org . apache . lucene . queryParser .                                          although almost all allocations are already executed by com-
+     FastCharStream . refill () :156
+org . apache . lucene . queryParser .                                          piled code. This indicates, that these benchmarks should
+     FastCharStream . readChar () :12                                          probably be warmed up better if run time performance is
+org . apache . lucene . queryParser .                                          measured. However, in these cases we stuck to the selected
+     FastCharStream . BeginToken () :9                                         methodology to be still comparable.
+org . apache . lucene . queryParser .
+     Q u e r y P a r s e r T o k e n M a n a g e r . getNextToken ()
+     :7                                                                        3.3    Garbage Collection
+...                                                                               This section examines the garbage collection behavior of
+                                                                               every benchmark in detail. For comparability we provide
+                                                                               figures for a heap limited to three times the benchmark’s
+Figure 4: Stack of an exception used to steer control
+                                                                               live size (see Figure 7). For a fixed heap size of 1GB and for
+flow in the lusearch benchmark, resulting in about
+                                                                               a heap that is unlimited, please refer to Figures 9 and 10 in
+2,629,000 objects for representing the stack traces
+                                                                               the Appendix.
+                                                                                  Figure 7 shows the garbage collection count, the total
+exception. The other 10% of VM-internal allocations are                        garbage collection time, and the average pause time for the
+Strings and the corresponding char[] that are used to look                     ParallelOld GC and the G1 GC. All metrics are split into
+up classes using an URLClassLoader. Figures 5 and 6 show                       values for minor (-) and major (+) collections. In a major
+the stack of an exception when using the URLClassLoader.                       collection, the entire heap is collected, whereas a minor col-
+                                                                               lection collects only parts of the heap (the young generation
+                                                                               in case of the ParallelOld GC, any subset of regions in case
+java . lang . Throwable . fillInStackTrace () :16                              of the G1 GC).
+java . lang . Throwable . < init >() :24
+java . lang . Exception . < init >() :3
+java . lang . R e f l e c t i v e O p e r a t i o n E x c e p t io n . <       GC Count.
+     init >() :3                                                                  The benchmarks differ widely in terms of GC count, from
+java . lang . Cl a s s No t F o un d E x c ep t i o n . < init >()             scimark.fft.large without any collection, to lusearch with
+     :3                                                                        7041 collections. Only some benchmarks perform major col-
+java . net . URLClassLoader . findClass () :41                                 lections with the ParallelOld GC.
+java . lang . ClassLoader . loadClass () :70
+org . dacapo . harness . DacapoClassLoader .                                      In general, there is an easy-to-see 97% correlation (lin-
+     loadClass () :24                                                          ear Pearson correlation) between the number of collections
+java . lang . ClassLoader . loadClass () :38                                   (minor and major) of the ParallelOld GC and the G1 GC.
+java . lang . ClassLoader . loadClass () :3                                    However, the G1 GC usually performs less collections than
+net . sourceforge . pmd . typeresolution .                                     the ParallelOld GC with only a few exceptions, i.e., com-
+     ClassTypeResolver . processOnDemand () :56                                piler.sunflow, crypto.rsa, scimark.fft.small, scimark.lu.*, sci-
+                                                                               mark.sor.large, and serial. This is due to the fact, that G1
+Figure 5: Stack of an exception used to steer control                          can select which heap regions to collect. Consequently, G1
+flow in the pmd benchmark, resulting in 1,598,438                              selects regions with a lot of garbage, resulting in more mem-
+objects for representing the stack traces                                      ory being freed. Moreover, G1 can include regions of the old
+                                                                               generation in a minor collection, whereas the ParallelOld
+                                                                               GC can collect the old generation only with a major collec-
+                                                                               tion. This behavior can reduce floating garbage (old dead
+java . lang . ClassLoader . findLoadedClass () :12                             objects keeping young objects alive) significantly.
+java . lang . ClassLoader . loadClass () :10
+sun . misc . L a u n c h e r $ A p p C l a s s L o a d e r . loadClass            In contrast to the ParallelOld GC, where a major collec-
+     () :81                                                                    tion normally occurs after some minor collections, the G1
+java . lang . ClassLoader . loadClass () :38                                   GC uses major collection only as an emergency action. For
+org . dacapo . harness . DacapoClassLoader .                                   this reason, G1 major collections are so rare and occur only
+     loadClass () :24                                                          in 4 benchmarks, i.e., lusearch, xalan, scimark.fft.small, and
+java . lang . ClassLoader . loadClass () :3                                    scimark.lu.small. These benchmarks have a very small live
+net . sourceforge . pmd . symboltable .
+     ScopeAndDeclarationFinder .                                               set, and consequently a very low heap limit. This shows that
+     createClassScope () :23                                                   G1, although performing well in most cases, is not built to
+                                                                               handle small heaps efficiently.
+                                                                                  For evaluating garbage collection algorithms which de-
+Figure 6: Stack of class loading by the URLClass-                              pend on the number of live objects, only allocation-intensive
+Loader, resulting in 193,682 objects for looking up a                          benchmarks with short-living objects are advisable, e.g., tmt
+class by name                                                                  and serial. Allocation-intense benchmarks with long-living
+                                                                               objects, e.g., derby, are recommendable to test the perfor-
+                                                                               mance of compaction algorithms, e.g., Mark & Compact.
+Compile time.                                                                     This metric is interesting to test monitoring tools and
+  The JIT compile time ratio (i.e., the summed up compile                      GCs which introduce overhead per collection. Especially
+time of all compilation threads within an iteration divided                    considering stop-the-world GCs may introduce a significant
+
+
+
+
+                                                                           8
+                                                  ParallelOld GC                                     G1 GC
+                Benchmark           Count [#]    Time [%] Pause [ms]       YR [%]   Count [#]    Time [%] Pause [ms]     YR [%]
+                                       - +         -    +     -  +                     -    +      -   +   -     +
+                avrora                 68   0     1.5      -     1     -       50    48     0     0.7      -    1    -       76
+                batik                  10   0    11.7      -     2     -       49     3     0     6.5      -    3    -       89
+                eclipse                 1   0     1.8      -     2     -      531     2     0     3.4      -    2    -      376
+                fop                    10   0    24.1      -     4     -       58     5     0    12.1      -    3    -      112
+                h2                     28   0     5.4      -   300     -       94    28     0     1.4      -   81    -      129
+                jython                468   0    11.3      -     2     -      111   255     0     5.8      -    2    -      231
+ DaCapo
+
+
+
+
+                luindex                11   0     7.5      -     2     -       37     5     0     2.3      -    1    -       91
+                lusearch            6,979 62     56.0   12.7     0     9       36 4,748 1,431    23.9   64.2    0    7       82
+                pmd                    50   0    17.8      -     4     -       66    20     0     5.5      -    3    -      137
+                sunflow               771   8    15.9    1.6     1    11       53   559     0    12.5      -    1    -      129
+                tomcat              1,234   0     4.4      -     1     -      114   680     0     1.9      -    0    -      293
+                tradebeans            178   1    14.2    1.0    47   590       49   105     0     5.0      -   29    -      103
+                tradesoap             961 12     46.0    4.9    29   254       50   981     0    25.4      -   14    -       93
+                xalan               4,607 422    45.8   30.5     1    13       31 3,369 337      32.7   29.8    1   13       50
+                actors                388   1     1.9    0.0     0   14        53   264     0     1.2      -   0     -      143
+                apparat               259   0     1.7      -     6    -        73   148     0     0.8      -   4     -      148
+                factorie              272   0    41.1      -   253    -       180   171     0     1.4      -   9     -      100
+ DaCapo Scala
+
+
+
+
+                kiama                  28   0    43.9      -     6    -        59    23     0    22.0      -   3     -       69
+                scalac                 46   0    25.2      -    16    -       112    22     0     7.4      -   9     -      146
+                scaladoc               53   0    26.8      -    12    -       138    26     0     7.6      -   6     -      149
+                scalap                 40   0    31.6      -     1    -        90    13     0    12.7      -   1     -      276
+                scalariform           127   0    21.0      -     3    -       124    48     0     6.8      -   3     -      204
+                scalaxb                50   0     2.2      -     5    -       176    35     0     1.2      -   4     -      160
+                tmt                 2,326   0     4.5      -     0    -       100 1,597     0     3.7      -   1     -      123
+                compiler.compiler      155 11    50.2   10.9   78    243       41     119    0   32.7      -   54   -        95
+                compiler.sunflow       612 54    49.4   13.9   55    175       43     638    0   40.9      -   35   -        68
+                compress                14   0    0.1      -    0      -       49       4    0    0.0      -    1   -       177
+                crypto.aes             163   2    2.8    0.2    1      8       49      64    0    2.6      -    3   -         6
+                crypto.rsa           1,047   2    3.6    0.1    0      7       35   1,078    0    3.7      -    0   -       171
+                crypto.signverify      715 32     7.0    2.2    1      7       39     407    0    5.0      -    1   -        21
+                derby                  181   0    3.5      -    4      -       95     103    0    1.4      -    3   -       184
+                mpegaudio              683   7    2.8    0.4    0      6       46     458    0    2.2      -    0   -       109
+ SPECjvm2008
+
+
+
+
+                scimark.fft.large        0   0      -      -    -      -        -       1    0    0.0      -    1   -         0
+                scimark.fft.small      322   0    2.5      -    0      -      108     381    1    4.4    0.0    0   6        15
+                scimark.lu.large         2   0    0.1      -   33      -      191      13    0    0.2      -    7   -        54
+                scimark.lu.small     1,738 377   14.5   20.1    1      6       34   2,353   44   16.4    2.6    0   8        45
+                scimark.monte carlo      3   0    0.0      -    0      -      115       1    0    0.0      -    1   -       261
+                scimark.sor.large        2   0    0.4      -   17      -      190      12    0    0.7      -    4   -        39
+                scimark.sor.small        3   0    0.0      -    0      -       74       4    0    0.0      -    1   -        77
+                scimark.sparse.large     3   0    0.5      -   20      -      127       1    0    0.0      -    1   -         0
+                scimark.sparse.small    70   2    1.4    0.3    0      6       34      45    0    1.4      -    1   -        74
+                serial                 384   0    0.9      -    1      -      128   1,156    0    1.6      -    0   -        47
+                sunflow              5,500 40    10.2    1.0    1     18       51   3,929    0   10.2      -    1   -       132
+                xml.transform          562   9   13.1    3.0    1     27       50     333    0    7.8      -    1   -       126
+                xml.validation         608 27    23.2   13.8   10    136       51     442    0   16.3      -    9   -        68
+
+Figure 7: GC count, GC time relative to the total run time (green: less than 5%, yellow: less than 15%, red:
+more than 15%), and average pause time for minor (-) and major (+) GCs for the ParallelOld GC and the
+G1 GC respectively (green: less than 10ms, yellow: less than 100ms, red: more than 100ms)
+
+
+
+
+                                                                      9
+overhead when all application threads need to be suspended             to guarantee a maximum pause time. Benchmarks with long
+repeatedly. Also, this metric can be used to tune the GC               GC pauses are ideal to test these algorithms.
+behavior.
+                                                                       Young Generation Ratio.
+GC Time.                                                                  The young generation ratio shows the maximum amount
+   The GC time, i.e., the percentage the application spends            of memory before a collection in the young generation in
+on garbage collection relative to its entire run time, depends         relation to the maximum amount of memory before a col-
+on the number of collections as well as on the length of every         lection in the old generation. A value below 100% indicates
+collection. For G1, which marks concurrently, this metric              that the young generation is only a fraction of the old gen-
+only includes the time the application was paused (the G1              eration, whereas a value larger than 100% indicates that the
+GC is not fully concurrent but pauses the application to               young generation was bigger. This ratio shows us, whether
+move objects). The measurements show that a benchmark                  the GC is able to handle most objects as young objects or
+can easily spend more than 50% of its total run time on                if it has to keep a lot of them in the old generation.
+garbage collection. This illustrates that, even if memory                 Please note, that scimark.fft.large has no such ratio, as
+performance is not one’s primary concern, it must be dealt             there was no collection and the VM consequently did not
+with.                                                                  have the chance to adjust the generation sizes. Also, bench-
+   Again, the G1 GC performs better in most cases with the             marks without a major collection might have not yet reached
+same exceptions as for the GC count. Especially, in some               the full capacity of the old generation. Consequently, the ra-
+cases with a high GC time, the G1 performs a lot better                tio is a high estimate in those cases.
+(e.g., factorie 41% vs 1.4%).                                             It is interesting to see, that the ParallelOld GC and the
+   Obviously, this metric is of interest for GC developers             G1 GC do not always agree on what generation is dominant
+for optimizing garbage collection algorithms. Also, memory             (i.e., whether the young generation ratio is below or above
+monitoring tools that rely on detecting deallocations with             100%). In general, the young generation is bigger in the G1
+the help of WeakReferences or finalizers can make good use             GC. Thus, the G1 GC keeps potentially dead objects longer
+of benchmarks with a high GC time. As WeakReferences                   in the young generation compared to the ParallelOld GC.
+and finalizers introduce a lot of additional work for the GC,             This metric tells us what part of the garbage collection al-
+benchmarks with an already high GC time will be interest-              gorithms are under more pressure and enables focused test-
+ing for overhead measurements.                                         ing and debugging for new collection algorithms.
+
+GC Pauses.                                                             3.4    Object References
+   The length of a GC pause depends on the complexity of                 Figure 8 examines the object pointers that were recorded
+the underlying collection algorithm. The ParallelOld GC                by AntTracks during garbage collections. Since AntTracks
+and the G1 GC use different algorithms for minor and major             records pointers only during a collection, the recorded point-
+collections respectively.                                              ers depend on the number of garbage collections (initially
+   The complexity of a minor collection (in the ParallelOld            introduced in Figure 7). While usually the average number
+GC as well as in the G1 GC) mostly depends on the number               of pointers per object is monadic, DaCapo xalan and luin-
+of live objects residing in the collected regions, as they must        dex, DaCapo Scala factorie and kiama, as well as SPECjvm
+be evacuated to the survivor space or promoted to the old              serial stand out in terms of this metric. All these bench-
+generation. The complexity of a major collection (in the               marks make use of few, but very large arrays to store objects.
+ParallelOld GC as well as in the G1 GC) depends on the                 This results in a high average pointer ratio. The DaCapo
+total number of objects, as both algorithms walk the entire            database h2 is especially useful for all kind of pointer-related
+heap to compact live objects towards its beginning.                    measurements due to its high amount of pointers.
+   On average, the minor pause time of the G1 GC is only
+71% of the pause time of the ParallelOld GC. In addition, G1
+has less spikes in the pause times (e.g., the h2 benchmark             4.    RELATED WORK
+has an average pause time of 300ms with the ParallelOld                   In 2006, Backburn et al. released the DaCapo benchmark
+GC, and only 81ms with the G1 GC) . This is mostly due                 suite. At the same time, they published an analysis paper
+to the fact that G1 can select which regions to collect and            (Blackburn et al. [2]), where they compared their bench-
+consequently can control its pause time as well as the amount          mark suite against SPECjvm98 and a modified version of
+of memory that will be freed.                                          SPECjbb2000. For doing so, they evaluated the DaCapo
+   Also, the G1 GC has less and shorter major GCs because              benchmark suite across different architectures and JVMs.
+a major GC is seen as an emergency that is to be avoided               However, 10 years later, Java, JVMs and their components
+at any cost. The most extreme example is the tradebeans                have changed significantly. When they published their pa-
+benchmark with a major GC pause time of 590ms in the                   per, the used the Jikes RVM version 2.4.4+. In version 2.9
+ParallelOldGC and no major collection in the G1 GC.                    the Jikes RVM has been substantially rewritten to support
+   Long GC pauses impede the application’s availablity. For            Java SE 5. Moreover some benchmarks of the initial release
+example, UI applications will need to react within at most             have been completely removed in 2009. New benchmarks,
+half a second on user-input so that the user is not hindered.          such as avrora, h2, sunflow, are therefore not covered in the
+Similarly, server applications also must react within some             paper at all.
+time interval to client requests. Long GC pauses will effec-              In 2006, the DaCapo Scala benchmark suite has been re-
+tively freeze applications. Thus, more concurrent GC algo-             leased. In 2011, Sewe et al. [7] analyzed this suite, with
+rithms emerge trying to minimize GC pauses, some even try              a primary focus on the design of the applications. More-
+                                                                       over, they demonstrated the main difference between Java
+
+
+
+
+                                                                  10
+                                                  Object Pointers (ParallelOld GC)
+                                                             Avg ptrs
+                                                                          Null rate   Old-to-young
+              Benchmark              GCs [#] Ptrs / GC [#]    / object
+                                                                                [%]        rate [%]
+                                                                   [#]
+              avrora                     68.4      157,143.4        5.1       12.7              6.4
+              batik                      10.0      161,875.6        4.3       43.1              3.8
+              eclipse                     1.0       77,906.3        3.0       40.5              4.8
+              fop                        10.0      351,025.9        3.5       45.4              1.0
+              h2                         27.6   37,958,744.0        5.8       28.8              8.9
+              jython                    468.4        1,674.8        3.8       34.6             15.9
+DaCapo
+
+
+
+
+              luindex                    11.0       83,738.7       14.8       79.1              5.4
+              lusearch                7,041.0       11,497.7        9.0       79.0              9.1
+              pmd                        50.4      443,487.8        3.6       44.9              5.5
+              sunflow                   774.5       80,871.7        3.3       45.0             15.4
+              tomcat                  1,234.3       33,188.4        4.9       67.2             15.0
+              tradebeans                179.2    4,809,331.3        6.9       50.1              6.7
+              tradesoap                 973.2      885,545.1        8.3       54.3              6.9
+              xalan                   5,028.0      339,669.5       26.3       93.2              4.3
+              actors                    387.5        9,185.8        2.7       25.9             13.8
+              apparat                   259.8      324,520.0        2.4       23.5              8.1
+              factorie                  271.9   10,287,986.8       27.8       59.0              9.5
+              kiama                      28.5      822,980.2       13.0       49.5              6.2
+              scalac                     45.9    1,623,276.1        5.5       31.3              6.9
+              scaladoc                   53.0    1,133,381.0        6.1       40.7              6.5
+              scalap                     40.3       87,220.5        2.8       33.9              6.7
+              scalariform               127.8      149,652.0        2.3        8.9             13.3
+              scalaxb                    48.5      189,187.9        1.5        8.8              0.2
+              tmt                     2,325.5        7,510.2        3.7       24.5              9.8
+              compiler.compiler         165.6    8,521,325.4        3.4       28.5             12.2
+              compiler.sunflow          665.9    5,843,973.8        3.3       27.7             10.1
+              compress                   14.1        1,290.0        3.2       43.2              4.3
+              crypto.aes                165.6        2,083.5        2.9       45.3              3.1
+              crypto.rsa              1,048.6        1,069.7        2.5       40.2              6.9
+              crypto.signverify         752.5        5,589.5        2.7       44.1              1.0
+              derby                     181.0      445,557.6        8.2       15.1             13.6
+              mpegaudio                 691.0        1,776.3        2.2       38.1              5.0
+SPECjvm2008
+
+
+
+
+              scimark.fft.large           0.0              -
+              scimark.fft.small         322.6          240.7        2.1       46.8             19.8
+              scimark.lu.large            2.0       24,170.5        1.3       24.5              0.2
+              scimark.lu.small        2,116.4       24,004.2        2.4       38.9              0.4
+              scimark.monte carlo         3.0        1,293.0        3.3       46.2              7.3
+              scimark.sor.large           2.0       16,820.6        1.8       42.9              0.4
+              scimark.sor.small           3.0        3,231.7        1.9       25.6              4.4
+              scimark.sparse.large        2.8          906.1        3.6       51.0              5.4
+              scimark.sparse.small       71.8        3,257.0        2.7       45.7              1.0
+              serial                    384.4       51,066.1       10.6       82.8              6.3
+              sunflow                 5,540.5       88,540.0        4.2       34.5             15.6
+              xml.transform             571.3      138,410.2        4.2       54.4              4.4
+              xml.validation            638.4    1,201,517.9        3.8       41.8              0.9
+
+                            Figure 8: Object pointers per GC of all benchmarks
+
+
+
+
+                                                       11
+and Scala code. However, they did not provide information            References
+regarding memory, pointer, or garbage collection behavior.           [1] V. Bitto and P. Lengauer. Building custom, efficient,
+  The SPECjvm2008 benchmark suite has been evaluated in                  and accurate memory monitoring tools for java applica-
+2009 by Shiv et al. [8]. While on the one hand they provide              tions. In Proceedings of the 7th ACM/SPEC on Inter-
+a detailed description of all benchmarks, they also present              national Conference on Performance Engineering, ICPE
+performance numbers for different hardware and software                  ’16, pages 321–324, New York, NY, USA, 2016. ACM.
+setups. They used Sun’s Hotspot JVM (Java SE 6) to per-
+form their evaluations. Though they do not explicitly state          [2] S. M. Blackburn, R. Garner, C. Hoffmann, A. M. Khang,
+the kind of collector they used, we assume from their de-                K. S. McKinley, R. Bentzur, A. Diwan, D. Feinberg,
+scription that they already used the ParallelGC. While they              D. Frampton, S. Z. Guyer, M. Hirzel, A. Hosking,
+also present numbers for allocations and garbage collections,            M. Jump, H. Lee, J. E. B. Moss, A. Phansalkar, D. Ste-
+their evaluation focuses on hardware-related performance is-             fanović, T. VanDrunen, D. von Dincklage, and B. Wie-
+sues, e.g., performance counters on processors, the effect of            dermann. The DaCapo Benchmarks: Java Benchmark-
+SMT (simultaneous multi threading). Therefore, their eval-               ing Development and Analysis. In Proc. of the Annual
+uation does not provide insights into the applications’ mem-             ACM SIGPLAN Conf. on Object-oriented Programming
+ory behavior, e.g., in terms of allocations, pointers and GC             Systems, Languages, and Applications, pages 169–190,
+impact.                                                                  2006.
+  Dieckmann et al. [3] published a study on the SPECjvm98
+benchmark suite in 1998. For their evaluation they used              [3] S. Dieckmann and U. Hoelzle. A study of the allocation
+Sun’s Hotspot JVM (Java SE 5) and a tracing algorithm to                 behavior of the specjvm98 java benchmarks. Technical
+log all memory-related information. However, their monitor-              report, Santa Barbara, CA, USA, 1998.
+ing tool performs additional garbage collections and there-
+                                                                     [4] A. Georges, D. Buytaert, and L. Eeckhout. Statistically
+fore clearly distorts memory behavior. Apart from that,
+                                                                         rigorous java performance evaluation. In Proceedings of
+they provide a detailed analysis of heap sizes, object life-
+                                                                         the 22Nd Annual ACM SIGPLAN Conference on Object-
+times and object layout, as well as object references.
+                                                                         oriented Programming Systems and Applications, OOP-
+                                                                         SLA ’07, pages 57–76, New York, NY, USA, 2007. ACM.
+
+5.   CONCLUSION                                                      [5] A. Georges, L. Eeckhout, and D. Buytaert. Java perfor-
+                                                                         mance evaluation through rigorous replay compilation.
+   In this paper, we described the memory characteristics                In Proceedings of the 23rd ACM SIGPLAN Conference
+and the GC behavior of common Java benchmark suites, i.e.,               on Object-oriented Programming Systems Languages and
+the DaCapo benchmark suite, the DaCapo Scala benchmark                   Applications, OOPSLA ’08, pages 367–384, New York,
+suite and the SPECjvm2008 benchmark suite. We showed                     NY, USA, 2008. ACM.
+what benchmarks are best suited when looking for bench-
+marks with a large total amount of allocations, a high al-           [6] P. Lengauer, V. Bitto, and H. Mössenböck. Accurate and
+location rate, many large objects and large arrays, a high               efficient object tracing for java applications. In Proc. of
+GC count, a high overall GC time, high GC pauses, many                   the 6th ACM/SPEC Int’l. Conf. on Performance Engi-
+young or many old objects, as well as a high pointer density             neering, ICPE ’15, pages 51–62, 2015.
+per object. We also showed some curiosities, for example
+that even though all benchmarks have been warmed up ac-              [7] A. Sewe, M. Mezini, A. Sarimbekov, and W. Binder. Da
+cording to the instructions of the respective publishers, the            capo con scala: Design and analysis of a scala bench-
+scimark benchmarks allocate most of their objects in code                mark suite for the java virtual machine. In Proceedings
+that has not been fully compiled yet, and that the lusearch              of the 2011 ACM International Conference on Object
+and pmd benchmarks steer a large part of their normal con-               Oriented Programming Systems Languages and Applica-
+trol flow via exceptions. We want to emphasize that we do                tions, OOPSLA ’11, pages 657–676, 2011.
+not encourage cherry picking benchmarks. However, both
+                                                                     [8] K. Shiv, K. Chow, Y. Wang, and D. Petrochenko.
+researchers and reviewers need to understand whether a se-
+                                                                         Specjvm2008 performance characterization. In Proceed-
+lected benchmark meets the characteristics one is trying to
+                                                                         ings of the 2009 SPEC Benchmark Workshop on Com-
+test or benchmark.
+                                                                         puter Performance Evaluation and Benchmarking, pages
+   All tests were applied under modern, state-of-the-art pro-
+                                                                         17–35, Berlin, Heidelberg, 2009. Springer-Verlag.
+cessors, virtual machines, garbage collection algorithms and
+compilers. We based our analysis on AntTracks, a memory
+monitoring tool which aims to not distort memory behavior
+by using a lightweight, VM-internal logging approach.                APPENDIX
+   By revealing internals and curiosities of commonly used           In this section, we provide additional data we did not discuss
+benchmarks, this paper provides a basis for explaining out-          in the main sections. Figure 9 and Figure 10 show the same
+liers in measurement. It can be further used for selecting           experiment as discussed in Section 3.3, but with a fixed 1GB
+benchmarks with specific memory characteristics.                     heap size and an unlimited heap respectively.
+
+
+
+6.   ACKNOWLEDGEMENTS
+  This work was supported by the Christian Doppler Forsch-
+ungsgesellschaft, and by Dynatrace Austria GmbH.
+
+
+
+
+                                                                12
+                                                      ParallelOld GC                                      G1 GC
+                 Benchmark              Count [#]   Time [%] Pause [ms]           YR [%] Count [#]   Time [%] Pause [ms]        YR [%]
+                                           -   +      -    +       - +                     -    +      -   +   -      +
+                 avrora                    1  0      0.0      -      6      -      9,597 13      0    0.4     -    2        -      223
+                 batik                     0  0        -      -      -      -        147   0     0      -     -    -        -      131
+                 eclipse                   0  0        -      -      -      -        771   2     0    3.4     -    2        -      398
+                 fop                       0  0        -      -      -      -      2,891   3     0    6.8     -    3        -      545
+                 h2                     oom oom     oom    oom    oom    oom        oom 296      6    6.7   6.8   43   21,888       16
+                 jython                   35  0      1.0      -      2      -      1,588 38      0    1.0     -    2        -    1,839
+  DaCapo
+
+
+
+
+                 luindex                   0  0        -      -      -      -        604   1     0    1.0     -    3        -      184
+                 lusearch                 31  0      3.6      -      1      -     16,592 33      0    4.1     -    1        -   20,528
+                 pmd                       3  0      3.7      -     14      -      1,448   7     0    3.2     -    5        -      622
+                 sunflow                  18  0      1.1      -      2      -      6,593 34      0    1.8     -    2        -    2,458
+                 tomcat                   55  0      0.4      -      2      -      2,045 49      0    0.4     -    2        -    3,821
+                 tradebeans              138  0     11.8      -     54      -         54 92      0    3.2     -   21        -      149
+                 tradesoap               301  0     45.0      -     82      -        123 216     0   25.1     -   53        -      125
+                 xalan                    27  0      3.0      -      3      -      8,715 37      0    2.3     -    2        -    3,041
+                 actors                  35    0     0.2      -     1         -    6,058 72      0    0.4     -    0       -       342
+                 apparat                 50    0     1.1      -    19         -      519 50      0    0.5     -    8       -       396
+                 factorie               421    0    51.9      -   256         -      117 267     1    1.4   0.8    6     978        66
+  DaCapo Scala
+
+
+
+
+                 kiama                    1    0     3.9      -     9         -      581   2     0    2.4     -    3       -       504
+                 scalac                   6    0     9.9      -    41         -   10,076 10      0    4.4     -   11       -       885
+                 scaladoc                 8    0    13.9      -     3         -   10,891 10      0    5.1     -   10       -       986
+                 scalap                   0    0       -      -     -         -    5,815   4     0    3.2     -    1       -     2,210
+                 scalariform              6    0     0.9      -     2         -   11,451 16      0    2.4     -    3       -    12,931
+                 scalaxb                 13    0     1.1      -    10         -   14,787 23      0    0.9     -    4       -       219
+                 tmt                    312    0     0.8      -     1         -      378 495     0    1.4     -    1       -       456
+                 compiler.compiler       96    5    51.2    6.5   115    284          41    57   0   27.0     -   77        -      126
+                 compiler.sunflow       226    7    41.3    3.0    78    183          45    97   0   10.5     -   31        -      152
+                 compress                 2    0     0.0      -     1      -         278     4   0    0.0     -    1        -      177
+                 crypto.aes               9    0     0.2      -     2      -       1,587     7   0    1.4     -   16        -        1
+                 crypto.rsa              22    0     0.1      -     0      -       2,916   718   0    2.5     -    0        -      150
+                 crypto.signverify       24    0     0.4      -     1      -       2,886    31   0    3.1     -    8        -       11
+                 derby                  220    0     3.8      -     5      -          78   144   0    1.6     -    2        -      133
+                 mpegaudio               14    0     0.1      -     0      -       3,911    98   0    0.8     -    0        -      479
+  SPECjvm2008
+
+
+
+
+                 scimark.fft.large        1    1     0.5    0.2    47     18          71     1   0    0.0     -    0        -        1
+                 scimark.fft.small       18    0     0.2      -     1      -       2,373     9   0    2.0     -   15        -        1
+                 scimark.lu.large         4    0     0.2      -    24      -          65    15   0    0.3     -    7        -       24
+                 scimark.lu.small        20    0     0.6      -     1      -       2,529    35   0    1.1     -    1        -    1,226
+                 scimark.monte carlo      0    0       -      -     -      -       1,337     2   0    0.0     -    1        -      144
+                 scimark.sor.large        2    0     0.5      -    20      -         187    12   0    0.7     -    4        -       42
+                 scimark.sor.small        0    0       -      -     -      -       1,409     5   0    0.0     -    1        -       82
+                 scimark.sparse.large     4    0     0.5      -    16      -          90     1   0    0.0     -    1        -        1
+                 scimark.sparse.small     1    0       -      -     0      -       7,780    42   0    1.6     -    1        -       80
+                 serial                 387    0     0.9      -     1      -         125   955   0    1.4     -    0        -       56
+                 sunflow                274    1     5.1    0.0    10     21          49   363   0    2.0     -    3        -    2,776
+                 xml.transform           42    0     2.3      -     3      -         209    49   0    2.0     -    2        -    1,867
+                 xml.validation         136    4    22.4    2.6    34    139          48    71   0   10.6     -   31        -      138
+
+Figure 9: GC count, GC time relative to the total run time (green: less than 5%, yellow: less than 15%, red:
+more than 15%), and average pause time for minor (-) and major (+) GCs for the ParallelOld GC and the
+G1 GC respectively (green: less than 10ms, yellow: less than 100ms, red: more than 100ms) (heap limited
+to 1GB)
+
+
+
+
+                                                                         13
+                                                   ParallelOld GC                                 G1 GC
+                  Benchmark           Count [#]   Time [%] Pause [ms]     YR [%] Count [#]   Time [%] Pause [ms]   YR [%]
+                                        -    +      - +         - +                -    +      - +      -    +
+                  avrora                2    0     0.1   -       6    -    7,251   37    0    0.7   -     1    -      179
+                  batik                 0    0       -   -       -    -      120    0    0      -   -     -    -      113
+                  eclipse               0    0       -   -       -    -      719    2    0    4.0   -     2    -      406
+                  fop                   0    0       -   -       -    -    2,828    3    0    6.7   -     3    -      772
+                  h2                    8    0     1.7   -     353    -      264   16    0    1.1   -   116    -      112
+                  jython               20    0     0.6   -       2    -    2,457   31    0    0.9   -     2    -    2,453
+   DaCapo
+
+
+
+
+                  luindex               0    0       -   -       -    -      539    2    0    2.1   -     3    -      245
+                  lusearch             10    0     2.7   -       2    -   38,857   37    0    3.4   -     1    -   15,363
+                  pmd                   3    0     3.6   -      14    -    1,409    5    0    2.4   -     6    -    1,336
+                  sunflow              15    0     1.0   -       2    -    8,567   26    0    1.4   -     2    -    4,697
+                  tomcat               61    0     0.5   -       2    -    1,721   14    0    0.2   -     5    -   29,220
+                  tradebeans           10    0     3.3   -     197    -    1,320   90    0    2.8   -    20    -      152
+                  tradesoap            13    0    41.8   -   1,680    -      754   64    0   14.6   -   193    -       61
+                  xalan                11    0     2.3   -       6    -   25,235   21    0    0.1   -     3    -   25,056
+                  actors               44    0     0.3   -      1     -    1,680 68      0    0.3   -    0     -    3,418
+                  apparat              22    0     0.5   -     21     -    9,099 31      0    0.3   -   11     -    7,080
+                  factorie             17    0     5.9   -    381     -    1,787 44      0    1.2   -   33     -      604
+   DaCapo Scala
+
+
+
+
+                  kiama                 1    0     3.5   -      9     -      518   2     0    1.8   -    2     -      496
+                  scalac                3    0     5.6   -     45     -   15,515 10      0    4.0   -   10     -    3,269
+                  scaladoc              3    0     6.3   -     41     -   21,921   7     0    4.0   -   12     -    2,699
+                  scalap                0    0       -   -      -     -    5,686   3     0    3.9   -    2     -    4,169
+                  scalariform           8    0     1.5   -      3     -    9,271 14      0    1.9   -    2     -   13,395
+                  scalaxb              16    0     1.3   -     10     -    2,034 19      0    0.7   -    4     -      462
+                  tmt                 271    0     0.7   -      1     -      695 220     0    0.7   -    1     -    1,517
+                  compiler.compiler      2   0     1.9   -     93     -    9,525    11   0    6.6   -   69     -      967
+                  compiler.sunflow       6   0     1.2   -     51     -   14,019    23   0    2.3   -   28     -    3,877
+                  compress               1   0     0.0   -      1     -      373     4   0    0.0   -    0     -      175
+                  crypto.aes             3   0     0.1   -      2     -   14,930    17   0    0.3   -    1     -    6,812
+                  crypto.rsa            11   0     0.0   -      0     -    4,906   301   0    1.4   -    0     -      381
+                  crypto.signverify     10   0     0.1   -      1     -    8,820    34   0    0.5   -    1     -    2,803
+                  derby                  8   0     0.6   -     16     -    2,516    33   0    0.5   -    4     -      802
+                  mpegaudio              7   0     0.0   -      0     -    6,605   249   0    1.5   -    0     -      251
+   SPECjvm2008
+
+
+
+
+                  scimark.fft.large      0   0       -   -      -     -   17,221     1   0    0.0   -    1     -        3
+                  scimark.fft.small      7   0     0.1   -      1     -    9,910   341   0    2.8   -    0     -      302
+                  scimark.lu.large       0   0       -   -      -     -   25,817    12   0    0.3   -   11     -       70
+                  scimark.lu.small       7   0     0.2   -      1     -   21,669    25   0    0.8   -    2     -    3,125
+                  scimark.monte carlo    0   0       -   -      -     -    1,163     0   0      -   -    -     -        0
+                  scimark.sor.large      0   0       -   -      -     -   11,629    11   0    1.4   -    9     -       22
+                  scimark.sor.small      0   0       -   -      -     -    1,214     1   0    0.0   -    3     -      438
+                  scimark.sparse.large   0   0       -   -      -     -   13,222     3   0    0.0   -    3     -        6
+                  scimark.sparse.small   1   0     0.0   -      1     -    6,805    34   0    1.1   -    0     -      448
+                  serial               263   0     0.7   -      1     -      307   804   0    1.1   -    0     -       94
+                  sunflow               81   0     0.7   -      5     -    1,570   265   0    1.4   -    3     -    2,808
+                  xml.transform          1   0     0.1   -      5     -   43,979    18   0    0.7   -    2     -    6,853
+                  xml.validation         4   0     1.3   -     55     -    9,426    22   0    2.4   -   21     -    1,442
+
+Figure 10: GC count, GC time relative to the total run time (green: less than 5%, yellow: less than 15%, red:
+more than 15%), and average pause time for minor (-) and major (+) GCs for the ParallelOld GC and the G1
+GC respectively (green: less than 10ms, yellow: less than 100ms, red: more than 100ms) (heap unlimited)
+
+
+
+
+                                                                     14
+

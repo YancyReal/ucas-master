@@ -1,0 +1,93 @@
+%---------------------------------------------------------------------------%
+%->> Frontmatter
+%---------------------------------------------------------------------------%
+%-
+%-> 生成封面
+%-
+\maketitle% 生成中文封面
+\MAKETITLE% 生成英文封面
+%-
+%-> 作者声明
+%-
+\makedeclaration% 生成声明页
+%-
+%-> 中文摘要
+%-
+\intobmk\chapter*{摘\quad 要}% 显示在书签但不显示在目录
+\setcounter{page}{1}% 开始页码
+\pagenumbering{Roman}% 页码符号
+
+面向国产处理器平台完善 Android 应用执行环境，是推进基础软件生态建设的重要环节。AOSP 15
+官方主线尚未提供面向 LoongArch 架构的 ART 执行引擎实现，这使得 Android 应用在该平台上的
+稳定运行与性能优化缺少关键运行时基础。本文以 AOSP 15 的 Android Runtime（ART）为研究
+对象，围绕 LoongArch 平台执行引擎的适配设计、正确性验证与性能优化展开系统研究。
+
+本文首先面向 LoongArch 平台完成了 ART 执行引擎关键模块的适配，系统补齐了汇编器、C++
+解释器、Nterp、JIT 编译器后端、JNI 编译器、运行时快速路径以及部分 Intrinsic 支持，构建了
+LoongArch 平台上可运行的 ART 执行环境。其次，本文建立了覆盖编译、部署、target 回归、
+libcore 测试与 benchmark 评测的统一验证链路，形成了固定 JIT baseline、日志归档与热点分析
+方法，为移植结果和后续优化实验提供了可复现支撑。
+
+在性能优化方面，本文基于统一 baseline 对典型 workload 的热点行为进行分析，围绕
+\texttt{DaCapo/pmd}、\texttt{SPECjvm2008/mpegaudio} 与 Scimark 数值子项提出并验证了
+三项正式优化方案：JIT 分层热度阈值调整方案、运行时字符串搬运批量化方案，以及 LoongArch64
+LSX 浮点 SIMD 向量化方案。实验结果表明，JIT 分层热度阈值调整方案在 \texttt{pmd} 上存在
+可复现的正收益样本，但重复测量仍显示较大方差；运行时字符串搬运批量化方案仅呈现弱正收益，
+更适合作为字符串密集场景的定向微优化；LoongArch64 LSX 浮点 SIMD 向量化方案则在
+\texttt{SPECjvm2008/scimark.lu.small} 上取得了稳定且显著的性能提升，是当前证据最完整的
+主收益结论。进一步结合方案叠加负例与若干失败方案的对照分析，本文归纳出 LoongArch 平台 ART
+执行引擎优化应优先命中主导热点、严格控制全局副作用，并明确不同 workload 的收益边界。
+
+研究结果表明，AOSP 15 ART 在 LoongArch 平台上的执行引擎适配是可行的；在统一验证链路与固定
+baseline 约束下，围绕执行引擎热点开展定向优化能够获得可复现收益。本文工作为国产处理器平台上
+Android 运行时的进一步完善与性能提升提供了工程基础和方法参考。
+
+\keywords{LoongArch，Android Runtime，执行引擎适配，JIT 编译，性能优化}% 中文关键词
+%-
+%-> 英文摘要
+%-
+\intobmk\chapter*{Abstract}% 显示在书签但不显示在目录
+
+Improving the Android application runtime environment on domestic processor
+platforms is an important part of building a complete system software ecosystem.
+However, AOSP 15 does not provide an official ART execution engine
+implementation for the LoongArch architecture, which leaves a critical gap in
+application execution support on this platform. This thesis takes Android
+Runtime (ART) in AOSP 15 as the research target and studies execution engine
+adaptation, correctness validation, and performance optimization for
+LoongArch.
+
+First, this work completes the adaptation of key ART execution engine
+components for LoongArch, including the assembler, C++ interpreter, Nterp, the
+JIT compiler backend, the JNI compiler, runtime fast paths, and selected
+intrinsics, thereby establishing a runnable ART execution environment on the
+target platform. Second, it builds a unified validation workflow covering
+compilation, deployment, target-side regression tests, libcore tests, and
+benchmark evaluation, and further establishes a fixed JIT baseline together
+with reproducible logging and hotspot analysis procedures.
+
+For performance optimization, this thesis analyzes hotspot behavior under a
+fixed baseline and studies three formal schemes on representative workloads: a
+tiered JIT hotness threshold adjustment, a runtime string bulk-copy
+optimization, and a LoongArch64 LSX floating-point SIMD vectorization scheme.
+The results show that the tiered JIT threshold adjustment has
+reproducible positive samples on \texttt{DaCapo/pmd} but still exhibits notable
+variance under repeated measurements; the runtime string bulk-copy optimization
+only delivers weak gains and is therefore better characterized as a targeted
+micro-optimization for string-intensive workloads; and the LoongArch64 LSX
+floating-point SIMD scheme achieves a stable and substantial improvement on
+\texttt{scimark.lu.small}, making it the strongest positive result supported by
+the current evidence. By further comparing stacking conflicts and several
+negative results, this thesis concludes that optimization of the ART execution
+engine on LoongArch should prioritize dominant hotspots, strictly control
+global side effects, and explicitly state workload applicability boundaries.
+
+The results demonstrate that adapting the AOSP 15 ART execution engine to the
+LoongArch platform is feasible, and that targeted hotspot-driven optimizations
+under a unified validation workflow and a fixed baseline can produce
+reproducible benefits. This work provides both an engineering foundation and a
+practical methodology reference for further improving Android runtime support on
+domestic processor platforms.
+
+\KEYWORDS{LoongArch, Android Runtime, execution engine adaptation, JIT compilation, performance optimization}% 英文关键词
+%---------------------------------------------------------------------------%

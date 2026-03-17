@@ -1,0 +1,1201 @@
+    Hubble: Performance Debugging
+with In-Production, Just-In-Time Method
+           Tracing on Android
+Yu Luo and Kirk Rodrigues, University of Toronto; Cuiqin Li, Feng Zhang,
+        Lijin Jiang, and Bing Xia, Huawei Technologies Co., Ltd.;
+            David Lion and Ding Yuan, University of Toronto
+          https://www.usenix.org/conference/osdi22/presentation/luo
+
+
+
+
+    This paper is included in the Proceedings of the
+    16th USENIX Symposium on Operating Systems
+             Design and Implementation.
+                  July 11–13, 2022 • Carlsbad, CA, USA
+                             978-1-939133-28-1
+
+                                        Open access to the Proceedings of the
+                                        16th USENIX Symposium on Operating
+                                         Systems Design and Implementation
+                                                  is sponsored by
+                             Hubble: Performance Debugging with
+                     In-Production, Just-In-Time Method Tracing on Android
+
+                  Yu Luo                          Kirk Rodrigues                          Cuiqin Li
+            University of Toronto               University of Toronto            Huawei Technologies Co., Ltd.
+            Feng Zhang                                  Lijin Jiang                                 Bing Xia
+    Huawei Technologies Co., Ltd.               Huawei Technologies Co., Ltd.              Huawei Technologies Co., Ltd.
+                                      David Lion                           Ding Yuan
+                                  University of Toronto                University of Toronto
+                          Abstract                                   experience an intermittent performance problem, they quickly
+                                                                     assume that their device is at fault, simply because they could
+Hubble is a method-tracing system shipped on all supported
+                                                                     not immediately reproduce the issue on another device. How-
+and upcoming Android devices manufactured by Huawei, in
+                                                                     ever, the root cause could be in the application itself, only
+order to aid in debugging performance problems. Hubble in-
+                                                                     triggered under specific conditions or inputs. To combat these
+struments every non-inlined bytecode method’s entry and exit
+                                                                     assumptions, device vendors are forced to devote ample engi-
+to record the method’s name and a timestamp. Instead of per-
+                                                                     neering and support resources to these issues.
+sisting all data, trace points are recorded into an in-memory
+                                                                        Yet, diagnosing performance problems that occur on a
+ring buffer where older data is constantly overwritten. This
+                                                                     user’s device is extremely challenging, owing to a lack of suf-
+data is only persisted when a performance problem is detected,
+                                                                     ficient runtime information. While approaches like Windows
+giving engineers access to invaluable, detailed runtime data
+                                                                     Error Reporting (WER) [21] are widely adopted, they can
+Just-In-Time before the detected anomaly. Hubble is highly
+                                                                     only record runtime information after a problem is detected.
+efficient, with its tracing inducing negligible overhead in real-
+                                                                     Oftentimes this is too late, as it misses crucial information
+world usage and each trace point taking less than one nanosec-
+                                                                     just before and during the problem. This is exacerbated for
+ond in our microbenchmark. Hubble significantly eases the
+                                                                     performance problems, especially intermittent ones, because
+debugging of user-experienced performance problems and
+                                                                     the issue may vanish after being detected, before recording
+has enabled engineers to quickly resolve many bug tickets
+                                                                     starts. Indeed, the primary use of WER is not to record enough
+that were open for months before Hubble was available.
+                                                                     information to debug an issue, but to collect error statistics
+                                                                     that are then used to prioritize debugging effort.
+1     Introduction                                                      Recording debugging information before the problem oc-
+                                                                     curs is challenging. We cannot accurately predict when a
+Today, Android devices are pervasive and tightly integrated          problem will occur, so the only option is to continuously
+into people’s daily lives, yet users still experience perfor-        trace the system during normal execution. However, over-
+mance problems when using these devices. Unlike Apple’s              head is a concern. Unlike servers, mobile devices are heavily
+iOS and iPhone, the Android platform is far from a tightly-          resource-constrained and their workloads are overwhelmingly
+coupled monolithic ecosystem—the hardware (manufactured              interactive. Sampling-based profiling tools are available, but
+by OEMs), infrastructure system software (maintained by              their trade-off between informativeness and performance is
+Google and customized by OEMs), and applications are pro-            poor. Non-sampling-based profiling tools, on the other hand,
+vided by different parties, and all layers are released in a rapid   are too heavyweight for continuous tracing. For example,
+yet uncoordinated development cycle. This open platform              existing profiling tools on Android like Systrace [25] and
+makes testing enough combinations of hardware, systems soft-         Android Studio’s CPU Profiler [24] can trace every method
+ware, and applications particularly challenging. Thus, many of       call of an application. However, enabling this type of tracing
+the performance bugs that escape current testing practices are       noticeably slows down an application, sometimes by more
+intermittent, manifesting across multiple components main-           than 10×, which is unsuitable for continuous use in produc-
+tained by different entities.                                        tion. Individual applications may implement their own in-app
+   When end users experience an issue, it is often systems           tracing [18,23,46], but such traces are typically only available
+vendors that shoulder the blame, before the root cause is ex-        to those applications themselves.
+posed [49]. This is particularly true for Android given its huge        As a result, problems reported to Android device vendors
+user base, many of whom are not tech-savvy. When such users          typically only include system logs, sampled statistical metrics,
+
+
+
+USENIX Association                             16th USENIX Symposium on Operating Systems Design and Implementation             787
+  Design                     Unnoti-    No     Main-      big.        example, applying gprof to a runtime workload only provides
+                             ceable     src.    tain    LITTLE        the call graph of the runtime itself (including the interpreter,
+  Instrumentation via JIT      3         3                            GC, and JIT-compiled code), instead of the call graph of the
+  Ring-buffer & encoding       3
+                                                                      Java application.
+  Hand-optimized asm           3                 3         3
+  Lock-free control            3
+                                                                         Android [26] and other runtimes [7] can output symbol
+                                                                      information during execution so that system profiling tools
+Table 1: Hubble’s designs and the requirements they satisfy. The      can be applied to profile language-level executions. This ap-
+headings for the requirements are truncated as follows: “Unnotice-    proach does not completely close the semantic gap for a few
+able” refers to having unnoticeable overhead. “No src.” refers to     reasons. First, each profiling tool must support using these
+not requiring source code. “Maintain” refers to being maintainable.   symbols; currently only the sampling-based perf [39] tool
+“big.LITTLE” refers to supporting both big and little cores.          supports using the symbols, and only for JIT-compiled code.
+                                                                      Android extended and integrated perf such that it can also pro-
+                                                                      file the interpreter’s execution at the language-level [26]. In
+sparse Systrace traces, and details recorded after a problem          addition, perf expects every symbol to have a unique memory
+has occurred, like the device model, application name, and            address, which is not always true; for instance, the runtime
+symptom. Most times, this is not enough to be useful in de-           may update JIT-compiled code with application hot-patching
+bugging intermittent performance problems, and engineers              or recompilation based on new profiling information, thus
+are left “debugging in the dark.” Consequently, many bug tick-        unloading old mapped code and reusing the page [26].
+ets are left open for months without any hope of resolution.             Yet, the runtime environment also presents a unique op-
+Worse yet, many bugs cannot even be properly triaged, and             portunity: trace points can be embedded and removed trans-
+after rounds of finger-pointing, it is often the low-level system     parently by the runtime without modifying the application’s
+engineers that bite the bullet.                                       source. This opportunity remains under-exploited despite the
+                                                                      popularity of managed languages (the five most popular lan-
+1.1    Challenges and Opportunities                                   guages on GitHub in 2021 were runtime languages). To the
+                                                                      best of our knowledge, none of the existing language runtimes
+Therefore, a production tracing system that can provide fine-         offer detailed tracing tools that can be used continuously in
+grained observability is desperately needed. However, con-            production. For example, the OpenJDK JVM provides a pow-
+tinuous tracing in production is challenging; it needs to sat-        erful JVMTI debugging interface that can embed breakpoints
+isfy a number of stringent requirements. First, the worst-case        in applications. However, this means that execution has to be
+overhead must be unnoticeable (it cannot exceed 3% or in-             deoptimized and run in the interpreter (rather than JIT com-
+crease the number of performance regressions throughout               piled). Therefore, it is mostly suitable for use in development
+the deployment cycle), regardless of whether the application          environments. Many runtimes also provide sampling-based
+is running on the powerful (big) or weaker (little) cores in          profiling features that show “hot” code paths, but none provide
+ARM’s big.LITTLE architecture. In addition, the tool should           continuous method-level tracing suitable for production.
+trace applications without access to their source. Finally, it
+needs to be easy to maintain, and easy to merge with every
+                                                                      1.2    Contributions
+new (and often feature-breaking) Android release.
+   These goals and constraints are stricter than what is of-          This paper presents the design and implementation of Hubble
+fered by existing solutions. For instance, while record and           that satisfies the aforementioned goals. Hubble can capture
+replay (R&R) can faithfully replay the entire execution, we           most method entry and exit points of any application’s threads,
+are not aware of any R&R system that can achieve worst-case           just-in-time before a failure. We designed Hubble by combin-
+overhead below 3%. In fact, most literature [30,33,35,57] em-         ing several well-known techniques in a novel way that takes
+phasizes the average overhead; for production tracing tools           advantage of the Android platform. Table 1 shows Hubble’s
+on Android devices, engineers are primarily concerned with            major designs and the requirements they satisfy.
+the worst-case instead of the average. In addition, R&R tech-            First, Android applications are typically downloaded as
+niques typically require deep integration with the Android            bytecode and then either compiled or interpreted on the de-
+runtime which means that they cannot be easily maintained.            vice; Hubble leverages this runtime environment to automat-
+   Another challenge offered by the Android runtime environ-          ically embed its tracing logic into the compiled binary or
+ment is the semantic gap between an application written in            interpreted logic. This enables efficient tracing, as the trac-
+a high-level language (Java) and its native execution, which          ing logic can be inlined into the application, avoiding more
+renders a rich set of system profiling tools such as gprof [27]       expensive trampolines (i.e., jumps in control flow) that are
+ineffective without the runtime’s support. When applied to            common in other tracing tools. In addition, this means that
+runtime workloads, these profilers only profile the runtime’s         Hubble is a purely black-box approach that does not depend
+execution instead of the applications running on top of it. For       on the application’s source code.
+
+
+
+788    16th USENIX Symposium on Operating Systems Design and Implementation                                    USENIX Association
+   In addition, Hubble writes trace points to an in-memory         • Integration of Hubble’s traces with existing debugging
+ring buffer that is only flushed when a problem is detected.         tools, like Perfetto [40] which can show call charts. This
+This allows it to run continuously and capture information           significantly improved the trace’s utility, where developers
+just-in-time leading up to a failure. By designing a concise,        can cross-examine Hubble traces with other runtime data.
+variable-length encoding, such that most trace points occupy       • Case studies on how Hubble diagnoses real-world perfor-
+eight bytes, a small (32MB) ring buffer is enough to capture         mance bugs which cannot be resolved without it.
+sufficient debugging information.
+                                                                      Hubble also has the following limitations. First, it can
+   Third, Hubble’s performance-sensitive instrumentation
+                                                                   only embed tracing logic into executions that go through
+logic is written in assembly. This ensures that performance
+                                                                   the Android compiler or interpreter (from bytecode); Hub-
+is optimal even on a device’s low-power (little) cores, which
+                                                                   ble cannot trace native libraries like those invoked through
+cannot perform out-of-order execution or have small instruc-
+                                                                   the Java Native Interface (JNI). In addition, Hubble’s trace
+tion reordering buffers. In addition, this decouples Hubble
+                                                                   buffer could pollute the CPU cache and slow down cache-
+from the Android compiler’s compilation flow, so it avoids
+                                                                   optimized workloads (e.g., loop tiling [8]). However, while
+having the compiler affect the correctness of the tracing logic,
+                                                                   cache-optimization is commonplace in server workloads, it
+and eases maintainability.
+                                                                   is uncommon on smartphones, especially in the interactive
+   Finally, Hubble avoids using expensive synchronization          UI-thread. Nonetheless, we evaluate this effect in §8.
+primitives [14] in two ways: threads write trace points to
+thread-local buffers, avoiding inter-thread synchronization;
+and, Hubble communicates with these threads by using a             2   Related Work
+purpose-built lock-free synchronization protocol.
+   The end result is a highly efficient method-tracing system      Record and replay (R&R) tools [10,15,16,29,30,35,36,38,50,
+sufficient for debugging intermittent performance bugs. In         57] work by recording a user’s input and all non-deterministic
+our microbenchmarks, each trace point costs less than one          events (e.g., scheduling), so that the execution can be faith-
+nanosecond for nearly empty methods, and tracing overheads         fully replayed. R&R tools do not meet our requirements for
+are quickly amortized when methods perform meaningful              a few fundamental reasons. The first is overhead. Among
+operations. Hubble’s tracing overhead is also unnoticeable in      all R&R tools, Reverb [35] reported the best performance,
+Huawei’s continuous-integration performance testing infras-        yet its overhead is still 5.5% on average (the worst-case is
+tructure, which includes a variety of workloads and devices.       not reported). It works only on JavaScript web applications,
+Hubble’s memory overhead is approximately 64 MB by de-             where threads communicate using a message-passing inter-
+fault, accounting for two 32 MB ring buffers. As of 2021,          face. When threads share memory, R&R incurs even higher
+Huawei’s lower-end smartphones have at least 4 GB of RAM,          overhead. For instance, DoublePlay [57] reported a worst-case
+while higher-end ones can have up to 12 GB. Therefore, Hub-        overhead of 11% for network-bound workloads (Apache web-
+ble’s memory overhead is less than 2%.                             server), 19% for disk-bound workloads (MySQL), and 278%
+   Hubble also strives to protect user privacy. Similar to ex-     for CPU-bound workloads (SPLASH-2 ocean). To achieve
+isting error reporting systems such as WER [21], MacOS [2]         low overhead, some tools [33, 38, 45] do not record all non-
+and Mozilla [34] crash reports, Hubble’s traces are only col-      determinism which prevents accurate replay. Second, since
+lected with user consent. However, these other systems collect     intermittent performance bugs may take days to occur, R&R
+a minidump of the memory image, whereas Hubble’s traces            traces will grow untenably large. While checkpointing could
+are far less sensitive: they only consist of method names and      allow replay from a partial trace, the checkpointing operation
+timestamps and do not contain any variable values.                 itself is expensive [50]. Compared to a call chart, an R&R
+                                                                   trace also imposes much larger privacy concerns. Finally,
+   Hubble has been integrated into Huawei’s core Android
+                                                                   R&R tools require deep integration with the Android runtime
+OS codebase, deployed across a wide range of smartphone
+                                                                   and compiler. For instance, applying DoublePlay’s approach
+and tablet product lines, since August, 2020. Older devices
+                                                                   to Android would require the runtime to run a parallel execu-
+may receive Hubble’s functionalities via an over-the-air OS
+                                                                   tion of the application, checkpoint and compare state between
+update. Since deployment, Hubble has significantly eased
+                                                                   the two processes, and so on. Hence, R&R tools would be
+the debugging of intermittent performance problems. In fact,
+                                                                   difficult to maintain within Android.
+engineers were able to quickly resolve many performance
+                                                                      An attractive alternative is to use hardware-support, like In-
+problems that remained unresolved for months.
+                                                                   tel PT or ARM ETM, to record branch-level traces [12,28,60].
+   This paper makes the following contributions:                   These tools have a worst-case runtime overhead of 1–2%.
+• The design and implementation of Hubble, a highly efficient      However, there are two challenges on ARM devices. First,
+  method tracing subsystem for Android, that satisfies a set       the semantic gap on Android’s runtime complicates the de-
+  of unique, practical constraints, some of which are rarely       coding of the branch-level trace, as it only provides the traces
+  mentioned by existing literature.                                of the runtime’s execution instead of the application. Second,
+
+
+
+USENIX Association                           16th USENIX Symposium on Operating Systems Design and Implementation              789
+hardware support for tracing is restricted to development plat-              DTrace [9], and SystemTap [52]. These tools support various
+forms (most ARM processors on production Android devices                     degrees of tracing from periodically sampling the call stack
+do not support the feature) [4].                                             to calling user-defined methods using dynamic instrumenta-
+    Only a limited set of bytecode method tracing tools are                  tion. However, to capture traces that are detailed enough to
+available on the Android platform. Android Studio’s CPU                      diagnose intermittent bugs, these tools incur overhead that
+Profiler can trace every method call, but its overhead is incred-            prevents them from tracing continuously in production sys-
+ibly high (a worst-case of 921× in our evaluation), because                  tems. These tools typically require calling a method in their
+instead of embedding the tracing logic into the compiled bi-                 instrumentation, whereas Hubble directly inlines the tracing
+nary, it jumps into the Android runtime after every method                   code into each method.
+call. Internal tracing utilities within Android mostly leverage                 There are a large number of tools designed to trace each
+Java Agent, JVMTI, or equivalent ART instrumentation in-                     request in a distributed system. Examples include Project5 [1],
+terfaces to perform method tracing. These mechanisms are                     MagPie [5], X-Trace [20], Dapper [47], ÜberTrace [11], and
+also expensive as they force applications to be interpreted                  Pivot Tracing [31], as well as commercial tools like Data-
+only. Aspect-oriented frameworks such as Tai Chi [53] and                    dog [13] and New Relic [44]. These tools typically embed
+Logan [55] are also available to intercept method calls at run-              trace points in critical system or network events, such as RPCs,
+time to execute arbitrary tracing code. However, they either                 and record an ID that is unique to each request.
+require modifications to the application’s source code or root
+access. The fastest available method tracing utility that we are
+aware of, Nanoscope [54], primarily targets method tracing                   3   Case Studies
+inside an x86 Android emulator, costing up to 10× higher
+                                                                             We present two case studies to showcase how Hubble helped
+memory usage and performance overhead, so it is mostly
+                                                                             in diagnosing real-world intermittent performance problems.
+useful in an application development environment.
+                                                                             The first issue was within AppX, a third-party multipurpose
+    Some tools are able to perform in-application tracing with
+                                                                             messaging, social media, and mobile payment application
+low overhead in production. For instance, Firebase perfor-
+                                                                             with over a billion monthly active users. Occasionally, AppX
+mance monitoring [23] collects various metrics (e.g., startup
+                                                                             users experienced intermittent UI freezes (janks) of up to two
+time) and allows developers to insert additional trace points.
+                                                                             seconds. Engineers detected this problem by monitoring the
+AppInsight [41] instruments Windows Phone application bi-
+                                                                             traces that Systrace continuously collects—namely, perfor-
+naries to log whenever the runtime calls into and returns from
+                                                                             mance alerts, sparse trace points, and metrics sampled at low
+application methods. The instrumentation has sufficient de-
+                                                                             frequencies. Figure 1 (A) shows the available trace points ren-
+tail to allow a server to reconstruct how a user request was
+                                                                             dered as a method call chart in the Perfetto trace-visualization
+processed across different application threads and what the
+                                                                             tool. For the UI thread, this consists of only a few high-level
+critical path is. These tools typically trace the entire run of an
+                                                                             methods within the Android framework. The only conclusion
+application, but at a low enough granularity that the trace does
+                                                                             engineers can infer from this data is that the UI thread was
+not grow untenably large. As a result, they are useful for ap-
+                                                                             blocked for about two seconds during which it was supposed
+plication developers to locate bottlenecks in their application;
+                                                                             to prepare the layout and content for rendering.
+but the coarseness of the trace may necessitate additional de-
+bugging information to locate the exact root cause, especially                  In contrast, the call chart based on Hubble’s trace, shown
+if the bug is in the underlying systems which are not traced.                in Figure 1 (B), accurately captures every method call in both
+Timecard [42] goes beyond tracing by using AppInsight’s                      the application and the Android runtime. From the canonical
+traces to adjust the server’s computation quality (in real-time)             method names displayed in the chart, engineers were able
+to meet an end-to-end response deadline.                                     to quickly reconstruct the events that occurred before, dur-
+    There are also a few high-performance logging solu-                      ing, and after the UI jank. First, the user swiped back on the
+tions like NanoLog [58] and Log20 [59] that can provide                      device’s screen within AppX ( 1 ). Then, AppX initialized
+nanosecond-level logging. Both write data to thread-local                    a software keyboard to respond to the user’s action ( 2 ).
+ring buffers and NanoLog uses a specialized encoding to save                 However, to display the keyboard, the scrollable chat compo-
+space. NanoLog uses only the existing log statements in the                  nent must be resized ( 3 ), and this became the bottleneck.
+application while Log20 can be used to determine where best                  Drilling down further, we can observe the series of method
+to place log statements based on profiling the application’s                 calls responsible for generating the list of on-screen content
+usage pattern.1 In any case, the generated trace is only as                  ( 4 ). Specifically, we can see that the UI thread is primarily
+detailed as the developers’ instrumentation.                                 blocked by various long-running methods belonging to AppX.
+    Outside of the Android platform, there are many call pro-                Now with concrete evidence, our engineers concluded that
+filing tools like gprof [27], Fay [17], ftrace [51], perf [39],              the root cause was within AppX, and initiated a meaningful
+   1 In fact, the initial goal of this project was to integrate Log20 into   collaboration with AppX’s developers.
+Huawei’s Android platforms.                                                    The second issue was a longstanding performance bug
+
+
+
+790    16th USENIX Symposium on Operating Systems Design and Implementation                                           USENIX Association
+   +631.9 ms           +1.1 s               +1.6 s                     +2.1 s                  +2.6 s                    +3.1 s                   +3.6 s             +4.1 s
+
+                                                                 UI jank greater than 2 seconds
+                                                                                    Choreographer#doFrame
+
+
+
+
+   A
+                                                                                           traversal
+                                m                                                             layout
+                                             obtainView                s   o                    obtainView                        setupListItem       obtai...
+                                                  t
+                                                 b
+
+               v   v    vo...       v                void com.AppX.ui.widget.DrawnCallBackLinearLayout.onLayout(boolean, int, int,...
+               v   v                    1              void com.AppX.ui.widget.SwipeBackLayout.onLayout(boolean, int, int, int, int)
+               v   v                                     void com.AppX.ui.LayoutListenerView.onLayout(boolean, int, int, int, int)
+               b   b                    2               void com.AppX.ui.KeyboardLinearLayout.onLayout(boolean, int, int, int, int)
+               v   v                                 void com.AppX.ui.widget.DrawnCallBackLinearLayout.onLayout(boolean, int, int...
+               v   v                    3             void com.AppX.pluginsdk.ui.chat.ChattingScrollLayout.onLayout(boolean, int, ...
+               v                                        void com.AppX.pluginsdk.ui.chat.ChattingContent.onLayout(boolean, int, int,...
+                                                        void com.AppX.ui.base.MMPullDownView.onLayout(boolean, int, int, int, int)
+                                        4                  void android.widget.HwAbsListView.onLayout(boolean, int, int, int, int)
+
+
+
+
+   B
+                                        i    android.view.V...                  a       android.view.View android.w...                                     andr...
+                                        i    android.view.V...                  a       android.view.View android.w...                                     andr...
+                                        i    android.view.V...                  a       android.view.View com.AppX...                                      andr...
+                                            co...       jav...    v                    java.lang...     void com.AppX...                                   j   v
+                                            bo...       b j        v                                    void com.AppX...                                   b   v
+                                            bo...                  v                                    a    bo...       b                                     a
+                                            bo...                                                       a    bo...       b                                      a
+                                             vo...                Method:                               c    bo...                                             j
+                                             in...                java.lang.CharSequence                c    vo...                                             v
+                                             in...                com.AppX.pluginsdk.i.i.c(             v    in...
+                                                                   android.content.Context,
+                                             in...                                                      v        in...
+                                                                   long, Boolean)
+                                                                                                        v    b       i
+                                                                  Duration: 358ms 973us                  v   i
+
+
+Figure 1: Screenshot of method call charts in Perfetto for the UI thread, which performs all UI and Android framework operations. (A) Traces
+generated by Systrace, (B) Traces with Hubble. Circled in red are 3rd-party application methods with long execution time. (A) includes all of
+Systrace’s trace points recorded during this time period, whereas (B) is filtered to render only approximately 10% of all available methods.
+
+
+within an internal business teleconferencing application. Af-                               pily consented to deploying Hubble onto their mobile device
+ter the end of a teleconference, the application occasionally                               via an over-the-air Android OS update. Within a few days,
+froze for up to a second on a small number of user devices.                                 performance anomalies were detected and their associated
+This annoyed users but it was not until months later that a                                 trace data was automatically collected. After a quick glance
+particularly vocal employee reported the issue to manage-                                   at Hubble’s call chart, the support engineers identified that the
+ment, who then opened a support ticket requesting that the                                  teleconferencing software was calling Thread.sleep() from
+issue be resolved. Our device support engineers attempted to                                the UI thread after sending an Android Binder (IPC) system
+reproduce the problem on their own, but all attempts were                                   service call. Closer inspection revealed that immediately after
+unsuccessful. The only method call captured by Systrace was                                 a conference call ended, a series of method calls related to the
+binder_transaction(), which does not explain why the issue                                  Audio Manager were performed, prior to the Thread.sleep().
+occurred. Further efforts to collaborate with the disgruntled                               This behavior was unexpected and if not for the complete
+users were also ineffective as most users were either too busy                              method call trace, which contained both the application and
+or otherwise unable to provide more detailed reproduction in-                               Android framework layers, we would still be stuck with many
+structions. A few users were even invited to collaborate with                               of our initial theories; e.g., the application could be collecting
+an engineer to reproduce the problem, but the intermittent                                  and sending meeting summary data back to the teleconference
+issue could not be reproduced after multiple attempts.                                      service or an unexplained scheduling issue.
+   Several months later, Hubble, in pre-beta at the time, was                                  With this new information, we brought in a developer with
+available for internal use. The disgruntled employees hap-                                  expertise in the Android audio stack. After examining Hub-
+
+
+
+USENIX Association                                       16th USENIX Symposium on Operating Systems Design and Implementation                                                 791
+ble’s call chart, the developer immediately identified the root      2. Internal beta release. We push engineering builds to a
+cause. The problem can only be reproduced under very spe-               small group of internal beta testers on their daily-use de-
+cific conditions where users must be connected to Bluetooth             vices. We ask these users to report any performance re-
+headsets using a special mode prior to ending the meeting.              gressions they notice and any new performance issues will
+After the meeting ended, the application immediately rerouted           need to be resolved before moving to the next phase.
+audio to Bluetooth devices connected over the A2DP stream-
+ing protocol. This rerouting process requires re-initialization      3. Public beta release. A build is pushed to all beta users
+of Bluetooth’s SCO (synchronous connection-oriented) link               (tens of thousands of users), and we monitor all new per-
+where the Thread.sleep() was invoked to wait for the link               formance anomaly reports. We only consider Hubble’s
+to be established. We were unfamiliar with these details, but           overhead as undetectable when the beta build does not
+with the help of a developer with the necessary domain knowl-           show a statistically significant increase in reports. Only
+edge, the issue was promptly fixed by moving the connection             then can the tool be further released to the entire public.
+and rerouting logic into an asynchronous event handler.
+                                                                        Android applications are typically distributed as bytecode
+                                                                     compiled from high-level languages like Java. Once down-
+4     Background and Overview                                        loaded, this bytecode is either ahead-of-time (AOT) com-
+                                                                     piled, or executed within the Android runtime (similar to the
+This section first discusses Hubble’s design goals and the           Java Virtual Machine). The Android runtime compiles fre-
+role it plays in the failure diagnosis process, which helps to       quently executed code Just-in-Time (JIT), using the same
+understand Hubble’s design. We then provide an overview of           AOT compiler. An already-compiled application could also
+Hubble, leaving the details to the subsequent sections.              be re-compiled, if runtime profiling reveals new optimization
+                                                                     opportunities. Applications could also contain native libraries,
+                                                                     i.e., code that was already compiled into native instructions.
+4.1    Goals and Requirements                                        Thus, Hubble must be able to operate with only access to the
+Hubble’s performance overhead and resource usage must be             downloaded or generated bytecode or native instructions.
+undetectable in all real-world usage scenarios. In practice,            Easy maintainability across Android versions is required.
+this translates to two requirements: Hubble’s worst-case over-       Android is typically updated every six to twelve months, with
+head in real-world scenarios, in terms of both latency and           each new release potentially breaking features or making
+memory usage, should be less than 3%. This target was set            large-scale changes internally. Thus, Hubble should be modu-
+by our quality assurance team since they cannot reliably mea-        larized and decoupled from the upstream source.
+sure overhead below 2–3% on mobile platforms, even under                Finally, as the case studies highlight, Hubble needs to be
+ideal conditions. Nonetheless, this is similar to the target set     able to trace both the executions of the application and the An-
+by other practitioners; Google, for example, reported a 2%           droid framework to be useful. Ideally, device vendors would
+overhead budget to deploy tracing tools in production server         only be responsible for analyzing and debugging bugs within
+workloads [32, 48]. The second requirement is that the over-         Android, and application developers would only be respon-
+head budget should be respected regardless of whether Hubble         sible for bugs within the application. The reality, however,
+is tracing workloads on big or little cores. Besides not being       is that bugs in the Android framework may manifest them-
+as fast as big cores, little cores also tend to lack advanced fea-   selves in the application and vice versa. Furthermore, system
+tures like out-of-order execution. Thus, they enforce stricter       traces are not available to application developers (in order to
+restrictions on the tolerable overhead for Hubble. In any case,      maintain users’ security) and in-application traces may not
+satisfying the target overhead only allows a tool to pass the        be available to or easily understandable by device vendors.
+deployment planning review. To be deployed in production,            Exacerbating the issue, application developers and even in-
+the tool needs to go through a systematic procedure consisting       ternal developers at Huawei are reluctant to investigate bug
+of three phases:                                                     reports without clear evidence that the bug is in their code.
+                                                                     Whole-system method traces allow engineers to infer roughly
+1. Internal testing. We simulate users using our devices             what the application and framework are doing, together, so
+   by sending a stream of pseudo-random inputs to a large            that the problem scope can be narrowed down to specific
+   fleet of physical devices. Each device collects various met-      call chains and system services. Essentially, Hubble needs to
+   rics like application startup times, the number of dropped        bridge the gap between system and application developers,
+   frames, and so on. Each metric forms a statistical distribu-      which in turn, will significantly ease triaging and debugging
+   tion over a large number of trials. We compare the distri-        for both parties.
+   bution before Hubble was added with the one after. If the            Overall, these requirements highlight the practical chal-
+   differences are statistically insignificant, Hubble has not       lenges of designing and deploying tracing tools onto a com-
+   caused a noticeable change, and we move to phase 2.               plex user-device platform such as Android.
+
+
+
+792    16th USENIX Symposium on Operating Systems Design and Implementation                                   USENIX Association
+4.2     The Failure Diagnosis Process                                learning monitoring Android runtime metrics like the number
+                                                                     of locks held, memory allocation and garbage collection fre-
+To understand Hubble’s utility, we first need to overview the
+                                                                     quency, and so on.
+failure diagnosis process. Android devices ship with a set
+of anomaly detectors to detect common issues like lags in
+the UI. When an anomaly detector fires, the system saves
+several pieces of data such as logs, metrics, and traces. At an      4.2.2    The Utility of Hubble
+appropriate time, these data will be uploaded to the device
+vendor for analysis.                                                 When Hubble’s traces are collected, they are integrated into
+                                                                     systrace and Perfetto when presented to engineers with other
+4.2.1   Anomaly Detection                                            runtime data. Perfetto and systrace are powerful debugging
+                                                                     tools that can visualize a variety of runtime data, including
+Since Hubble’s utility depends on an anomaly detector firing,
+                                                                     visualizing the method trace as a call chart or flame graph.
+we first provide background on the detectors available in
+                                                                     The tools also have search and analytics (e.g., using SQL)
+the Android Open Source Project (AOSP) and our version
+                                                                     capabilities that allow developers to correlate data from dif-
+of Android. There are two branches of anomaly detection
+                                                                     ferent sources. For instance, developers can cross-examine
+mechanisms that device vendors can use in the production
+                                                                     traces with logs and hardware metrics. Developers can also
+environment: Those implemented by Android itself and those
+                                                                     alert based on traces. For example, one use case of Hubble
+implemented by in-house engineering teams. Both branches
+                                                                     is to search for the call stack that matches a specific method
+use information gathered either from the Android runtime
+                                                                     invocation order, get an average runtime, and alert when it
+layer or from the Linux kernel. In addition, both branches are
+                                                                     exceeds a threshold. As a result, Hubble is not a standalone
+generally tuned to be conservative to reduce the number of
+                                                                     tool, nor the only debugging tool. Instead, developers usually
+false positives. However, if a severe performance issue occurs,
+                                                                     start debugging by first examining the data from existing logs
+a signal will most likely be raised.
+                                                                     and metrics, and some bugs can be resolved with these alone.
+   The anomaly detectors implemented in the AOSP have
+                                                                     However, the remaining bugs—typically hard-to-diagnose,
+been continuously developed for over a decade. For exam-
+                                                                     intermittent issues—require more insight, which is where
+ple, the most frequently used anomaly detector is the UI jank
+                                                                     Hubble excels.2
+(lag) detector, which has an extremely close correlation to
+user-observable performance issues. It will alert if a number           Key to Hubble’s success is the visibility it provides into
+of consecutive display frames are delayed longer than a pre-         application and framework-level behaviour, without which en-
+defined threshold. Android officially groups all its tracing,        gineers cannot triage issues. Hubble’s detailed method traces
+profiling, and anomaly detectors under one umbrella term             also allow developers to better understand how a bug can
+known as systrace. In production environments, most of these         be reproduced; with a reproduction, developers can repeat-
+anomaly detection signals and alerts are continuously cap-           edly reproduce the bug in a development environment (with
+tured and analyzed in real time.                                     heavyweight tracing) until the issue is understood.
+   Internally, we utilize a number of additional black-box              Nonetheless, there are some limitations to Hubble’s utility.
+anomaly detectors which monitor for a number of kernel level         We have found Hubble’s traces are not as useful in the follow-
+indicators and hardware events. For example, we implemented          ing cases: (1) if the bug is in the system’s native code (which
+a system-level, HCI-based detector: Studies show users start         is not traced), (2) if the method-level trace is not fine-grained
+to perceive a delay after 400-600ms. So by instrumenting the         enough (e.g., an infinite loop without making any function
+runtime where (1) a touch is detected by the screen, (2) when        calls), or (3) if a bug is caused by incorrect data-flow (i.e.,
+the signal is delivered to the application, and (3) the appli-       an incorrect variable value) that does not affect the call path
+cation generates a response, we can accurately measure the           (otherwise it could be inferred by Hubble’s trace). However,
+delay between (1) and (3) and fire an alert when the delay is        Hubble’s traces can still help developers to significantly nar-
+longer than 400ms. Furthermore, we can attribute the delay to        row down the problem scope (e.g., they can locate the method
+either signal delivery in the runtime or within the application.     that contains the infinite loop). In theory, if the distance be-
+   Other black-box anomaly detectors could be as simple as           tween the root cause and the symptom is too long, Hubble
+monitoring whether the device has entered the thermal throt-         could miss the cause due to the ring buffer size. However, we
+tling mode. Most detectors, however, don’t rely on a single          have not yet encountered such a case in practice.
+metric. Instead, they correlate multiple metrics. For example,
+if a detector detects that the current GPU memory bandwidth
+                                                                         2 We do not have an exact number of issues exclusively resolved by Hub-
+utilization is high, it then checks other metrics such as the ren-
+                                                                     ble, because Hubble’s traces are integrated into existing debugging tools
+dering queue backlog length; only if multiple of them suggest        with other traces. However, we noticed the number of bug tickets containing
+an anomaly does the detector fire a warning. Experimental            intermittent and difficult to reproduce bugs quickly dropped after Hubble
+anomaly detectors may further leverage real-time machine-            was first made available.
+
+
+
+
+USENIX Association                             16th USENIX Symposium on Operating Systems Design and Implementation                       793
+4.3    Overview of Hubble                                                                    64-bit mode             32-bit mode
+
+Hubble modifies the compiler and interpreter to instrument                        (A)   ts         ptr
+                                                                          Entry                                        ts   ptr
+tracing logic at the entry and exit of every non-inlined byte-                    (B)        ptr         ts   0x1
+code method, whether it is interpreted, ahead-of-time com-
+piled, JIT compiled, or recompiled. Portions of the Android               Exit          ts         0x0                 ts   0x0
+framework itself and factory installed apps, i.e., the apps that
+are packaged by the OEM vendor, could be already in com-            Figure 2: Format and encoding of trace points at method entry
+piled form instead of bytecode; for these cases, the trace points   and exit, and in 64-bit and 32-bit execution modes. “ts” and “ptr”
+are embedded at the vendor’s site. Hubble can also trace calls      are timestamp (generic timer count) and method pointer. A solid
+made using the JNI (when applications calls into the native li-     bordered box represents a 64-bit slot. Underscores represent lossy
+braries and the returns). However, function calls made within       encodings of timestamps.
+native libraries cannot be traced by Hubble.
+   Hubble adds one system thread, the trace control thread,         piler so that compiler optimizations do not affect our instru-
+to each application’s process that can turn tracing on or off       mentation.
+for any thread in the same process. Although Hubble instru-
+ments all bytecode methods, by default, the control thread          5.1    Data Format and Encoding
+only turns on tracing for the UI thread, which performs all
+UI and Android framework operations. At every method en-            Figure 2 shows the format of each trace point. As shown,
+try and exit, Hubble’s tracing code writes an entry to a fixed      method entry points have a varying encoding depending on
+size in-memory ring buffer. When the buffer is full, the buffer     the CPU’s execution mode and other factors explained later.
+pointer will wrap around so the oldest data will be overwritten.    The CPU will change mode when executing a 32-bit or 64-bit
+   When a performance anomaly detector detects a perfor-            application. Method entry trace points contain a timestamp
+mance problem, the control thread will be notified. It then         and a method pointer, while exit points contain a timestamp
+notifies the UI thread to stop tracing, preventing useful de-       and the constant 0x0.
+bugging data prior to the problem from being overwritten.              For timestamps, Hubble uses the Generic Timer [3] count
+Once tracing has stopped, the control thread flushes the ring       instead of the standard system clock. A Generic Timer is
+buffer to disk, before restarting tracing. The saved trace file     a high resolution clock (nanosecond precision) and its tick
+could be sent back to Huawei to aid postmortem debugging,           value can be directly read from a register on modern ARM
+or post-processed and analyzed on the device, off the critical      SoCs. It ticks at a constant frequency regardless of the CPU
+path, if a summary needs to be sent.                                operation speed and the counter value starts at 0 when reset.
+   Each traced thread writes to a private ring buffer local to      When the trace is persisted, Hubble records the current time,
+itself. Hubble keeps at most N buffers in the system, from the      which can be used to reconstruct the absolute timestamp of
+N threads that most recently executed in the foreground. Older      each trace point from the Generic Timer count.
+buffers will be reclaimed by the system. N is configurable and         The method pointer is the memory address of a metadata
+the method trace logic can be programmatically enabled and          object, ArtMethod, that describes each loaded class-method
+disabled for individual threads, either via the runtime or by       and can be used to decode a method’s canonical name. As
+the user application itself. This means that any background         part of the ClassLoader initialization process in Android’s run-
+threads from almost any process, even short lived ones, can         time (ART), an array of ArtMethods is allocated in a memory
+be traced. However, if there are too many concurrent threads        region outside the managed heap (ignored by garbage collec-
+being traced, Hubble will run into memory usage issues. To          tion). ArtMethods can only be added to this array and never
+solve this, we could have a ring buffer per core rather than per    be modified nor removed. ART ensures that immediately af-
+thread; to differentiate trace points from different threads, we    ter entering a method, the address of its ArtMethod is stored
+could record the thread’s ID (available from a register in the      in register r0. Since the lifecycle of the main ClassLoader,
+runtime) in each trace point. By default, N is set to 2. This       which is responsible for loading all of the executed bytecode
+is sufficient to capture both the current foreground and most       methods, spans the entire duration of the application, we can
+recent background application’s UI threads.                         safely store the ArtMethod pointer in the trace buffer and
+                                                                    reconstruct the method name after the trace data is persisted,
+                                                                    so long as this happens before the application exits. Note that
+5     In-memory Tracing                                             applications could use additional custom ClassLoaders with
+                                                                    shorter lifecycles. If we persist the trace data after the custom
+This section describes the design and implementation of Hub-        ClassLoader exits, we could dereference pointers that are no
+ble’s tracing logic. We first explain the information recorded      longer valid. To avoid this, we install a cleanup hook for cus-
+in each trace point and its encoding. We then discuss how we        tom ClassLoaders to invalidate the trace buffer (or optionally
+integrated the tracing code into Android’s optimizing com-          persist the trace data).
+
+
+
+794    16th USENIX Symposium on Operating Systems Design and Implementation                                         USENIX Association
+                                                                   pointer are not 0x0, a method entry trace point occupies two
+           Overflow        0x88888887FFFFFFFF       t1             buffer slots (Figure 2 (B)). The first 64-bit slot is used to save
+           Detected        0x8888888800000001       t2             the complete 64-bit method pointer; in the second slot, the
+                           0x8888888800000002       t3
+                                                                   upper 32 bits store the timer count and the lower 32 bits store
+                                                                   the constant 0x1.
+            STOP           0x8888888800000003       tr                The method exit trace point occupies a single 64-bit slot.
+                                                                   The upper 32 bits store the timer count, and the lower 32-bit
+                                                                   stores 0x0, indicating it is a method exit trace point.
+        Figure 3: Iteratively Recover Truncated Timestamps.           Traces in this format can always be unambiguously de-
+                                                                   coded in reverse. To decode each trace point, Hubble first
+   For each thread that is traced, the control thread allocates    checks the lower 32 bits of the previous slot. Depending on
+storage for the trace in the traced thread’s local storage (Java   whether its value is 0x0, 0x1, or another value, Hubble knows
+ThreadLocal [37]). This includes a ring buffer and metadata        that this trace point is either a method exit, a method entry that
+such as where content in the buffer begins and ends. The ring      is two slots wide (Figure 2 (B)), or a method entry that is one
+buffer is carved into an array of 64-bit wide integers in both     slot wide (Figure 2 (A)). 0x0 and 0x1 cannot be method point-
+64-bit and 32-bit mode.                                            ers since they are invalid method pointer memory addresses. A
+   For the timestamp in each trace point, Hubble only stores       method exit point is matched with the corresponding method
+the lower 32 bits of the Generic Timer counter, regardless of      entry point in a LIFO manner (implemented using a stack).
+execution mode. (Even in 32-bit mode, the Generic Timer            Note that the decoding occurs server-side, after the persisted
+counter is 64 bits wide because the value is fetched from a        trace has been sent back.
+co-processor that is not subject to the mode change.) Thus,
+the recorded timestamp may wrap around, which we handle
+                                                                   5.1.2   Format under 32-bit Mode
+during decoding.
+   Figure 3 shows how Hubble reconstructs the accurate times-      In 32-bit mode, both method entry and exit trace points use
+tamp from truncated ones. The last timestamp is a reference        a single buffer slot. The upper 32 bits are always the lower
+timestamp (tr), which is the complete 64-bit Generic Timer         32 bits of the timer count, like in 64-bit mode. For method
+counter value recorded when the trace is persisted. Using tr,      entry points, the lower 32 bits store the method pointer, and
+we can iteratively reconstruct the upper 32 bits of the previous   for method exit points, the lower 32 bits store 0x0.
+three timestamps: if a previous timestamp has a lower value
+than the current one (e.g., t3 versus tr), we assume it has the
+same upper 32 bits; if it has a higher value (e.g., t1 versus      5.1.3   Efficient Recording
+t2), we assume a wrap around occurred and the upper 32 bits        The tracing logic can be efficiently implemented by a few
+should be decremented by one.                                      assembly instructions. For example, Hubble uses only two
+   Theoretically, this could lead to an error: if between two      assembly instructions to store the method entry trace point
+consecutive trace points more than 232 ticks occur, the re-        under 32-bit execution mode:
+constructed timestamp will be inaccurate. However, this is
+                                                                   1 MRRC ( al , scratch1 , scratch0 , 0 b0001 , 0 b1111 , 0 b1110 );
+unlikely to happen in reality. It takes 223.7 seconds on a Qual-   2 STRD ( r0 , scratch1 , MemOperand ( buffer , 8 , PostIndex ));
+comm ARM SoC and a little over 37 minutes on a Huawei-
+designed SoC for the lower 32-bit Generic Timer counter to         The first MRRC instruction is used to fetch the 64-bit Generic
+tick 232 times. So only if a method executes for more than         Timer counter value into two 32-bit CPU registers: scratch1
+223.7 seconds, without calling another method or returning,        and scratch0 (readers can ignore the other operands). Then
+will an inaccuracy occur.                                          a STRD instruction is used to (1) store scratch1, which con-
+                                                                   tains the lower 32-bits of the Generic Timer counter, and r0,
+                                                                   which contains the ArtMethod pointer, to the memory address
+5.1.1    Format under 64-bit Mode
+                                                                   stored in buffer register, and (2) increment buffer by 8 bytes
+Hubble uses a variable-width encoding for the ArtMethod            after the memory operation completes. So after this store
+pointer when executing in 64-bit mode. In this mode, the           instruction, buffer will point to the next buffer slot.
+pointer is 64 bits; but for real-world applications, the vast         Hubble’s tracing assembly is directly inlined in the basic
+majority of the pointers’ upper 32 bits have the value 0x0.        block at each method entry and exit. Comparatively, in other
+We exploited this observation to increase encoding efficiency.     profilers that use compiler instrumentations, the instrumented
+When the upper 32 bits are 0x0, Hubble only records the lower      code will call a special tracing function. For example, gcc -pg
+32 bits of the pointer (Figure 2 (A)). Together with the lower     instruments a call to the special function mcount(), which is
+32 bits of the timer count, a method entry trace point occupies    required for tools like gprof. While easier to maintain and
+a single 64-bit buffer slot. If the upper 32 bits of the method    more portable, the added function call introduces overhead.
+
+
+
+USENIX Association                             16th USENIX Symposium on Operating Systems Design and Implementation              795
+   When tracing is stopped, the valid portion of the ring buffer                           // Initialization
+                                                                                           start=0x0; stop=0x0;
+is flushed to disk using an fwrite call. Three metadata files
+are generated. First, a complete 64-bit Generic Timer counter             Control thread:                   Trace point:
+                                                                          1    start=buffer;                 7   if (start)
+value (i.e., the reference timestamp) and the absolute system             2    wait(signal);                 8     trace...
+timestamp are collected at the same time; this facilitates the            3    stop = 0x1;                   9     if (stop) {
+reconstruction of the actual, non-relative timestamp of each              4    while(stop==0x1)             10       stop=buffer;
+                                                                          5      sleep(..);                 11       start=0x0;
+trace point if needed. Then the current buffer position and size          6    persist(..);                 12     }
+are recorded. Finally, Hubble computes a symbol table, map-
+                                                                                               T2      T4                  T7
+ping each unique ArtMethod pointer value to the method’s                  Traced thread
+canonical name.
+                                                                          Control thread
+                                                                                            T1:L1   T3:L3          T5   T6:L1
+
+5.1.4    Alignment
+                                                                              Figure 4: Lock-free Synchronization Protocol.
+Each trace point is always eight-byte (a word on 64-bit de-
+vices) aligned. Eight-byte aligned memory accesses are cru-
+cial to achieving the highest performance in both 32-bit and       of the ring buffer (and if so, we need to wrap around). This
+64-bit mode on modern ARM SoCs. Unaligned accesses take            check requires fetching the value of the ring buffer pointer
+at least one more cycle than a properly aligned memory ac-         from memory. If we manually prefetch this pointer (in assem-
+cess. In the worst case, a single unaligned access can cross a     bly), it results in an approximate speedup of 35% on the little
+cache-line boundary and generate two cache misses or even          core. The compiler, however, did not perform this prefetching,
+two consecutive page faults. Worse yet, unaligned memory           because it expects the big core will perform the prefetching
+accesses are an unsupported operation on low-power or older        automatically.
+ARM processors, so additional memory accesses and mas-                Finally, because we have domain knowledge of the tracing
+saging logic are required. Accordingly, we use 32 bits to          logic and processor microarchitecture, we can perform better
+represent the constants 0x0 and 0x1, since the performance         optimizations than the compiler, regardless of whether it is
+gains of aligned accesses outweigh encoding inefficiency.          on the big or little core.
+
+
+5.2     Hand-optimized Assembly                                    6    Tracing Control
+There are a few reasons to write the tracing logic in assem-       Recall a system thread is responsible for notifying the traced
+bly. First, it decouples Hubble from the Android compiler’s        thread to turn tracing on or off. The traced thread (e.g., the UI
+compilation flow. If written in C++, the compiler could move,      thread) is only responsible for (1) checking whether tracing
+reorder, or even remove the tracing logic (e.g., the tracing       is turned on, and if so, (2) writing the trace points into the
+logic accesses global variables without a memory barrier (§6),     trace buffer, and (3) turning tracing off if necessary. The rest
+which is an undefined behavior). By writing the logic in as-       of this section describes how the two threads communicate
+sembly, we can insert it after the compilation stage, bypassing    efficiently without synchronization primitives.
+any optimizations that are at odds with the tracing. To do             Figure 4 shows the communication between the control
+so, early in the compilation stage, instead of generating the      thread and the traced thread. Lines 1–6 are the control thread’s
+actual tracing code, we simply insert a special placeholder        logic, whereas lines 7–12 are executed at every trace point
+instruction at every method entry and exit (including exits        in the traced thread. Hubble uses two eventually-consistent,
+due to exceptions); we then configure the Android compiler         shared variables, start and stop. start is unidirectional, i.e.,
+to exempt this instruction from its later optimization stages.     it is set by the control thread and read by the traced thread,
+After all the optimizations are performed, we replace this         and stop is bidirectional, as it can be set and read by both
+placeholder instruction with the actual tracing instructions.      threads. Initially, both variables are set to 0x0. To start tracing,
+This also makes Hubble easy to maintain, as it is decoupled        the control thread sets start to the address of the next buffer
+from any compiler changes that are not backward compatible.        slot (line 1 in Figure 4), and waits for a signal to stop tracing.
+    Using assembly also allows us to optimize for both big and     Therefore, the value of start indicates two things: whether
+little cores. The Android compiler’s optimization is heavily bi-   tracing is on or off, or the buffer position. At each trace point,
+ased toward the big core. For example, the compiler skips the      the traced thread first checks if start is 0x0, and only proceeds
+architecture-specific optimizations when they are unnecessary      with tracing if it is not (line 7).
+on big cores that support out-of-order execution. However,             To turn tracing off, the control thread sets stop to 0x1
+the little cores do not support out-of-order execution, so run-    (line 3 in Figure 4), and then enters a polling loop until stop
+ning the compiled code will result in poor performance. For        is changed to a value greater than 0x1 (lines 4–5). In the
+instance, each trace point needs to check if we are at the end     meantime, the traced thread performs tracing and evaluates
+
+
+
+796     16th USENIX Symposium on Operating Systems Design and Implementation                                      USENIX Association
+the value of stop at the end of every trace point (line 9). Once      race could occur during state transition where just before
+the traced thread detects that stop was changed to a non-zero         the lock is obtained, the traced thread transitions back to the
+value, it enters the logic to stop tracing. The traced thread first   bytecode world. Debugging this unfortunately took weeks,
+sets stop to the address of the current buffer pointer, i.e., the     but we fixed it by rechecking the traced thread’s execution
+end position of the buffer, at line 10. So stop also serves dual      state after obtaining the lock.
+purposes: whether tracing should stop (with value 0 or 1),
+or the buffer end position. (Note that 0x0 and 0x1 are invalid
+buffer memory addresses, so after line 10, stop will be greater       7   Privacy and Security
+than 0x1.) Then the traced thread sets start to 0x0 at line 11,
+to guarantee that tracing will be disabled immediately. Finally,      Security and privacy are some of our top priorities. Hubble
+the control thread detects that the traced thread has stopped         does not collect personally identifying information, such as
+tracing, so it can persist the trace or clean up the ring buffer.     phone numbers or user IDs. Hubble’s traces only contain
+                                                                      method names and timestamps, there are no actual data values,
+   Figure 4 also shows an example trace control-flow. Each
+                                                                      not even parameter values. Widely-adopted error reporting
+circle represents a trace point, with filled and blank shading
+                                                                      systems like Windows Error Reporting (WER) [21], MacOS’
+indicating whether trace data is written or not. At the begin-
+                                                                      crash report [2], or the Mozilla Crash Reporter [34], record
+ning, tracing is off. At T1, the control thread turns tracing
+                                                                      a subset of the memory state or often collect system logs. In
+on at line 1 (L1) by setting start to a non-zero value. This
+                                                                      comparison, Hubble’s traces are far less sensitive. Similar
+new value is propagated to the traced thread at time T2, as the
+                                                                      to WER and other widely-adopted error reporting systems,
+result of eventual consistency in the memory cache coherence
+                                                                      Hubble uses an informed consent policy.
+protocol. Then, the following three trace points are written to
+                                                                         Even when user consent is given, Hubble further strives
+buffer. At T3, the control thread turns tracing off by setting
+                                                                      to minimize the amount of data that leaves the device. Hub-
+stop to 0x1, which is propagated to the traced thread at T4.
+                                                                      ble has the capability to perform the same analyses that are
+The traced thread then executes lines 10–11, and at T5, the
+                                                                      performed server-side, locally on a user’s device, with only a
+control thread detects that stop was changed to a value greater
+                                                                      summary being sent back to the vendor. For example, Hubble
+than 0x1; so it breaks out of the polling loop and persists the
+                                                                      can quickly scan the trace files and compute the top methods
+trace. After the trace is persisted, the control thread restarts
+                                                                      with the longest “self-execution-time”, or it can automatically
+tracing at time T6 (line 1).
+                                                                      isolate and extract the longest method call chains from when
+   This design is highly efficient. Each trace point needs to
+                                                                      a performance anomaly occurred. Performance bug models
+check the values of start and stop only if the trace has been
+                                                                      could be distributed to client devices, containing “signatures”
+started. start and stop are regular shared variables that are
+                                                                      of problematic method names or method call chains, and if
+almost always cached. In comparison, any alternative design
+                                                                      there is a match, statistics could be sent back instead of the
+that uses synchronization primitives or atomic variables would
+                                                                      complete trace.
+introduce much higher overhead in each trace point, which is
+                                                                         Hubble also exploits many built-in data security features in
+on the critical path.
+                                                                      Android and the Linux kernel to protect trace data. The traces
+   Since tracing is stopped and the current ring buffer location
+                                                                      are stored inside an application-private storage area that is
+is written to the stop variable by the traced thread itself, no
+                                                                      protected by the kernel-level application sandbox. Only the
+additional trace point will be written to the buffer afterwards
+                                                                      application itself with matching its UID, device vendors, and
+and the buffer metadata will be consistent. For example, if
+                                                                      application developers—when they configure their mobile
+the last trace point is a 64-bit method entry occupying two
+                                                                      device in debug mode—have access to the trace files.
+slots, it is guaranteed that both slots are written with the buffer
+pointer correctly incremented before tracing is stopped.
+   If the traced thread is executing native code, either through      8   Evaluation
+the JNI or a custom ClassLoader, it cannot respond to the
+control thread’s stop tracing request, because the logic to stop      Hubble has been repeatedly tested on Huawei’s performance
+tracing is only instrumented in bytecode methods. Therefore,          testing framework, which included the top 100 popular ap-
+the control thread further checks whether the traced thread           plications, with workloads including startup, stress testing
+is in native execution when it attempts to stop tracing. If so,       (simulated random screen touches at a high rate), and normal
+the control thread will first obtain ART’s state transition lock      usage simulations, on all supported devices. Overall, we have
+that prevents the traced thread’s execution from changing             found Hubble’s overhead is statistically insignificant in real-
+state, i.e., from native execution back to the bytecode world         world use-cases. Hubble tracing is now enabled by default in
+(either the interpreter or compiled code). Then the control           all Huawei testing frameworks.
+thread forcibly copies the buffer position to stop, and sets             We have designed a few experiments to stress test and
+start to 0x0, followed by a memory fence. Finally, the control        study Hubble’s runtime characteristics, aiming to answer four
+thread can release the state transition lock. A subtle data           questions: (1) What is the runtime cost of Hubble’s tracing?
+
+
+
+USENIX Association                             16th USENIX Symposium on Operating Systems Design and Implementation             797
+(2) What is Hubble’s effect on cache behavior and memory                                                                  Average      Standard       Performance
+                                                                                                                         Cost (ns)   Deviation (ns)   Overhead (%)
+bandwidth? (3) What is Hubble’s overhead in the most de-                                ASMT                    32-bit   3,911.575      59.2450        920,587%
+manding real-world scenarios? (4) How long of an execution                           Tracing ON                 64-bit   3,366.050      57.8026        748,510%
+trace can be stored in the ring buffer? We did not evaluate                         Hubble Method               32-bit     0.725        0.0551           171%
+                                                                                     Tracing ON                 64-bit     0.650        0.0023           145%
+power consumption. Despite best-effort attempts, we could                           Hubble Method               32-bit     0.001        0.0030             0%
+not reliably observe battery overhead in any experiments.                            Tracing OFF                64-bit     0.008        0.0027             2%
+Huawei’s devices are shipped with aggressively tuned power-
+saving profiles and thus far, we have not observed an increase                                              Table 2: Cost of a Single Trace Point
+in reports of battery drain.
+                                                                                               106                             Android Studio Method Tracing
+   Unless otherwise specified, experiments were performed
+on a Google Pixel 1 phone that is well-supported by the                                                                                  32-bit Trace On
+                                                                                               105                                       64-bit Trace On
+
+
+
+
+                                                                    Performance Overhead (%)
+open-source version of Android (AOSP). The phone con-
+tains a Qualcomm Snapdragon 821 processor with two high-
+                                                                                               104
+performance cores each with a 64 KB L1 (divided equally
+for instructions and data) and 1.5 MB L2 cache, and two
+low-power cores each with a 64 KB L1 and 512 KB L2 cache.                                                                               Hubble Method Tracing
+                                                                                               150
+   We compared three execution modes: (1) baseline – the                                                                                      32-bit Trace On
+phone running unmodified Android; (2) tracing off – Hubble                                     100                                            32-bit Trace Off
+                                                                                                                                              64-bit Trace On
+is enabled and applications are instrumented, but tracing is                                    50
+                                                                                                                                              64-bit Trace Off
+turned off; and (3) tracing on. Baseline experiments were
+                                                                                                 0
+performed on AOSP’s android-10.0.0_r2 [56] branch. We
+recompiled the same branch with Hubble enabled.                                                      0              1          10           100               1000
+                                                                                                                     Number of Work Iterations
+   Hubble’s overhead could only be measured reliably in CPU-
+intensive and unrealistic microbenchmarks. Repeatedly run-
+                                                                                                 Figure 5: Performance Overhead Over Work Iterations
+ning the two microbenchmarks in §8.1 and §8.2 causes the
+CPU to quickly reduce its clock speed due to severe thermal
+throttling. To improve the validity and reproducibility of the        ran the experiment until its runtime stabilized to a maximum
+experiments, we placed the phone on bags of ice water.                variance of five percent. The method is then executed ten
+                                                                      times for each experiment.
+8.1    Trace Point Overhead                                            1 public long Test ( int depth , int work , long sum ) {
+                                                                       2   for ( int i = 0; i < work ; i ++) {
+Hubble’s tracing overhead is amortized by the amount of work           3     sum *= i - 1; sum /= i + 2;
+                                                                       4   }
+performed by the traced method. Since Hubble’s tracing logic           5   if ( depth > 1) return Test ( depth - 1, work , sum );
+does not impose any dependencies on the traced method, nor             6   return sum ;
+does it use synchronization primitives on the critical path,           7}
+the amortization effect will be enlarged by the deeper CPU                                               Listing 1: Program used for measurement.
+pipeline. We evaluated both the cost of an individual trace
+point as well as the overall runtime overhead as the method              Table 2 shows the results of the 0-work experiment, with
+performs more work. For comparison, we also evaluated An-             the other work values in Figure 5. The 0-work experiment
+droid’s built-in method tracing utility, typically invoked via        shows that on average, each Hubble trace point costs less
+Android Studio’s CPU profiler, henceforth referred to ASMT.           than one nanosecond when tracing is on, and less than 10
+   Listing 1 shows the method used. The amount of work done           picoseconds when tracing is off. This is far less than ASMT’s
+can be controlled through the work parameter. To prevent the          overhead which is on the order of microseconds. Figure 5
+method from being inlined by the JIT compiler, we added               shows the amortization effect: as the amount of work done by
+tail-recursion on line 5. In addition, we executed the method         the method is increased, Hubble’s tracing overhead percentage
+with a depth of 10 since the compiler still performs inlining         decreases quickly. Note that in reality, small methods like this
+at lower depths. sum is carried across calls to ensure that the       would likely be inlined, excluding them from being traced.
+loop is not optimized away by dead code elimination.
+   We ran the method with work values of 0, 1, 10, 100, and            8.2                           Cache Effects Microbenchmark
+1,000. We measured the runtime of two billion iterations. The
+cost of a trace point is calculated as the overhead of the 0-work     We used matrix-multiplication (MM) to measure Hubble’s
+experiment divided by two, since each method call contains            effects on the cache. MM is a classic workload that can either
+a method-entry and method-exit trace point. To ensure the             benefit heavily from caching or suffer ample cache misses [8].
+method is compiled by the JIT compiler before evaluation, we          When multiplying large matrices, a naïve implementation
+
+
+
+798   16th USENIX Symposium on Operating Systems Design and Implementation                                                                  USENIX Association
+Time Per Element (μs)
+
+                        300
+                        250              Trace On Mean                                                                1400                 1400                                    8%
+
+
+
+
+                                                                                                      Startup Time (ms)
+
+
+
+
+                                                                                                                                                                                         Tracing Overhead
+                        200              Baseline Mean                                                                1200                 1200                                    6%
+                        150              Trace Off Mean                                                               1000                 1000                                    4%
+                        100                                                                                            800                 800                                     2%
+                                                                                                                       600                 600                                     0%
+                         50
+                                                                                                                       400                 400                                     -2%
+                          0
+                                                                                                                       200                 200                                     -4%
+                                   6       2       64       28       56     12          24       48
+                                x1       x3       x       x1      x2      x5         10       20
+
+
+
+
+                                                                                                                                           Off
+
+                                                                                                                                                  On
+
+
+                                                                                                                                                          Off
+
+                                                                                                                                                                On
+
+
+                                                                                                                                                                        Off
+
+                                                                                                                                                                              On
+                              16       32      64        8      6        2         x        x                                 No Tracing
+                                                       12     25      51        24       48
+                                                                             10       20                                  Realworld Baseline           Hubble Tracing
+                                                      Loop Tiling Size
+
+                                     Figure 6: Cache and Memory Effects                                                          Figure 7: Application Startup Time
+
+causes many unnecessary cache misses. However, the major-                                             calls in a short period of time. These methods perform data
+ity of these cache misses can be avoided using loop-tiling, i.e.,                                     loading and processing to prepare the application’s UI and are
+partition each matrix into many small tiles, where each fits in                                       often optimized to ensure the application loads quickly [22].
+the cache, and perform all accesses on one tile before moving                                            Since the performance of the application startup process
+on to the next. We examined Hubble’s effect on each level of                                          varies significantly in practice, we took additional measures
+the cache by gradually increasing the tile size.                                                      to minimize variation across benchmark runs. Specifically,
+   We evaluated Hubble’s effect on MM with eight differ-                                              we ran all experiments while disconnected from the network,
+ent tile sizes: 16×16, .., 2048×2048. The input matrices are                                          eliminating variance introduced by network connections. We
+2048×2048, and each element is a four-byte integer. This                                              launched the target application repeatedly until its startup
+means tile sizes 64×64 and below fit within the L1 cache; tile                                        time stabilized to within a maximum variance of 5% (without
+sizes 256×256 and below fit within L2; and all remaining tile                                         these measures, the normal variance can be as much as 100%
+sizes exceed both cache levels. To evaluate the highest amount                                        as shown on the left hand side of Figure 7). Each applica-
+of interleaved memory-contention that Hubble may have with                                            tion was launched programmatically, avoiding any extraneous
+MM, we performed each multiply and add operation inside                                               touch input that would occur with manual interactions. The
+a method such that two trace points are produced for each                                             startup time was obtained from a syslog message that indi-
+step of MM. We also inserted a dummy tail recursion call so                                           cates the duration from when the application process launched
+that the JIT compiler does not inline the method. For each tile                                       to the time after the application’s UI has been drawn on the
+size, we ran the experiment five times. We did not compare                                            screen. To force cold starts (where the application starts com-
+with ASMT because it was too slow.                                                                    pletely unloaded), we manually killed each application before
+   Figure 6 shows the results. With Hubble’s tracing turned off,                                      starting it again. Furthermore, we performed tests in quick
+we could not reliably observe any overhead. With Hubble’s                                             succession to encourage the scheduler to place the application
+tracing turned on, for the smallest tile size that fits within the                                    process on the performance-oriented CPU core operating at
+L1 cache, Hubble has a min / max / mean overhead of 41% /                                             the maximum clock speed.
+70% / 54%. When the tile size still fits within the L2 cache                                             We ran the benchmark on the three applications that had the
+at 128×128, the overhead increased slightly to a min / max                                            most downloads in 2020 [6]: TikTok, WhatsApp, and Face-
+/ mean of 64% / 83% / 70%. Finally, when the tile size is                                             book. The results are presented as a box and whisker chart
+much larger than the L2 cache, caching is no longer effective.                                        on the right hand size in Figure 7. As the figure shows, the
+In this region, the increased execution time when tracing is                                          measured startup times vary considerably. To determine if
+turned on did not deviate significantly from smaller tile sizes,                                      Hubble causes a statistically significant difference in appli-
+but the amortized overhead decreased.                                                                 cation startup time in our tightly controlled test environment,
+   Thus, in the absolute worst case scenarios, Hubble indeed                                          we performed two single-tailed dependent (paired sample)
+affects programs heavily optimized for caching and, to some                                           t-tests with a significance level of 5%. The t-test on the results
+extent, memory-bound programs. However, in practice, simi-                                            of tracing turned off produced a p-value of 14.25% and the
+lar small methods invoked in a tight loop would be inlined and                                        t-test of tracing turned on produced a p-value of 33.18%, both
+excluded from tracing, not to mention that such loop-tiling is                                        of which exceed the 5% threshold. Thus, we cannot conclude
+unlikely to be used in an application’s UI thread.                                                    that Hubble causes a statistically significant difference in
+                                                                                                      application startup time. In contrast, ASMT increased the av-
+                                                                                                      erage startup time of the three applications by approximately
+8.3                       Startup Overhead Macrobenchmark
+                                                                                                      10 times.
+We measured Hubble’s overhead on application startup, one of                                             Although application startup overhead fluctuates signifi-
+the most demanding but realistic workloads for a method trac-                                         cantly under real world scenarios, the number of methods
+ing tool since it comprises hundreds of thousands of method                                           executed remains nearly constant. When disconnected from
+
+
+
+USENIX Association                                                           16th USENIX Symposium on Operating Systems Design and Implementation                                    799
+the network, TikTok, WhatsApp, and Facebook filled 6.0 MB,          users (including those beta users that are outside of Huawei).
+3.8 MB, 6.4 MB of Hubble’s ring buffer respectively; this cor-      A common policy is that each user device can upload at most
+responds to roughly 400,000, 250,000, and 420,000 methods           three traces per week. Which three traces to upload is config-
+invocations. When connected to the internet, the ring buffer        urable. For instance, sometimes there is a targeted campaign
+content increased to 14 MB, 5.1 MB, and 11 MB because               to improve specific applications, so in that case, only traces of
+the applications loaded the user’s content. In all three ap-        anomalies for those applications are uploaded; other times we
+plications, the 32 MB of ring buffer proved to be more than         collect traces for anomalies whose symptoms are extremely
+sufficient to capture the entire application startup sequence. In   severe; or, in the default case, we collect the first three anoma-
+Huawei’s Hubble deployment, the 32 MB trace buffer is able          lies detected. Although three traces is a low threshold, with
+to store the duration of almost all application startup and in-     a large user base, we are usually able to collect one or a few
+termittent performance anomalies that our support engineers         traces for each important issue.
+have encountered.                                                      Besides debugging production issues, Hubble is equally
+   The results of the macrobenchmark were also in-line with         useful for debugging problems discovered during automated
+results from our automated performance-regression testing,          testing. Before Hubble, developers used ASMT to debug per-
+as well as feedback from support engineers and application          formance regressions, but due to its overhead it could only
+developers. Recall that in part one of Huawei’s three-phase         be enabled when debugging. This is cumbersome, and many
+deployment process (§4.1), we ran automated tests across a          problems simply could not be reproduced while debugging or
+large fleet of devices and any significant statistical deviation    worse, new issues would appear with ASMT enabled. Now,
+in the results will prevent a new build from being deployed.        whenever a performance regression is detected, Hubble’s
+In the automated performance-regression tests, we measured          traces are automatically collected, helping developers quickly
+the application startup-time (both cold and warm startup) of        narrow down the root cause without reproducing the issue.
+the 100 most-downloaded third-party applications in addition           A happy accident of implementing the tracing in assembly
+to all our own applications. We categorized startup times into      was that we discovered a bug in ARM’s reference design on
+increments of 500 ms and count the number of applications           an older CPU model. While optimizing and testing the tracing
+that fall in each increment. After Hubble’s deployment, we          assembly on a large number of devices, we found that when a
+have not recorded any statistically-significant changes in the      specific permutation of 32-bit assembly instructions is used
+number of applications in each bucket for both cold and warm        together with the Generic Timer counter, a segmentation fault
+startup times.                                                      could occur on the out-of-order performance cores. The bug
+   The choice of 500 ms may seem high; however, Farrer et al.       was confirmed by the chip design team and fixed in later CPU
+showed that users do not feel any loss of control (i.e., that an    models. On the buggy CPU model, we work around the issue
+application is not responding to their action) until the response   by using an ISB instruction to flush the CPU pipeline after
+times reach approximately 350 ms [19], and users feel like          fetching the Generic Timer counter.
+they have completely lost control when response times exceed
+approximately 750 ms. Thus, our QA teams (and others [43])
+have found that 500 ms increments are a good categorization         10    Concluding Remarks
+to qualitatively evaluate loading speed—response times below
+500 ms are considered excellent, 500–1000 ms is considered          Call profilers are known to be useful in debugging, however,
+good, and above one second is considered slow.                      their use has been limited to the development environment as
+                                                                    a result of their overhead. Hubble shows that by leveraging
+9     Experiences                                                   Android’s on-device compilation process, a just-in-time flush-
+                                                                    ing strategy, and together with careful system-level design
+Hubble was shipped in the production branch of Huawei’s An-         and engineering, we can achieve a highly efficient tool that
+droid system in August, 2020. An early prototype was merged         can collect fine-grained call traces even in production envi-
+into the main development branch in 2019, and engineers have        ronments. Hubble has proved its usefulness by significantly
+been using it since. Huawei also runs a beta program where          easing engineers’ postmortem debugging processes.
+users can receive new features before public release. There
+are currently tens of thousands of beta users, and Hubble is en-
+abled on their daily-use devices. For other end users, Hubble       Acknowledgements
+can only be enabled with their express consent.
+   The trace collection frequencies and retention policies vary     We thank our shepherd Jonathan Mace and the anonymous
+depending on the type of users, the level of consent granted,       reviewers for their insightful comments. Adrian Chiu pro-
+operating region and local regulations, and device model. In-       vided help for us to understand the internals of a language
+ternal beta users may not have any data upload restrictions.        runtime and its JIT compiler. This research was supported by
+However, there are often additional restrictions on public          a contract between Huawei and University of Toronto.
+
+
+
+800    16th USENIX Symposium on Operating Systems Design and Implementation                                    USENIX Association
+References                                                         Services. In Proceedings of the 11th Symposium on Op-
+                                                                   erating Systems Design and Implementation, OSDI ’14,
+ [1] Marcos K. Aguilera, Jeffrey C. Mogul, Janet L. Wiener,        pages 217–231. USENIX Association, October 2014.
+     Patrick Reynolds, and Athicha Muthitacharoen. Per-
+     formance Debugging for Distributed Systems of Black      [12] Weidong Cui, Xinyang Ge, Baris Kasikci, Ben Niu, Upa-
+     Boxes. In Proceedings of the 19th Symposium on Oper-          manyu Sharma, Ruoyu Wang, and Insu Yun. REPT:
+     ating Systems Principles, SOSP ’03, pages 74–89. ACM,         Reverse Debugging of Failures in Deployed Software.
+     October 2003.                                                 In Proceedings of the 13th Symposium on Operating
+                                                                   Systems Design and Implementation, OSDI ’18, pages
+ [2] Apple Inc. Diagnosing Issues Using Crash Reports and          17–32. USENIX Association, October 2018.
+     Device Logs, May 2021. https://developer.apple.
+     com/documentation/xcode/diagnosing-issues-               [13] Datadog. Cloud Monitoring as a Service. https://
+     using-crash-reports-and-device-logs.                          www.datadoghq.com/.
+                                                              [14] Tudor David, Rachid Guerraoui, and Vasileios Trigo-
+ [3] Arm Limited.           AArch64 Programmer’s
+                                                                   nakis. Everything You Always Wanted to Know about
+     Guides: Generic Timer, August 2019.   https:
+                                                                   Synchronization but Were Afraid to Ask. In Proceedings
+     //documentation-service.arm.com/static/
+                                                                   of the 24th Symposium on Operating Systems Principles,
+     600eb3264ccc190e5e68023a.
+                                                                   SOSP ’13, pages 33–48. ACM, November 2013.
+ [4] Arm Limited. Arm® Architecture Reference Manual,         [15] George W. Dunlap, Samuel T. King, Sukru Cinar, Mur-
+     July 2021. https://documentation-service.arm.                 taza A. Basrai, and Peter M. Chen. ReVirt: Enabling In-
+     com/static/611fa684674a052ae36c7c91.                          trusion Analysis through Virtual-Machine Logging and
+ [5] Paul Barham, Austin Donnelly, Rebecca Isaacs, and             Replay. In Proceedings of the 5th Symposium on Oper-
+     Richard Mortier. Using Magpie for Request Extrac-             ating Systems Design and Implementation, OSDI ’02,
+     tion and Workload Modelling. In Proceedings of the            pages 211–224. USENIX Association, December 2002.
+     6th Symposium on Operating Systems Design and Im-        [16] George W. Dunlap, Dominic G. Lucchetti, Michael A.
+     plementation, OSDI ’04, pages 259–272. USENIX As-             Fetterman, and Peter M. Chen. Execution Replay of
+     sociation, December 2004.                                     Multiprocessor Virtual Machines. In Proceedings of
+                                                                   the 4th International Conference on Virtual Execution
+ [6] Adam Blacker. Worldwide & US Download Leaders
+                                                                   Environments, VEE ’08, pages 121–130. ACM, March
+     2020. January 2021. https://blog.apptopia.com/
+                                                                   2008.
+     worldwide-us-download-leaders-2020.
+                                                              [17] Úlfar Erlingsson, Marcus Peinado, Simon Peter, and Mi-
+ [7] Brendan Gregg.    Linux perf Examples: 4.3 JIT
+                                                                   hai Budiu. Fay: Extensible Distributed Tracing from
+     Symbols (Java, Node.js), July 2020. https://www.
+                                                                   Kernels to Clusters. In Proceedings of the 23rd Sympo-
+     brendangregg.com/perf.html#JIT_Symbols.
+                                                                   sium on Operating Systems Principles, SOSP ’11, pages
+ [8] Randal E. Bryant and David R. O’Hallaron. Computer            311–326. ACM, October 2011.
+     Systems: A Programmer’s Perspective. chapter 6, pages    [18] Facebook, Inc. Profilo - An Android Performance
+     615–629. Pearson, 2nd edition, 2011.                          Library. https://facebookincubator.github.io/
+                                                                   profilo/.
+ [9] Bryan M. Cantrill, Michael W. Shapiro, and Adam H.
+     Leventhal. Dynamic Instrumentation of Production         [19] Chlöé Farrer, G Valentin, and Jean-Michel Hupé. The
+     Systems. In Proceedings of the 10th USENIX Annual             Time Windows of the Sense of Agency. Consciousness
+     Technical Conference, USENIX ATC ’04, pages 15–28.            and Cognition, 22(4):1431–1441, December 2013.
+     USENIX Association, June 2004.
+                                                              [20] Rodrigo Fonseca, George Porter, Randy H. Katz, Scott
+[10] Jong-Deok Choi and Harini Srinivasan. Deterministic           Shenker, and Ion Stoica. X-trace: A Pervasive Network
+     Replay of Java Multithreaded Applications. In Pro-            Tracing Framework. In Proceedings of the 4th Sympo-
+     ceedings of the SIGMETRICS Symposium on Parallel              sium on Networked Systems Design and Implementation,
+     and Distributed Tools, SPDT ’98, pages 48–59. ACM,            NSDI ’07, pages 271–284. USENIX Association, April
+     August 1998.                                                  2007.
+[11] Michael Chow, David Meisner, Jason Flinn, Daniel Peek,   [21] Kirk Glerum, Kinshuman Kinshumann, Steve Green-
+     and Thomas F. Wenisch. The Mystery Machine: End-              berg, Gabriel Aul, Vince Orgovan, Greg Nichols, David
+     to-end Performance Analysis of Large-scale Internet           Grant, Gretchen Loihle, and Galen Hunt. Debugging
+
+
+
+USENIX Association                        16th USENIX Symposium on Operating Systems Design and Implementation       801
+      in the (Very) Large: Ten Years of Implementation and     [31] Jonathan Mace, Ryan Roelke, and Rodrigo Fonseca.
+      Experience. In Proceedings of the 22nd Symposium on           Pivot Tracing: Dynamic Causal Monitoring for Dis-
+      Operating Systems Principles, SOSP ’09, pages 103–            tributed Systems. In Proceedings of the 25th Symposium
+      116. ACM, October 2009.                                       on Operating Systems Principles, SOSP ’15, pages 378–
+                                                                    393. ACM, October 2015.
+[22] Google LLC.     App Startup Time, April 2021.
+     https://developer.android.com/topic/                      [32] Gabriel Marin, Alexey Alexandrov, and Tipp Moseley.
+     performance/vitals/launch-time.                                Break Dancing: Low Overhead, Architecture Neutral
+                                                                    Software Branch Tracing. In Proceedings of the 22nd
+[23] Google LLC. Firebase Performance Monitoring, April             Conference on Languages, Compilers, and Tools for
+     2021. https://firebase.google.com/docs/perf-                   Embedded Systems, LCTES ’21, pages 122–133. ACM,
+     mon.                                                           June 2021.
+                                                               [33] Ali José Mashtizadeh, Tal Garfinkel, David Terei, David
+[24] Google LLC. Inspect CPU activity with CPU Pro-
+                                                                    Mazieres, and Mendel Rosenblum. Towards Practical
+     filer, May 2021. https://developer.android.com/
+                                                                    Default-On Multi-Core Record/Replay. In Proceedings
+     studio/profile/cpu-profiler.
+                                                                    of the 22nd International Conference on Architectural
+                                                                    Support for Programming Languages and Operating
+[25] Google LLC. Overview of System Tracing, May
+                                                                    Systems, ASPLOS ’17, pages 693–708. ACM, April
+     2021.   https://developer.android.com/topic/
+                                                                    2017.
+     performance/tracing.
+                                                               [34] Mozilla.       Mozilla Crash Reporter, May
+[26] Google LLC.      Simpleperf Profiling Tool: JIT                2021.        https://support.mozilla.org/en-
+     Symbols, September 2021.      https://android.                 US/kb/mozillacrashreporter.
+     googlesource.com/platform/system/extras/+/
+     ec8d549d4c4300dcfb4e12353eccbeba17bf7725/                 [35] Ravi Netravali and James Mickens. Reverb: Speculative
+     simpleperf/doc/jit_symbols.md.                                 Debugging for Web Applications. In Proceedings of
+                                                                    the ACM Symposium on Cloud Computing, SoCC ’19,
+[27] Susan L. Graham, Peter B. Kessler, and Marshall K.             pages 428–440. ACM, November 2019.
+     Mckusick. Gprof: A Call Graph Execution Profiler. In
+     Proceedings of the SIGPLAN Symposium on Compiler          [36] Robert O’Callahan, Chris Jones, Nathan Froyd, Kyle
+     Construction, SIGPLAN ’82, pages 120–126. ACM,                 Huey, Albert Noll, and Nimrod Partush. Engineering
+     June 1982.                                                     Record and Replay for Deployability. In Proceed-
+                                                                    ings of the 2017 USENIX Annual Technical Conference,
+[28] Baris Kasikci, Benjamin Schubert, Cristiano Pereira,           USENIX ATC ’17, pages 377–389. USENIX Associa-
+     Gilles Pokam, and George Candea. Failure Sketching:            tion, July 2017.
+     A Technique for Automated Root Cause Diagnosis of         [37] Oracle Corporation.        ThreadLocal (Java
+     In-production Failures. In Proceedings of the 25th Sym-        Platform SE 7), December 2020.         https:
+     posium on Operating Systems Principles, SOSP ’15,              //docs.oracle.com/javase/7/docs/api/java/
+     pages 344–360. ACM, October 2015.                              lang/ThreadLocal.html.
+[29] Dongyoon Lee, Peter M. Chen, Jason Flinn, and Satish      [38] Soyeon Park, Yuanyuan Zhou, Weiwei Xiong, Zuoning
+     Narayanasamy. Chimera: Hybrid Program Analysis for             Yin, Rini Kaushik, Kyu H. Lee, and Shan Lu. PRES:
+     Determinism. In Proceedings of the 33rd ACM SIG-               Probabilistic Replay with Execution Sketching on Mul-
+     PLAN Conference on Programming Language Design                 tiprocessors. In Proceedings of the 22nd Symposium
+     and Implementation, PLDI ’12, pages 463–474. ACM,              on Operating Systems Principles, SOSP ’09, pages 177–
+     June 2012.                                                     192. ACM, October 2009.
+
+[30] Dongyoon Lee, Benjamin Wester, Kaushik Veeraragha-        [39] Perf Wiki, June 2020. https://perf.wiki.kernel.
+     van, Satish Narayanasamy, Peter M. Chen, and Jason             org/index.php/Main_Page.
+     Flinn. Respec: Efficient Online Multiprocessor Re-        [40] Perfetto - System profiling, App Tracing and Trace Anal-
+     playvia Speculation and External Determinism. In Pro-          ysis. https://perfetto.dev/.
+     ceedings of the 15th International Conference on Ar-
+     chitectural Support for Programming Languages and         [41] Lenin Ravindranath, Jitendra Padhye, Sharad Agarwal,
+     Operating Systems, ASPLOS XV, pages 77–90. ACM,                Ratul Mahajan, Ian Obermiller, and Shahin Shayandeh.
+     March 2010.                                                    AppInsight: Mobile App Performance Monitoring in the
+
+
+
+802   16th USENIX Symposium on Operating Systems Design and Implementation                            USENIX Association
+     Wild. In Proceedings of the 10th Symposium on Oper-       [54] Leland Takamine and Brian Attwell. Introducing
+     ating Systems Design and Implementation, OSDI ’12,             Nanoscope: An Extremely Accurate Method Tracing
+     pages 107–120. USENIX Association, October 2012.               Tool for Android. April 2018. https://eng.uber.
+                                                                    com/nanoscope/.
+[42] Lenin Ravindranath, Jitendra Padhye, Ratul Mahajan,
+     and Hari Balakrishnan. Timecard: Controlling User-        [55] Jiang Tenglicheng. Logan: Meituan Open Source
+     Perceived Delays in Server-Based Mobile Applications.          Mobile Terminal Basic Log Library.    October
+     In Proceedings of the 24th Symposium on Operating              2018.    https://tech.meituan.com/2018/10/11/
+     Systems Principles, SOSP ’13, pages 85–100. ACM,               logan-open-source.html.
+     November 2013.
+                                                               [56] The Android Open Source Project. Android 10.0.0
+[43] Raygun. Real User Monitoring Performance Metrics,              Release 2, 2019. https://android.googlesource.
+     May 2022. https://raygun.com/documentation/                    com/platform/build/+/refs/tags/android-
+     product-guides/real-user-monitoring/for-                       10.0.0_r2.
+     web/performance-metrics/.
+                                                               [57] Kaushik Veeraraghavan, Dongyoon Lee, Benjamin
+[44] New Relic. New Relic®. https://newrelic.com/.                  Wester, Jessica Ouyang, Peter M. Chen, Jason Flinn,
+                                                                    and Satish Narayanasamy. DoublePlay: Parallelizing
+[45] Michiel Ronsse and Koen De Bosschere. RecPlay:                 Sequential Logging and Replay. In Proceedings of the
+     A Fully Integrated Practical Record/Replay System.             16th International Conference on Architectural Support
+     ACM Transactions on Computer Systems, 17(2):133–               for Programming Languages and Operating Systems,
+     152, May 1999.                                                 ASPLOS XVI, pages 15–26. ACM, March 2011.
+
+[46] Kedar Sadekar.      Netflix Engineering Blog:             [58] Stephen Yang, Seo Jin Park, and John Ousterhout.
+     Scalable Logging and Tracking.     June 2012.                  NanoLog: A Nanosecond Scale Logging System. In
+     https://netflixtechblog.com/scalable-                          2018 USENIX Annual Technical Conference, USENIX
+     logging-and-tracking-882bde0ddca2.                             ATC ’18, pages 335–350. USENIX Association, July
+                                                                    2018.
+[47] Benjamin H. Sigelman, Luiz André Barroso, Mike Bur-
+     rows, Pat Stephenson, Manoj Plakal, Donald Beaver,        [59] Xu Zhao, Kirk Rodrigues, Yu Luo, Michael Stumm,
+     Saul Jaspan, and Chandan Shanbhag. Dapper, a Large-            Ding Yuan, and Yuanyuan Zhou. Log20: Fully Au-
+     Scale Distributed Systems Tracing Infrastructure. Tech-        tomated Optimal Placement of Log Printing Statements
+     nical report, Google, Inc., April 2010.                        under Specified Overhead Threshold. In Proceedings of
+                                                                    the 26th Symposium on Operating Systems Principles,
+[48] Richard L. Sites. Datacenter Computers - Modern                SOSP ’17, pages 565–581. ACM, October 2017.
+     Challenges in CPU Design. Video, February 2015.
+                                                               [60] Gefei Zuo, Jiacheng Ma, Andrew Quinn, Pramod Bhato-
+     https://vimeo.com/121396406.
+                                                                    tia, Pedro Fonseca, and Baris Kasikci. Execution Recon-
+[49] Joel Spolsky. How Microsoft Lost the API War. June             struction: Harnessing Failure Reoccurrences for Fail-
+     2004. https://www.joelonsoftware.com/2004/06/                  ure Reproduction. In Proceedings of the 42nd ACM
+     13/how-microsoft-lost-the-api-war/.                            SIGPLAN Conference on Programming Language De-
+                                                                    sign and Implementation, PLDI 2021, pages 1155–1170.
+[50] Sudarshan M. Srinivasan, Srikanth Kandula, Christo-            ACM, June 2021.
+     pher R. Andrews, and Yuanyuan Zhou. Flashback: A
+     Lightweight Extension for Rollback and Deterministic
+     Replay for Software Debugging. In Proceedings of the
+     10th USENIX Annual Technical Conference, USENIX
+     ATC ’04, pages 29–44. USENIX Association, June
+     2004.
+
+[51] Steven Rostedt. ftrace - Function Tracer, July 2017.
+     https://www.kernel.org/doc/Documentation/
+     trace/ftrace.txt.
+
+[52] SystemTap. https://sourceware.org/systemtap/.
+
+[53] Tai Chi, May 2020. https://taichi.cool/doc/.
+
+
+
+USENIX Association                        16th USENIX Symposium on Operating Systems Design and Implementation        803
+

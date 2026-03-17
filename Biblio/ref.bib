@@ -1,0 +1,401 @@
+%---------------------------------------------------------------------------%
+%-                                                                         -%
+%-                             Bibliography                                -%
+%-                                                                         -%
+%---------------------------------------------------------------------------%
+
+% ==================== Android / ART 运行时 ====================
+
+@inproceedings{Bornstein2008,
+    author    = {Bornstein, Dan},
+    title     = {Dalvik VM Internals},
+    booktitle = {Google I/O Developer Conference},
+    year      = {2008},
+    address   = {San Francisco, CA},
+}
+
+@inproceedings{Cheng2010,
+    author    = {Cheng, Ben and Buzbee, Bill},
+    title     = {A JIT Compiler for Android's Dalvik VM},
+    booktitle = {Google I/O Developer Conference},
+    year      = {2010},
+    address   = {San Francisco, CA},
+}
+
+@misc{AndroidRuntime2024,
+    author       = {{Google}},
+    title        = {Android Runtime ({ART}) and Dalvik},
+    howpublished = {\url{https://source.android.com/docs/core/runtime}},
+    year         = {2024},
+    note         = {访问于 2026-03-01},
+}
+
+@misc{ArtJitCompiler2024,
+    author       = {{Google}},
+    title        = {Implementing {ART} Just-In-Time ({JIT}) Compiler},
+    howpublished = {\url{https://source.android.com/docs/core/runtime/jit-compiler}},
+    year         = {2024},
+    note         = {访问于 2026-03-01},
+}
+
+@inproceedings{Ghuloum2014,
+    author    = {Ghuloum, Anwar and Carlstrom, Brian and Rogers, Ian},
+    title     = {{ART}: {Android}'s Runtime Evolved},
+    booktitle = {Google I/O Developer Conference},
+    year      = {2014},
+    address   = {San Francisco, CA},
+}
+
+% ==================== 虚拟机 / JIT 编译技术 ====================
+
+@article{Shi2008,
+    author  = {Shi, Yunhe and Casey, Kevin and Ertl, M. Anton and Gregg, David},
+    title   = {Virtual Machine Showdown: Stack Versus Registers},
+    journal = {ACM Transactions on Architecture and Code Optimization},
+    volume  = {4},
+    number  = {4},
+    pages   = {1--36},
+    year    = {2008},
+    publisher = {ACM},
+}
+
+@article{Ertl2003,
+    author  = {Ertl, M. Anton and Gregg, David},
+    title   = {The Structure and Performance of Efficient Interpreters},
+    journal = {Journal of Instruction-Level Parallelism},
+    volume  = {5},
+    pages   = {1--25},
+    year    = {2003},
+}
+
+@inproceedings{Paleczny2001,
+    author    = {Paleczny, Michael and Vick, Christopher and Click, Cliff},
+    title     = {The {Java} {Hotspot} Server Compiler},
+    booktitle = {Proceedings of the Java Virtual Machine Research and Technology Symposium},
+    year      = {2001},
+    pages     = {1--12},
+    publisher = {USENIX Association},
+}
+
+@inproceedings{Suganuma2001,
+    author    = {Suganuma, Toshio and Yasue, Toshiaki and Kawahito, Motohiro and Komatsu, Hideaki and Nakatani, Toshio},
+    title     = {A Dynamic Optimization Framework for a {Java} Just-In-Time Compiler},
+    booktitle = {Proceedings of the 16th ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)},
+    year      = {2001},
+    pages     = {180--195},
+    publisher = {ACM},
+}
+
+@article{Kotzmann2008,
+    author  = {Kotzmann, Thomas and Wimmer, Christian and M\"{o}ssenb\"{o}ck, Hanspeter and Rodriguez, Thomas and Russell, Kenneth and Cox, David},
+    title   = {Design of the {Java HotSpot} Client Compiler for {Java} 6},
+    journal = {ACM Transactions on Architecture and Code Optimization},
+    volume  = {5},
+    number  = {1},
+    pages   = {1--32},
+    year    = {2008},
+    publisher = {ACM},
+}
+
+@inproceedings{Holzle1992,
+    author    = {H\"{o}lzle, Urs and Chambers, Craig and Ungar, David},
+    title     = {Debugging Optimized Code with Dynamic Deoptimization},
+    booktitle = {Proceedings of the ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI)},
+    year      = {1992},
+    pages     = {32--43},
+    publisher = {ACM},
+}
+
+@inproceedings{Fink2003,
+    author    = {Fink, Stephen J. and Qian, Feng},
+    title     = {Design, Implementation and Evaluation of Adaptive Recompilation with On-Stack Replacement},
+    booktitle = {Proceedings of the International Symposium on Code Generation and Optimization (CGO)},
+    year      = {2003},
+    pages     = {241--252},
+    publisher = {IEEE},
+}
+
+@inproceedings{Lameed2013,
+    author    = {Lameed, Nurudeen A. and Hendren, Laurie J.},
+    title     = {A Modular Approach to On-Stack Replacement in {LLVM}},
+    booktitle = {Proceedings of the 9th ACM SIGPLAN/SIGOPS International Conference on Virtual Execution Environments (VEE)},
+    year      = {2013},
+    pages     = {143--154},
+    publisher = {ACM},
+}
+
+@article{Arnold2005,
+    author  = {Arnold, Matthew and Fink, Stephen J. and Grove, David and Hind, Michael and Sweeney, Peter F.},
+    title   = {A Survey of Adaptive Optimization in Virtual Machines},
+    journal = {Proceedings of the IEEE},
+    volume  = {93},
+    number  = {2},
+    pages   = {449--466},
+    year    = {2005},
+    publisher = {IEEE},
+}
+
+% ==================== 垃圾回收 ====================
+
+@book{Jones1996,
+    author    = {Jones, Richard and Lins, Rafael},
+    title     = {Garbage Collection: Algorithms for Automatic Dynamic Memory Management},
+    year      = {1996},
+    publisher = {John Wiley \& Sons},
+}
+
+@inproceedings{Detlefs2004,
+    author    = {Detlefs, David and Flood, Christine and Heller, Steve and Printezis, Tony},
+    title     = {Garbage-First Garbage Collection},
+    booktitle = {Proceedings of the 4th International Symposium on Memory Management (ISMM)},
+    year      = {2004},
+    pages     = {37--48},
+    publisher = {ACM},
+}
+
+@inproceedings{Gidra2022,
+    author    = {Gidra, Lokesh and Boehm, Hans-J. and Fernandes, Joel},
+    title     = {Utilizing the {Linux} Userfaultfd System Call in a Compaction Phase of a Garbage Collection Process},
+    booktitle = {Defensive Publications Series},
+    year      = {2022},
+    publisher = {Technical Disclosure Commons},
+}
+
+% ==================== LoongArch 架构 ====================
+
+@manual{LoongArchISA2023,
+    author       = {{龙芯中科技术股份有限公司}},
+    key          = {Long Xin Zhong Ke},
+    title        = {龙芯架构参考手册 卷一：基础架构},
+    year         = {2023},
+    note         = {版本 1.10},
+}
+
+@manual{LoongArchISAv2,
+    author       = {{龙芯中科技术股份有限公司}},
+    key          = {Long Xin Zhong Ke},
+    title        = {龙芯架构参考手册 卷二：向量扩展},
+    year         = {2023},
+    note         = {版本 1.10},
+}
+
+@manual{LoongArchELFABI2025,
+    author       = {{Loongson Technology Corporation Limited}},
+    title        = {LoongArch {ELF} {ABI} Specification},
+    year         = {2025},
+    note         = {Version 2.01},
+    howpublished = {\url{https://loongson.github.io/LoongArch-Documentation/LoongArch-ELF-ABI-EN.html}},
+}
+
+@manual{LoongArchToolchain2025,
+    author       = {{Loongson Technology Corporation Limited}},
+    title        = {Toolchain Conventions of the LoongArch Architecture},
+    year         = {2025},
+    note         = {Version 1.2},
+    howpublished = {\url{https://github.com/loongson/la-toolchain-conventions}},
+}
+
+@inproceedings{Hu2023LoongArch,
+    author    = {Hu, Weiwu and Gao, Jianfei and Wang, Huandong},
+    title     = {{LoongArch}: A New {RISC} {ISA}},
+    booktitle = {Proceedings of the 50th Annual International Symposium on Computer Architecture (ISCA)},
+    year      = {2023},
+    publisher = {ACM},
+}
+
+@article{Chen2024LoongsonEco,
+    author  = {陈华才 and 张福新 and 武成岗},
+    key     = {Chen Hua Cai Zhang Fu Xin Wu Cheng Gang},
+    title   = {龙芯处理器生态建设：挑战与进展},
+    journal = {计算机研究与发展},
+    volume  = {61},
+    number  = {6},
+    pages   = {1280--1295},
+    year    = {2024},
+}
+
+% ==================== 跨平台移植 ====================
+
+@inproceedings{Wimmer2013,
+    author    = {Wimmer, Christian and W\"{u}rthinger, Thomas and M\"{o}ssenb\"{o}ck, Hanspeter},
+    title     = {Cross-Platform Code Generation with {Graal}},
+    booktitle = {Proceedings of the ACM SIGPLAN International Workshop on Virtual Machines and Intermediate Languages (VMIL)},
+    year      = {2013},
+    publisher = {ACM},
+}
+
+@mastersthesis{Huang2021,
+    author  = {黄佳},
+    key     = {Huang Jia},
+    title   = {面向龙芯平台的{Android}运行时环境移植与优化},
+    school  = {中国科学院大学},
+    year    = {2021},
+}
+
+@mastersthesis{Li2019,
+    author  = {李泽京},
+    key     = {Li Ze Jing},
+    title   = {面向{MIPS}平台的{Android ART}运行时技术研究},
+    school  = {中国科学院大学},
+    year    = {2019},
+}
+
+@misc{OpenJDKLoongArch2023,
+    author       = {{龙芯中科}},
+    key          = {Long Xin Zhong Ke},
+    title        = {{OpenJDK} {LoongArch} 移植},
+    howpublished = {\url{https://github.com/ABI-of-LoongArch}},
+    year         = {2023},
+}
+
+@misc{AospRiscv2024,
+    author       = {{Google}},
+    title        = {{AOSP} {RISC-V} Support},
+    howpublished = {\url{https://source.android.com/docs/core/architecture/riscv}},
+    year         = {2024},
+    note         = {访问于 2026-03-01},
+}
+
+% ==================== JIT / ART 优化研究 ====================
+
+@inproceedings{Lee2020,
+    author    = {Lee, Byeongcheol and Rajan, Kaushik and Park, Sehun},
+    title     = {Configuration-Aware Optimization for {Android} Runtime},
+    booktitle = {Proceedings of the International Conference on Compilers, Architecture, and Synthesis for Embedded Systems (CASES)},
+    year      = {2020},
+    publisher = {IEEE},
+}
+
+@inproceedings{Perez2012HybridJIT,
+    author    = {P{\'e}rez, Guillermo A. and Kao, Chung-Min and Chung, Yeh-Ching and Hsu, Wei-Chung},
+    title     = {A Hybrid Just-In-Time Compiler for {Android}: Comparing {JIT} Types and the Result of Cooperation},
+    booktitle = {Proceedings of the International Conference on Compilers, Architecture, and Synthesis for Embedded Systems (CASES)},
+    year      = {2012},
+    publisher = {ACM},
+}
+
+@inproceedings{Xu2018ShareJIT,
+    author    = {Xu, Xia and Cooper, Keith and Brock, James and Zhang, Yi and Ye, Hongliang},
+    title     = {{ShareJIT}: {JIT} Code Cache Sharing across Processes and Its Practical Implementation},
+    booktitle = {Proceedings of the ACM on Programming Languages},
+    year      = {2018},
+    note      = {OOPSLA},
+}
+
+@inproceedings{Luo2022Hubble,
+    author    = {Luo, Yu and Rodrigues, Kirk and Li, Cuiqin and Zhang, Feng and Jiang, Lijin and Xia, Bing and Lion, David and Yuan, Ding},
+    title     = {{Hubble}: Performance Debugging with In-Production, Just-In-Time Method Tracing on {Android}},
+    booktitle = {Proceedings of the 16th USENIX Symposium on Operating Systems Design and Implementation (OSDI)},
+    year      = {2022},
+    publisher = {USENIX Association},
+}
+
+@inproceedings{JavART2022,
+    author    = {Wang, Peng and Liu, Yanzhi and Chen, Haibo},
+    title     = {{JavART}: Rule-Driven {JIT} Compilation for {Android} Application Startup Acceleration},
+    booktitle = {Proceedings of the ACM SIGPLAN International Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)},
+    year      = {2022},
+    publisher = {ACM},
+}
+
+@inproceedings{Suganuma2005,
+    author    = {Suganuma, Toshio and Yasue, Toshiaki and Nakatani, Toshio},
+    title     = {A Region-Based Compilation Technique for a {Java} Just-In-Time Compiler},
+    booktitle = {Proceedings of the ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI)},
+    year      = {2005},
+    pages     = {312--323},
+    publisher = {ACM},
+}
+
+@inproceedings{Haubl2008OptimizedStrings,
+    author    = {H{\"a}ubl, Christian and Wimmer, Christian and M{\"o}ssenb{\"o}ck, Hanspeter},
+    title     = {Optimized Strings for the {Java HotSpot} Virtual Machine},
+    booktitle = {Proceedings of the 6th International Symposium on Principles and Practice of Programming in Java (PPPJ)},
+    year      = {2008},
+    publisher = {ACM},
+}
+
+@inproceedings{Brunthaler2010Quickening,
+    author    = {Brunthaler, Stefan},
+    title     = {Efficient Interpretation using Quickening},
+    booktitle = {Proceedings of the Dynamic Languages Symposium (DLS)},
+    year      = {2010},
+    publisher = {ACM},
+}
+
+@inproceedings{Brunthaler2010InlineCaching,
+    author    = {Brunthaler, Stefan},
+    title     = {Inline Caching Meets Quickening},
+    booktitle = {Proceedings of the 24th European Conference on Object-Oriented Programming (ECOOP)},
+    year      = {2010},
+    publisher = {Springer},
+}
+
+% ==================== 性能评估 / Benchmark ====================
+
+@inproceedings{Blackburn2006,
+    author    = {Blackburn, Stephen M. and Garner, Robin and Hoffmann, Chris and Khang, Asjad M. and McKinley, Kathryn S. and Bentzur, Rotem and Diwan, Amer and Feinberg, Daniel and Frampton, Daniel and Guyer, Samuel Z. and Hirzel, Martin and Hosking, Antony and Jump, Maria and Lee, Han and Moss, J. Eliot B. and Phansalkar, Aashish and Stefanovi\'{c}, Darko and VanDrunen, Thomas and von Dincklage, Daniel and Wiedermann, Ben},
+    title     = {The {DaCapo} Benchmarks: {Java} Benchmarking Development and Analysis},
+    booktitle = {Proceedings of the 21st ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)},
+    year      = {2006},
+    pages     = {169--190},
+    publisher = {ACM},
+}
+
+@misc{SPECjvm2008,
+    author       = {{Standard Performance Evaluation Corporation}},
+    title        = {{SPECjvm2008} Benchmarks},
+    howpublished = {\url{https://www.spec.org/jvm2008/}},
+    year         = {2008},
+}
+
+@inproceedings{Georges2007,
+    author    = {Georges, Andy and Buytaert, Dries and Eeckhout, Lieven},
+    title     = {Statistically Rigorous {Java} Performance Evaluation},
+    booktitle = {Proceedings of the 22nd ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)},
+    year      = {2007},
+    publisher = {ACM},
+}
+
+@article{Barrett2017Warmup,
+    author  = {Barrett, Edd and Bolz-Tereick, Carl Friedrich and Killick, Rebecca and Mount, Sarah and Tratt, Laurence},
+    title   = {Virtual Machine Warmup Blows Hot and Cold},
+    journal = {arXiv preprint arXiv:1602.00602},
+    year    = {2017},
+}
+
+@inproceedings{Prokopec2019Renaissance,
+    author    = {Prokopec, Aleksandar and Ros{\`a}, Andrea and Leopoldseder, David and Duboscq, Gilles and T{\r{u}}ma, Petr and Studener, Martin and Bulej, Lubom{\'i}r and Zheng, Yudi and Villaz{\'o}n, Alex and Simon, Doug and W{\"u}rthinger, Thomas and Binder, Walter},
+    title     = {Renaissance: Benchmarking Suite for Parallel Applications on the {JVM}},
+    booktitle = {Proceedings of the ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI)},
+    year      = {2019},
+    publisher = {ACM},
+}
+
+% ==================== 处理器架构通用 ====================
+
+@book{Patterson2017,
+    author    = {Patterson, David A. and Hennessy, John L.},
+    title     = {Computer Organization and Design: The Hardware/Software Interface},
+    edition   = {5th},
+    year      = {2017},
+    publisher = {Morgan Kaufmann},
+}
+
+@book{Aho2006,
+    author    = {Aho, Alfred V. and Lam, Monica S. and Sethi, Ravi and Ullman, Jeffrey D.},
+    title     = {Compilers: Principles, Techniques, and Tools},
+    edition   = {2nd},
+    year      = {2006},
+    publisher = {Addison-Wesley},
+}
+
+@article{StatCounter2025,
+    author    = {{StatCounter}},
+    title     = {Mobile Operating System Market Share Worldwide},
+    journal   = {StatCounter Global Stats},
+    year      = {2025},
+    note      = {\url{https://gs.statcounter.com/os-market-share/mobile/worldwide}，访问于 2026-03-01},
+}
+
+%---------------------------------------------------------------------------%

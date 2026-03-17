@@ -1,0 +1,124 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.0.3 Chrome/140.0.7339.249 Electron/38.7.0 Safari/537.36" version="29.0.3">
+  <diagram name="Page-1" id="page-1">
+    <mxGraphModel dx="976" dy="655" grid="1" gridSize="11" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="循环向量化优化 (Loop Vectorization) - Android ART Runtime 性能优化技术" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B3D9FF;strokeColor=#6C8EBF;fontSize=13;fontStyle=1;align=center;" parent="1" vertex="1">
+          <mxGeometry x="10" y="10" width="780" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="优化前：标量处理" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFD9D9;strokeColor=#CC9999;fontSize=12;fontStyle=1;align=center;" parent="1" vertex="1">
+          <mxGeometry x="10" y="52" width="380" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="优化后：SIMD 向量化" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D9F2D9;strokeColor=#82B366;fontSize=12;fontStyle=1;align=center;" parent="1" vertex="1">
+          <mxGeometry x="410" y="52" width="380" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="&lt;font&gt;for (i = 0; i &amp;lt; 8; i++) {&lt;br&gt;&amp;nbsp; array[i] = array[i] * 2;&lt;br&gt;}&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF9E6;strokeColor=#FFD966;fontSize=10;align=left;fontFamily=Courier New;" parent="1" vertex="1">
+          <mxGeometry x="15" y="97" width="165" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;这个元素串行处理&lt;br&gt;每次处理 1 个数据&lt;br&gt;执行 8 次循环&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;align=center;" parent="1" vertex="1">
+          <mxGeometry x="190" y="97" width="195" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="for (i = 0; i &amp;lt; 8; i += 4) {&lt;br&gt;&amp;nbsp; vec_mul(array[i:i+4], 2);&lt;br&gt;}" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#93C47D;fontSize=10;align=left;fontFamily=Courier New;" parent="1" vertex="1">
+          <mxGeometry x="415" y="97" width="175" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;4个元素并行处理&lt;br&gt;每次处理 4 个数据&lt;br&gt;只需 2 次循环 🔧&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D9EAD3;strokeColor=#93C47D;fontSize=10;align=center;" parent="1" vertex="1">
+          <mxGeometry x="600" y="97" width="185" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;开始&lt;br&gt;i=0&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9CC;strokeColor=#D6B656;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="15" y="167" width="50" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;读取&lt;br&gt;array[0]&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=9;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="85" y="167" width="55" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;执行&lt;br&gt;* 2&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=9;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="160" y="167" width="50" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;写回&lt;br&gt;array[0]&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=9;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="230" y="167" width="55" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;i++&lt;br&gt;是否达到8&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4CC;strokeColor=#D6B656;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="305" y="167" width="60" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;结束&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#666666;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="305" y="222" width="60" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="15" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="9" target="10" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="16" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="10" target="11" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="17" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="11" target="12" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="18" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="12" target="13" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="19" style="endArrow=classic;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="13" target="14" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="20" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;处理 array[1]&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;fontSize=8;dashed=1;dashPattern=3 3;" parent="1" vertex="1">
+          <mxGeometry x="85" y="220" width="55" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="21" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;处理 array[2]&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;fontSize=8;dashed=1;dashPattern=3 3;" parent="1" vertex="1">
+          <mxGeometry x="160" y="220" width="55" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="22" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;... 继续处理 ...&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;fontSize=8;dashed=1;dashPattern=3 3;" parent="1" vertex="1">
+          <mxGeometry x="230" y="220" width="65" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="23" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;开始&lt;br&gt;i=0&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9F2D9;strokeColor=#82B366;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="415" y="167" width="50" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="24" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;SIMD 读取&lt;br&gt;array[0:3]&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#64B5F6;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="485" y="167" width="65" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="25" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;并行 *2&lt;br&gt;(4个数据)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#64B5F6;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="570" y="167" width="65" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="26" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;SIMD 写回&lt;br&gt;array[0:3]&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#64B5F6;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="655" y="167" width="65" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="27" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;i+=4&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9F2D9;strokeColor=#82B366;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="740" y="167" width="45" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="28" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="23" target="24" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="29" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="24" target="25" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="30" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="25" target="26" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="31" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="26" target="27" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="32" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;第2次循环：处理 array[4:7]&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#64B5F6;fontSize=9;align=center;" parent="1" vertex="1">
+          <mxGeometry x="485" y="217" width="235" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="33" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;结束&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#666666;fontSize=9;" parent="1" vertex="1">
+          <mxGeometry x="740" y="217" width="45" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="34" style="endArrow=classic;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="32" target="33" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="35" value="性能对比 &amp;amp; 关键技术" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E6D9FF;strokeColor=#9673C4;fontSize=12;fontStyle=1;align=center;" parent="1" vertex="1">
+          <mxGeometry x="10" y="265" width="780" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="36" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&lt;b style=&quot;&quot;&gt;理论性能提升：2-16倍&lt;/b&gt;&lt;br&gt;向量宽度（4/816）&lt;br&gt;内存对齐&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D9F2D9;strokeColor=#82B366;fontSize=9;align=center;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="10" y="305" width="185" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="37" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&lt;b style=&quot;&quot;&gt;ARM NEON/ LA LSX&lt;/b&gt;&lt;br&gt;128/256-bit 向量寄存器&lt;br&gt;支持整数/浮点运算&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=9;align=center;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="205" y="305" width="185" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="38" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&lt;b style=&quot;&quot;&gt;ART 编译器优化&lt;/b&gt;&lt;br&gt;自动检测可向量化循环&lt;br&gt;生成目标平台 SIMD 指令&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#64B5F6;fontSize=9;align=center;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="400" y="305" width="185" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="39" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&lt;b style=&quot;&quot;&gt;典型应用场景&lt;/b&gt;&lt;br&gt;图像/视频处理、音频编解码&lt;br&gt;矩阵运算、快速傅里叶变换 (FFT)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF9E6;strokeColor=#FFD966;fontSize=9;align=center;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="595" y="305" width="195" height="65" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,1197 @@
+                                      Optimized Strings for the
+                                   Java HotSpotTM Virtual Machine
+
+                   Christian Häubl                     Christian Wimmer                         Hanspeter Mössenböck
+                                                  Institute for System Software
+                                Christian Doppler Laboratory for Automated Software Engineering
+                                                Johannes Kepler University Linz
+                                                           Linz, Austria
+                                       {haeubl, wimmer, moessenboeck}@ssw.jku.at
+
+ABSTRACT                                                                          1.   INTRODUCTION
+In several Java VMs, strings consist of two separate objects:                        Strings are one of the essential data structures used in
+metadata like the string length are stored in the actual string                   nearly all programs. Therefore, string optimizations have
+object, while the string characters are stored in a charac-                       a large positive effect on many applications. Java supports
+ter array. This separation causes an unnecessary overhead.                        string handling at the language level [8]. However, all string
+Each string method must access both objects, which leads                          operations are compiled to normal method calls of the classes
+to a bad cache behavior and reduces the execution speed.                          String and StringBuilder in the Java bytecodes [11].
+   We propose to merge the character array with the string’s                         To the best of our knowledge, strings in Sun Microsystem’s
+metadata object at run time. This results in a new layout of                      Java HotSpotTM VM, Bea System’s JRockit, and IBM’s J9
+strings with better cache performance, fewer field accesses,                      use the object layout illustrated in Figure 1 (a). Every string
+and less memory overhead. We implemented this optimiza-                           is composed of two objects: metadata like the string length
+tion for Sun Microsystems’ Java HotSpotTM VM, so that the                         are stored in the actual string object, whereas the string
+optimization is performed automatically at run time and re-                       characters are stored in a separate character array. This
+quires no actions on the part of the programmer. The orig-                        allows several string objects to share the same character ar-
+inal class String is transformed into the optimized version                       ray. To increase the opportunities for sharing the character
+and the bytecodes of all methods that allocate string objects                     array, string objects use the fields offset and count. These
+are rewritten. All these transformations are performed by                         fields store the string’s starting position within the character
+the Java HotSpotTM VM when a class is loaded. Therefore,                          array and the string length, so that a string does not need
+the time overhead of the transformations is negligible.                           to use the full character array. This is beneficial for meth-
+   Benchmarks show a reduction of the average used mem-                           ods such as String.substring(): a new string object that
+ory after a full garbage collection and an improved perfor-                       references the same character array is allocated, and only
+mance. The performance of the SPECjbb2005 benchmark                               the string’s starting position and length are set accordingly.
+increases by 8%, and the average used memory after a full                         No characters must be copied.
+garbage collection is reduced by 19%. The peak performance                           If a string uses its whole character array, the field count
+of SPECjvm98 is improved by 8% on average, with a maxi-                           is a duplication of the character array’s field length. Fur-
+mum speedup of 62%.                                                               thermore, the field offset is an overhead that reduces the
+                                                                                  performance: when a string character is accessed, offset is
+Categories and Subject Descriptors                                                loaded to determine the start of the string within the array.
+D.3.4 [Programming Languages]: Processors—Compil-
+ers, Optimization, Code generation                                                                String                           char[]
+                                                                                         8   count: int                 8     length: int
+General Terms                                                                           12   offset: int               12     char[0]
+                                                                                        16   hashcode: int                    ...
+Languages, Performance
+                                                                                        20   value: char[]                    char[length-1]
+
+Keywords                                                                                                       (a) original
+
+Java, string, optimization, performance
+                                                                                                  String                           String
+                                                                                         8   count: int                 8     count: int
+                                                                                        12   hashcode: int             12     char[0]
+                                                                                        16   char[0]                          ...
+ c ACM, 2008. This is the author’s version of the work. It is posted                         ...                              char[count-1]
+here by permission of ACM for your personal use. Not for redistribution.                     char[count-1]
+The definitive version was published in the Proceedings of the 6th Inter-
+national Symposium on Principles and Practice of Programming in Java,                          (b) optimized            (c) optimized hash field
+pp. 105–114.
+PPPJ 2008, September 9–11, 2008, Modena, Italy.
+http://doi.acm.org/10.1145/1411732.1411747                                                    Figure 1: Object layout of strings
+
+
+                                                                            105
+  Although string objects can share their character arrays,                 class loader             rewriter                JIT compiler
+this is not the common case. We measured the percent-
+age of strings that do not use their full character array:                            loads     modifies          compiles            generates
+0.05% for the SPECjbb2005 [15] benchmark, 5% for the
+SPECjvm98 [14] benchmarks, and 14% for the DaCapo [2]                         class file            bytecodes                machine code
+benchmarks. However, a string also shares its character ar-
+ray when it is explicitly copied. Of all string allocations,                                    executes
+19% are explicit string copies for the SPECjbb2005 bench-
+mark and 4% for the SPECjvm98 benchmark. The DaCapo                                                 interpreter
+benchmarks allocate hardly any explicit string copies.
+  Because of these results, we propose different string lay-
+outs as shown in Figure 1 (b) and (c). In the first one, we                                Figure 2: System overview
+remove the field offset and merge the character array with
+the string object. This precludes the sharing of character ar-
+rays between string objects, but has several advantages such                  is low while the generated machine code is still reason-
+as the reduction of memory usage and the elimination of field                 ably well optimized.
+accesses. The second variant, described in Section 4.5, also                • The server compiler makes use of more sophisticated
+removes the field hashcode to save another four bytes per                     optimizations to produce better code [12]. It is de-
+string object. The computed hash code is cached in the                        signed for long-running server applications where the
+object header instead. Our paper contributes the following:                   initial compilation time is irrelevant, and where a high
+                                                                              peak performance is essential.
+     • We present two string optimization variants that re-
+       duce the memory usage and increase the performance.                Within the Java HotSpotTM VM, certain methods can
+     • Our approach requires neither actions on the part of            be declared as intrinsic. When such a method is compiled
+       the programmer nor any changes outside the Java Hot-            or inlined, a handcrafted piece of machine code is used as
+       SpotTM VM.                                                      the compilation result. This makes it possible to optimize
+                                                                       specific methods manually.
+     • The evaluation shows the impact of our optimizations               Every Java object has a header of two machine words,
+       on the number of allocated bytes and the performance            i.e. 8 bytes on 32-bit architectures, 16 bytes on 64-bit ar-
+       of several benchmarks.                                          chitectures [13]. 7 bits of the first header word are used for
+                                                                       synchronization and during garbage collection. The remain-
+  The paper is organized as follows: Section 2 gives a short           ing 25 or 57 bits of the first word store the identity hash
+overview of the relevant subsystems in the Java HotSpotTM              code of the object when it is computed via the method Sys-
+VM and illustrates where changes were necessary. Section 3             tem.identityHashCode(). The second header word stores a
+discusses the advantages of our optimization. Section 4 de-            pointer to the class descriptor object that is allocated when
+scribes the key parts of our implementation, i.e. bytecode             a class is loaded. The class descriptor holds the metadata
+transformation and string allocation. Section 5 presents the           and the method table of the class.
+benchmark results. Section 6 deals with related work, and                 Currently, the optimization is only implemented for the
+Section 7 concludes the paper.                                         interpreter and the client compiler. The client compiler uses
+                                                                       a graph-based high-level intermediate representation (HIR)
+2.    SYSTEM OVERVIEW                                                  as well as a low-level intermediate representation (LIR) [10].
+                                                                       The HIR is in static single assignment (SSA) form [6] and
+   We build on the early access version b24 of Sun Microsys-
+                                                                       is used for global optimizations. The LIR is used for linear
+tems’ Java HotSpotTM VM, which is part of the upcom-
+                                                                       scan register allocation and for peephole optimizations.
+ing JDK 7 [16]. The VM is available for multiple archi-
+                                                                          As shown in Figure 2, we add a rewriter component to the
+tectures, however our string optimization is currently only
+                                                                       basic execution system. After the class loader has finished
+implemented for the IA-32 architecture because platform de-
+                                                                       loading a class, the rewriter checks if a method allocates
+pendent code is necessary within the interpreter and the
+                                                                       string objects. If so, the method bytecodes are transformed.
+just-in-time compiler.
+                                                                       This is done only once per class and adds a negligible over-
+   Figure 2 illustrates some of the subsystems necessary for
+                                                                       head to the execution time. Additionally, the string class
+the execution of bytecodes. When a class is loaded by the
+                                                                       itself is transformed manually. Several other subsystems
+class loader, the corresponding class file is parsed and ver-
+                                                                       of the VM are affected by our string optimization because
+ified, run-time data structures such as the constant pool
+                                                                       String is a well-known class that is directly used within
+or the method objects are built, and finally the interpreter
+                                                                       the VM. Nevertheless, we tried to minimize the number of
+starts executing the bytecodes. For every method, the num-
+                                                                       changes.
+ber of invocations is counted in order to detect so-called
+hotspots. When an invocation counter reaches a certain
+threshold, the just-in-time compiler compiles the method’s             3.    ADVANTAGES OF THE OPTIMIZATION
+bytecodes to optimized machine code. There are two differ-               Although character array sharing between multiple string
+ent just-in-time compilers for the Java HotSpotTM VM:                  objects is no longer possible with optimized string objects,
+                                                                       the optimization has several other advantages:
+     • The client compiler is optimized for compilation speed
+       and refrains from time consuming optimizations [9,                   • Elimination of field accesses: By removing the field
+       10]. With this strategy, the application startup time                  offset, one field access is saved in almost every string
+
+
+                                                                 106
+100%                                                                                           Introducing new bytecodes for optimized operations inside
+                                                     optimized                              the VM is a common pattern. These bytecodes use numbers
+ 75%                                                 optimized hash field                   that are unused according to the specification [11]. Because
+               SPECjvm98                                                                    it is only necessary to handle the new bytecode instructions
+ 50%                                DaCapo                                                  in the interpreter and to support them in the just-in-time
+                         44%                           SPECjbb2005                          compiler, the impact on the overall VM structure is low.
+                                         27%                  19%
+              37%
+ 25%
+                               23%                                                          4.1   Removing the Offset Field
+                                                       16%                                    To remove the offset field of strings, we modify the Java
+     0%
+                                                                                            source code of the class String. The following three cases
+          0   5     10   15    20    25 30 35          40    45    50       55   60
+                                                                                            must be considered:
+                                     String length
+                                                                                               • In most cases, it is possible to just remove the ac-
+Figure 3: Reduction of memory usage for optimized                                                cesses to the field offset, or to replace them with the
+string objects (higher is better)                                                                constant 0. An example for this case is the method
+                                                                                                 String.charAt().
+
+          operation. By embedding the character array into the                                 • Sometimes, the field offset is used to implement an
+          string object, the characters can be accessed without                                  optimization such as the sharing of character arrays
+          dereferencing the array pointer.                                                       between string objects. This kind of optimization is
+                                                                                                 no longer possible and it is necessary to create a copy
+     • Reduced memory usage: Original string objects have                                        of the characters leading to a certain overhead. An
+       a minimum size of 36 bytes. With our optimization,                                        example for this is the method String.substring().
+       the minimum size is 12 or 16 bytes, depending on the
+       removal of the field hashcode. Saving up to 24 bytes                                    • In uncommon cases, the string-internal character array
+       per string object results in the reduced memory us-                                       is passed to a helper method of another class. The op-
+       age shown in Figure 3, which depends on the string                                        timized string characters cannot be passed as a charac-
+       length. For example, for strings of length 10 our opti-                                   ter array to a method anymore. It would be necessary
+       mized string handling saves 37% of string memory, or                                      to pass the string object itself. To make this possi-
+       44% if also the field hashcode is eliminated. The figure                                  ble, the receiving method would have to be overloaded
+       also contains the average string lengths for the differ-                                  to allow a string object instead of a character array
+       ent benchmark suites. Because the memory usage is                                         as an argument. We decided to keep the number of
+       reduced, fewer garbage collections are necessary.                                         changes to a minimum and did not change or add any
+                                                                                                 methods outside of the class String. Instead, we copy
+     • Faster garbage collection: An original string is com-                                     the string characters to a temporary character array
+       posed of a string object and a character array that                                       which is then passed as an argument to such methods.
+       both must be processed by the garbage collector. The                                      This is expensive, but could be easily optimized in the
+       optimized string is a single object and thus reduces the                                  future.
+       garbage collection time.
+     • Better cache behavior : The two parts of an original                                   In addition to the Java source code of the class String,
+       string can be spread across the heap. Both parts are                                 some parts of the Java HotSpotTM VM must be modified
+       always accessed together, which results in a bad cache                               because String is a well-known class within the VM. The
+       behavior. The optimized string is always one unit that                               VM allocates strings for its internal data structures and pro-
+       possibly fits into a single cache line.                                              vides methods to access their content. Also some intrinsic
+                                                                                            methods use the field offset in their handcrafted piece of
+                                                                                            machine code. The same three cases shown above apply also
+4.        IMPLEMENTATION                                                                    to the changes inside the VM.
+   Our implementation of the optimization uses three new
+bytecodes for allocating and accessing optimized string ob-                                 4.2   Character Access
+jects. These bytecodes are only necessary within the class                                    Two new bytecodes are introduced for accessing the char-
+String because the characters of a string are declared as                                   acters of an optimized string:
+private and cannot be accessed directly from outside.
+   To introduce the new bytecodes, it is necessary to trans-                                   • scload: This bytecode loads a string character and
+form the object code of the String class. Although this                                          is similar to the bytecode caload used for loading a
+could be done at run time, it would be complicated. There-                                       character from a character array. scload expects two
+fore, we modify the Java compiler (javac) and use it to com-                                     operands on the stack: a reference to the string object
+pile the class String. This results in an optimized class,                                       and the index of the accessed character.
+which is created once, and is used by the VM if the string
+optimization is enabled. The modified version of javac is not                                  • scstore: This bytecode stores a string character and
+used for compiling any other source code.                                                        is similar to the bytecode castore used for storing
+   Additionally, methods that allocate string objects must                                       a character in a character array. Compared to the
+be transformed. This must be done at run time because it                                         scload bytecode, one additional operand is expected
+affects application classes whose source code is not available.                                  on the stack: the character which is to be stored at
+The transformation details are explained in Section 4.4.                                         the specified index of the given string.
+
+
+                                                                                      107
+      ...
+                                                                             private static String allocate(char value[]) {
+      21: aload this
+                                                                                int len = value.length;
+      22: getfield value
+                                        0: aload this                           String string = newstring(len);
+      25: iload index
+                                        1: iload index                          stringcopy(value, 0, string, 0, len);
+      26: aload this
+                                        2: scload                               return string;
+      27: getfield offset
+                                        3: ireturn                           }
+      30: iadd
+      31: caload
+      32: ireturn                                                          Figure 5: Factory method for string allocation
+
+             (a) original                  (b) optimized
+                                                                                  public static String createString() {
+                                                                                     char[] ch = ...;
+ Figure 4: Bytecodes of the String.charAt method                                     return new String(ch);
+                                                                                  }
+
+  Although these bytecodes are similar to the character ar-                                    (a) Java sourcecode
+ray access bytecodes, they are still necessary for two reasons:
+                                                                                  ...
+   • As illustrated in Figure 1, the offset of the first char-                    10: new java.lang.String
+                                                                                  13: dup
+     acter of an optimized string is different from the offset
+                                                                                  14: aload ch
+     of the first element of a character array. Furthermore,
+                                                                                  15: invokespecial constructor
+     the offset depends on the optimization level: it is 16 if                    18: areturn
+     the field hashcode is preserved, and 12 if it is removed.
+                                                                                               (b) original bytecode
+   • Each time a character array is indexed, a bounds check
+     is performed. If the index is out of the valid bounds,                       ...
+     an ArrayIndexOutOfBoundsException is thrown. The                             10: nop
+     optimized string object needs a bounds check too, but                        13: nop
+     within the String class it is a convention to throw a                        14: aload ch
+     StringIndexOutOfBoundsException if the check fails.                          15: invokestatic factory method
+                                                                                  18: areturn
+  Introducing the new bytecodes reduces the size of methods                                   (c) optimized bytecode
+in the class String because many field loads are no longer
+necessary. For example, Figure 4 shows the bytecodes of
+the method String.charAt(), whose size is reduced from                         Figure 6: Example for string allocation
+33 to 4 bytes. This speeds up the execution and reduces the
+overall size of the class String by approximately 6%.
+                                                                        optimized version are shown in Figure 6 (b). Because the
+4.3    String Allocation                                                size of the original string object is statically known, it can
+   Allocating optimized string objects is more complicated              be allocated. In the next step, the reference to the newly
+than accessing their characters. The class String has cur-              created original string object is duplicated on the operand
+rently 16 constructors. All must be preserved to ensure that            stack. This is necessary because the reference is needed both
+no existing program breaks. In Java, the allocation of an               for the invocation of the constructor and the method return.
+object is separated from its initialization, i.e. they are per-         After that, the constructor’s parameter is pushed onto the
+formed by two different bytecodes. For allocating an object,            operand stack and the constructor is invoked. The construc-
+its size must be known. After the allocation, the construc-             tor computes the length of the string’s character array, allo-
+tor is invoked to perform the initialization. Arbitrary code            cates it, and initializes it with the characters of the array ch.
+can be placed between these two bytecodes, as long as the                  The previously introduced rewriter component transforms
+yet uninitialized object is not accessed. To allocate an opti-          the original bytecodes to the optimized version shown in Fig-
+mized string, the number of its characters must be known.               ure 6 (c) (the details about the bytecode rewriting algorithm
+However, the number is usually calculated during the execu-             are presented in Section 4.4). The transformation happens
+tion of the constructor and is therefore not available to the           whenever a method is loaded that allocates string objects.
+object allocation.                                                      The string allocation and the subsequent reference duplica-
+   We solve this problem by replacing the string construc-              tion are replaced with no operation (nop) bytecodes. We do
+tors with static factory methods that combine the object                not remove these bytecodes completely because this would
+allocation and initialization. These factory methods have               change the bytecode indices and thus would have side effects
+the same arguments as the constructors. They calculate the              on all jumps within the method. If the method is compiled,
+length of the resulting string, allocate the optimized string           the nop bytecodes are ignored anyway.
+object, and initialize it. One of these factory methods is                 Figure 7 shows the bytecodes available for allocating ob-
+presented in Figure 5. The operator newstring, used in this             jects and arrays. For the allocation of an original string ob-
+method, is compiled to a new bytecode for string alloca-                ject, the bytecode new is used as illustrated in Figure 6 (b).
+tion by the modified javac. The details of this bytecode are            This bytecode can only be used if an object with a statically
+explained below.                                                        known size is to be allocated, which applies to all Java ob-
+   Figure 6 (a) presents a simple Java method. The method               jects except arrays. The only operand is an index to a class
+allocates and returns an optimized string object that is ini-           in the constant pool. When the bytecode is executed, the
+tialized using a character array. The bytecodes of the un-              index is used to fetch a class descriptor that contains the
+
+
+                                                                  108
+                                                                             void rewriteMethod(Method method) {
+                                             objectref
+                                                                               foreach(Bytecode code within method) {
+      new #index
+                             ...                ...                              switch(code) {
+                                                                                   case new:
+                                                                                     if(createsString) {
+                                                                                       replaceWithNop();
+                           length             arrayref                               }
+      newarray #type                                                                 break;
+                             ...                ...                                case dup:
+                                                                                     if(isBetweenNewStringAndStringInit) {
+                                                                                       replaceWithNop();
+                                                                                     }
+                           length            stringref                               break;
+      newstring
+                                                                                   case invokespecial:
+                             ...                ...                                  if(invokesStringConstructor) {
+                                                                                       replaceWithInvokeFactoryMethod();
+      bytecode          stack before        stack after                              }
+                                                                                     break;
+                                                                                 }
+            Figure 7: Allocation bytecodes                                     }
+                                                                             }
+object size. Knowing the size, an object of this class can be
+allocated.                                                                     Figure 8: Bytecode rewriting heuristic
+   For allocating arrays, the newarray bytecode is used. The
+array element type is directly encoded in the bytecode and
+the array length is expected on the operand stack. With                      is complete enough for running nearly all Java pro-
+the length and the array element type, the total array size                  grams including the various benchmarks presented in
+is calculated and the allocation is performed.                               Section 5. Only special bytecode-optimized programs
+   Optimized string objects have a variable length like ar-                  which make use of more sophisticated but rarely used
+rays, but also fields like objects, so neither of the two pre-               stack management instructions like dup_x1 might cause
+vious bytecodes can be used. Therefore, we introduce the                     problems and are currently not supported (i.e. they are
+bytecode newstring that is similar to the bytecode newar-                    reported as errors).
+ray and expects the string length on the stack. A bytecode               3. In the last step of the rewriting process, the construc-
+operand, like the element type, is not necessary because the                tor invocation is replaced with the invocation of a fac-
+VM knows that a string object only contains characters.                     tory method. Because the factory method has the
+Furthermore, the number of fields of a string is fixed and                  same arguments as the constructor, no change to the
+statically known. With this knowledge, the total string size                operand stack handling is necessary. This rewriting
+is calculated and the allocation is performed. This bytecode                step can be implemented in two different ways:
+is exclusively used to implement the allocation of optimized
+string objects within the factory methods (the emphasized                      • The constant pool index of the invoked method
+part in Figure 5).                                                               could be rewritten. This would make it necessary
+                                                                                 to add the name of the factory method to the
+4.4   Bytecode Rewriting                                                         constant pool.
+   The rewriter component transforms the original, unopti-
+                                                                               • The method resolution within the VM could be
+mized bytecodes to the optimized ones. This is necessary
+                                                                                 modified. Each time a string constructor must
+for all methods that allocate string objects. Whenever a
+                                                                                 be resolved, the factory method is returned in-
+class has been loaded, the rewriter checks if a method of
+                                                                                 stead. This also works for applications which use
+this class allocates string objects. If this is the case, the
+                                                                                 the Java Native Interface (JNI) and could not be
+rewriter transforms the bytecodes in three steps, as illus-
+                                                                                 rewritten otherwise. Therefore, we implemented
+trated in Figure 8:
+                                                                                 this approach.
+  1. The allocation of the string object, i.e. the bytecode
+     new, is removed by replacing it with nop bytecodes.
+                                                                       4.5    Removing the Hashcode Field
+     The bytecode new would push a string reference on                    When the method String.hashCode() is invoked the first
+     the stack which does not happen anymore because of                time on a string object, the hash code is computed and
+     the removal.                                                      cached in the field hashcode to avoid multiple computations.
+                                                                       The hash code is computed from the characters of a string,
+  2. The bytecode rewriting process is difficult because of            i.e. two string objects with the same contents have the same
+     stack management instructions like dup or pop that                hash code. The field hashcode requires four bytes per string
+     would use the no longer existing string reference. Each           object, so its removal is beneficial. However, recomputing
+     of these management instructions must be modified or              the hash code each time it is accessed would slow down many
+     removed. Furthermore, some of the subsequent byte-                applications.
+     codes might have to be rearranged. Our current imple-                Every Java object has a header of two machine words.
+     mentation is prototypical in that it handles only the             If the identity hash code of an object is calculated via the
+     most common stack management instructions. Yet, it                method System.identityHashCode(), the result is cached
+
+
+                                                                 109
+in the header (and is truncated to 25 bits on 32-bit archi-             the number of allocated bytes, we use the SPECjvm98 [14],
+tectures). This caching is necessary because although the               SPECjbb2005 [15], and the DaCapo [2] benchmarks. We
+identity hash code is a random number that does not de-                 present the results of four different configurations:
+pend on the object’s value, it must not change during the
+object’s lifetime.                                                         • Our baseline configuration is the unmodified Java 7
+   Although the identity hash code is preferably unique for                  build b24.
+every object, it is not guaranteed to be so. Therefore, it
+should not have any side effects if the identity hash code                 • In the “optimized” configuration, all optimizations de-
+of strings is equal to the string hash code. So, we use the                  scribed in this paper except the removal of the field
+object header for caching the string hash code. As long                      hashcode are performed.
+as String.hashCode() is executed by the interpreter, the
+                                                                           • Our optimization has two benefits: a reduced mem-
+hash code is not cached and has to be calculated upon each
+                                                                             ory consumption because of the smaller string objects,
+method invocation. This is necessary because the Java ob-
+                                                                             and a reduced number of memory accesses because of
+ject header cannot be accessed via a bytecode. When the
+                                                                             the eliminated fields. The “overhead” configuration in-
+method String.hashCode() is passed to the just-in-time
+                                                                             creases the size of the optimized string objects artifi-
+compiler, it is not compiled but an intrinsic method is used
+                                                                             cially to the size of the original strings by adding a
+that calculates the hash code once and caches its value in
+                                                                             padding of 20 bytes per string. If a benchmark does
+the object header. Only when the object is locked and the
+                                                                             not invoke any methods that use character array shar-
+header word is used to point to a locking data structure, we
+                                                                             ing for the original string, this configuration allocates
+do not store the hash code because this code path would be
+                                                                             exactly the same number of bytes as the baseline. Any
+more expensive than recomputing the hash code. This is a
+                                                                             additional memory overhead (e.g. in Figure 14) is a
+rare case because strings are normally not used for synchro-
+                                                                             result of the missing character array sharing. There-
+nization.
+                                                                             fore, this configuration indicates how much character
+   As mentioned before, the hash code is truncated to 25 bits
+                                                                             array sharing is used in a benchmark. The perfor-
+on 32-bit architectures when it is stored in the mark word.
+                                                                             mance loss in comparision with the “optimized” con-
+Although this should not have a significant negative effect,
+                                                                             figuration shows the impact of the reduced memory
+the hash code algorithm is specified in the documentation of
+                                                                             usage on the performance.
+the class String. Therefore, this optimization might violate
+the specification on 32-bit architectures. Because of this, the            • The “optimized hash field” configuration uses all opti-
+next section evaluates our optimization with and without the                 mizations described in this paper including the opti-
+elimination of the field hashcode. On 64-bit architectures,                  mization of the field hashcode. We use a 32-bit archi-
+this optimization complies with the specification because the                tecture for benchmarking and therefore the hash code
+object header is large enough to hold the hash code without                  is truncated to 25 bits. Because the SPECjbb2005
+any truncation.                                                              benchmark compares the hash code of a string object
+                                                                             to a hardcoded value during the startup, the bench-
+4.6    Further Adjustments                                                   mark had to be modified slightly.
+   Some existing optimizations are voided by the new opti-
+mized class String. The method System.arraycopy() can                   5.1   SPECjbb2005
+no longer be used to create a copy of the string characters
+                                                                           The SPECjbb2005 benchmark represents a client/server
+because they are not stored as a real array anymore. Sys-
+                                                                        business application. All operations are performed on a
+tem.arraycopy() is faster than a loop in Java code because
+                                                                        database that is held in the physical memory. With an
+some bounds and type checks can be omitted. Therefore,
+                                                                        increasing number of warehouses, the size of the database
+we use specialized versions of System.arraycopy() for opti-
+                                                                        increases and less memory is available for executing transac-
+mized string objects. These methods copy a range of charac-
+                                                                        tions on the warehouses. Therefore, the number of garbage
+ters between two strings or between a string and a character
+                                                                        collections increases, which has a negative impact on the
+array. In the just-in-time compiler, these new methods are
+                                                                        performance.
+handled as intrinsic methods and share nearly the whole
+                                                                           The benchmark result is the total throughput in so called
+code with the method System.arraycopy().
+                                                                        SPECjbb2005 business operations per second (bops). This
+   Because of replacing the string constructors with factory
+                                                                        metric is calculated from the total number of executed trans-
+methods, no constructors can be accessed via reflection. This
+                                                                        actions on the database. In this benchmark, a high number
+could be solved by returning the appropriate factory method
+                                                                        of string operations is performed. Unless stated otherwise,
+if a specific constructor is requested. This would require
+                                                                        a heap size of 1200 MB is used for all measurements.
+some additional changes in the Java HotSpotTM VM, which
+                                                                           Figure 9 illustrates the SPECjbb2005 performance and
+are not implemented yet.
+                                                                        the average amount of used memory after a full garbage
+                                                                        collection. The used memory after a full garbage collection
+5.    EVALUATION                                                        serves as an approximation of the application’s minimum
+  Our string optimization is integrated into Sun Microsys-              heap size. Both numbers are significantly improved by our
+tems’ Java HotSpotTM VM, using the early access version                 string optimization.
+b24 of the upcoming JDK 7. The benchmarking system has                     The SPECjbb2005 benchmark always runs 240 seconds
+the following configuration: an Intel Core2 Quad proces-                for a specific number of warehouses. Therefore, the total
+sor with 4 cores running at 2.4 GHz, 2 * 2 MB L2 cache,                 number of allocated bytes depends on the performance, i.e.
+2 GB main memory, and with Windows XP Professional as                   on how many transactions can be run in this time frame.
+the operating system. For measuring the performance and                 To measure the number of allocated bytes independently of
+
+
+                                                                  110
+150%                                                                    45000
+                                                                        40000
+
+
+
+
+                             108%
+                      107%
+
+
+
+
+                                              102%
+               101%
+        100%
+
+
+
+
+                                       100%
+                                                                        35000
+
+
+
+
+                                                     88%
+100%                                                                    30000
+
+
+
+
+                                                           81%
+
+
+
+
+                                                                 bops
+                                                                        25000
+                                                                        20000                                 baseline
+                       baseline
+50%                                                                     15000                                 overhead
+                       overhead
+                       optimized                                        10000                                 optimized
+                       optimized hash field                              5000                                 optimized hash field
+ 0%                                                                         0
+         performance                  average used                                      1   2   3   4     5    6    7   8   9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+                                     memory after GC                                                                          number of warehouses
+
+Figure
+150%   9: SPECjbb2005: perfor-                                      Figure 10: SPECjbb2005: performance for various numbers of ware-
+mance and memory usage                                              houses (higher is better)
+
+150%
+                                                                                  240                   baseline
+               110%
+
+
+
+
+                                              107%
+        100%
+
+
+
+
+                                      100%
+
+
+
+
+                                                                                                        overhead
+                      99%
+                             97%
+
+
+
+
+                                                     94%
+                                                           91%
+
+
+
+
+100%                                                                              180                   optimized
+                                                                        seconds
+
+
+                                                                                                        optimized hash field
+                                                                                  120
+                       baseline
+50%                                                                                60
+                       overhead
+                       optimized
+                       optimized hash field                                         0
+ 0%                                                                                     1   2   3   4     5    6    7   8   9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+        allocated bytes             time needed for GC                                                                        number of warehouses
+
+Figure 11: SPECjbb2005: mem-                                        Figure 12: SPECjbb2005: garbage collection time for various numbers
+ory usage for a fixed number of                                     of warehouses (lower is better)
+transactions (lower is better)
+
+
+the performance, we used a slightly modified version of the                                                   5.2       DaCapo
+SPECjbb2005 benchmark that executes a fixed number of                                                            The DaCapo benchmark suite consists of eleven object-
+transactions on four warehouses. For the optimized config-                                                    oriented applications. We used the release version 2006-
+urations, the number of allocated bytes is reduced as shown                                                   10-MR2 and executed each benchmark five times, so that
+in Figure 11. Furthermore, the optimizations also reduce                                                      the execution time converges because all relevant methods
+the time necessary for garbage collection. The configura-                                                     have been compiled by then. We present the slowest and the
+tion “overhead” allocates more bytes than the the baseline                                                    fastest run for each benchmark. The slowest run, which is al-
+because original strings use character array sharing for ex-                                                  ways the first one in our case, shows the startup performance
+plicit string copying.                                                                                        of the JVM, while the fastest run shows the achievable peak
+   To further evaluate the impact of the reduced memory                                                       performance (all relevant methods compiled). Furthermore,
+consumption, we executed each configuration with a heap                                                       the geometric mean of all results is presented. A heap size
+size of 512 MB, up to the number of warehouses where an                                                       of 256 MB is used for all benchmarks.
+OutOfMemoryException was thrown. Figure 10 shows the                                                             The performance for the benchmarks in the DaCapo suite
+performance for various numbers of warehouses. The per-                                                       is presented in Figure 13. In this diagram, the slowest and
+formance increases up to 4 warehouses because each ware-                                                      the fastest runs for each benchmark are shown on top of
+house uses its own thread and the benchmarking system has                                                     each other. Both runs are shown relative to the fastest run
+4 cores. With a higher number of warehouses, the thread                                                       of the baseline. The light bars refer to the slowest runs, the
+overhead and the memory usage increases, so that the per-                                                     dark bars to the fastest runs.
+formance decreases. Because of the reduction of memory us-                                                       Both the fastest and the slowest runs are improved for
+age, it is possible to execute the SPECjbb2005 benchmark                                                      nearly all benchmarks. Especially the chart benchmark,
+with 24 instead of 19 warehouses.                                                                             which is string intensive, profits greatly from the string op-
+   Figure 12 shows the average garbage collection time for                                                    timization. Other benchmarks with a considerable speedup
+runs with various numbers of warehouses. The configura-                                                       are antlr, hsqldb, and jython. Benchmarks that use only few
+tions that reduce the memory usage also spend less time in                                                    strings show neither a speedup nor a performance reduction.
+the garbage collector. The memory-resident database uses                                                      The configuration “overhead” shows for most benchmarks a
+a smaller part of the heap and therefore more memory is                                                       similar performance as the configuration “optimized”. There-
+available for the actual execution, which then needs fewer                                                    fore, the reduction of the memory usage has hardly a positive
+garbage collections. There is a clear correlation between                                                     effect on the performance of these benchmarks.
+Figure 10 and Figure 12: the performance decreases as the                                                        The number of allocated bytes for each benchmark is pre-
+time for garbage collection increases.                                                                        sented in Figure 14. Again, the chart benchmark profits
+
+
+                                                                                                    111
+150%
+
+
+
+
+                                     114%
+                                     113%
+                                     112%
+         106%
+         106%
+
+
+
+
+                                                                     106%
+                                                  105%
+         105%
+
+
+
+
+                                                  105%
+
+
+
+
+                                                                               105%
+                                                  104%
+
+
+
+
+                                                                               104%
+                                                                               104%
+
+
+
+
+                                                                                                                                  104%
+                                                                                                                                  103%
+                                                                                                                                  103%
+                                                                                         103%
+                    102%
+
+
+
+
+                                                           102%
+
+
+
+
+                                                                                        102%
+
+
+
+
+                                                                                                              102%
+                                                                                        102%
+                                                           101%
+
+
+
+
+                                                                                                   101%
+                                                                                                   101%
+
+
+
+
+                                                                                                              101%
+                                                                                                   101%
+
+
+
+
+                                                                                                              101%
+                   101%
+
+
+
+
+                                                                                                                       101%
+
+                                                                                                                       101%
+                                                           101%
+        100%
+
+
+
+
+                   100%
+
+
+
+
+                                  100%
+
+
+
+
+                                                 100%
+
+
+
+
+                                                           100%
+
+
+
+
+                                                                    100%
+
+
+
+
+                                                                              100%
+
+
+
+
+                                                                                        100%
+
+
+
+
+                                                                                                   100%
+
+
+
+
+                                                                                                              100%
+
+
+
+
+                                                                                                                       100%
+
+                                                                                                                       100%
+
+
+                                                                                                                                 100%
+                                                                    100%
+                                                                    100%
+                   99%
+100%
+
+
+                                  baseline
+ 50%                              overhead
+          slowest run
+          fastest run             optimized
+                                  optimized hash field
+  0%
+         antlr          bloat      chart         eclipse    fop     hsqldb     jython   lusearch    luindex    pmd      xalan     mean
+
+                                   Figure 13: DaCapo: performance results (higher is better)
+
+ 150%
+
+
+
+
+                                                                                 113%
+                                                                                109%
+                                                                                108%
+                                                             104%
+                                   103%
+
+
+
+
+                                                                                                                                  102%
+                                                 102%
+
+
+
+
+                                                                                                      102%
+                                                 101%
+
+
+
+
+                                                                    101%
+
+
+
+
+                                                                                        101%
+                      101%
+
+
+
+
+                                                 101%
+          101%
+
+
+
+
+                                                                                                              100%
+
+
+
+
+                                                                                                                      100%
+          100%
+
+
+
+
+                      100%
+
+
+
+
+                                  100%
+
+
+
+
+                                                 100%
+
+
+
+
+                                                            100%
+
+
+
+
+                                                                    100%
+
+
+
+
+                                                                              100%
+
+
+
+
+                                                                                        100%
+
+
+
+
+                                                                                                     100%
+
+
+
+
+                                                                                                              100%
+
+
+
+
+                                                                                                                      100%
+
+
+
+
+                                                                                                                                 100%
+                                                                    100%
+                                                                    100%
+
+
+
+
+                                                                                                              100%
+                                                                                                              100%
+
+
+
+                                                                                                                      100%
+                                                                                        99%
+
+
+
+
+                                                                                                                      99%
+                                                                                        99%
+         97%
+         96%
+
+
+
+
+                                                                                                                                96%
+                                                                                                                                95%
+                                                           94%
+                                                           94%
+                    93%
+                    92%
+
+
+
+
+                                                                                                   89%
+                                                                                                   87%
+ 100%
+                                           76%
+                                          71%
+
+
+
+
+           baseline
+  50%
+           overhead
+           optimized
+           optimized hash field
+   0%
+          antlr         bloat       chart        eclipse    fop     hsqldb     jython   lusearch   luindex     pmd      xalan     mean
+
+                                Figure 14: DaCapo: number of allocated bytes (lower is better)
+
+
+greatly from the optimization and allocates less memory.                     better cache behavior. For all benchmarks the performance
+This benchmark also shows the impact of the elimination                      of the slowest run as well as of the fastest run is greater or
+of the field hashcode. While the number of allocated bytes                   equal to the baseline. Furthermore, the number of allocated
+is reduced for most string intensive benchmarks, the jython                  bytes is smaller or equal to the baseline for all benchmarks.
+benchmark shows a contrary result. More memory must be                       This means that the performance and the number of allo-
+allocated for this benchmark because character array sharing                 cated bytes are optimized without any negative effect on any
+is no longer possible with optimized string objects. There-                  of the benchmarks. The largest reduction of the number of
+fore, new string objects are allocated and the characters                    allocated bytes is measured for the jack benchmark.
+must be copied. Nevertheless, the performance still shows a
+speedup. The configuration “overhead” allocates more mem-                    5.4    Further Evaluations
+ory than the baseline for most benchmarks. This indicates                       The string optimization has a negative impact on some
+that a significant amount of character array sharing is used.                methods such as String.substring(). Therefore, we ex-
+                                                                             ecuted our own micro benchmark to determine the nega-
+5.3     SPECjvm98                                                            tive impact on such methods. This micro benchmark is a
+                                                                             worst case scenario for our string optimization and invokes
+   The SPECjvm98 benchmark suite contains seven bench-
+                                                                             the method String.substring() on random strings with a
+marks derived from typical client applications. Similar to
+                                                                             length of 0 to 100 characters. For this micro benchmark,
+the DaCapo benchmark suite, we executed each benchmark
+                                                                             the optimized configurations are about 25% slower than the
+until the execution time converged. We report the slow-
+                                                                             baseline.
+est and the fastest run for the string intensive benchmarks
+                                                                                About 19% of all string allocations in the SPECjbb2005
+db, jack, and javac (no significant difference to the baseline
+                                                                             benchmark are explicit string copies. These copies are allo-
+is measured for the other four benchmarks), as well as the
+                                                                             cated with the constructor String(String), which trims the
+geometric mean of all seven benchmarks.
+                                                                             internal character array for original strings. Because opti-
+   Figure 15 illustrates the results of the SPECjvm98 bench-
+                                                                             mized strings always use all their characters, explicit copies
+mark suite. In this diagram, the slowest and the fastest run
+                                                                             are useless. However, they cannot be removed easily for two
+for each benchmark are shown on top of each other. Both
+                                                                             reasons:
+runs are shown relative to the fastest run of the baseline and
+the light bars refer to the slowest runs, the dark bars to the                  • Object equality: Without an explicit string copy,
+fastest runs.                                                                     the semantics of object equality checks can change.
+   Especially the db benchmark, which mainly operates on
+string objects, profits from the string optimization. The                       • Synchronization: When a string object is used as
+number of allocated bytes decreases only slightly, so the high                    a monitor, the program behavior might change if no
+speedup results from the removal of the field accesses and the                    explicit string copy is allocated.
+
+
+                                                                       112
+200%
+
+
+
+
+                                162%
+                         146%
+                  125%
+150%
+
+
+
+
+                                                                                                                                                              111%
+                                                                                                                    108%
+                                                                                                             106%
+                                                                                 104%
+
+
+
+
+                                                                                                      104%
+
+
+
+
+                                                                                                                                                                                        104%
+                                                                          103%
+                                                     103%
+
+
+
+
+                                                                                        103%
+
+
+
+
+                                                                                                                                                                                                                  102%
+                                              101%
+
+
+                                                            101%
+           100%
+
+
+
+
+                                       100%
+
+
+
+
+                                                                   100%
+
+
+
+
+                                                                                               100%
+
+
+
+
+                                                                                                                             100%
+
+
+
+
+                                                                                                                                                       100%
+
+
+
+
+                                                                                                                                                                                 100%
+
+
+
+
+                                                                                                                                                                                                           100%
+                                                                                                                                    100%
+
+
+
+
+                                                                                                                                                                                                                         98%
+                                                                                                                                           97%
+
+
+
+
+                                                                                                                                                                     97%
+
+
+
+
+                                                                                                                                                                                                                               97%
+                                                                                                                                                 96%
+
+
+
+
+                                                                                                                                                                                               94%
+                                                                                                                                                                                                     93%
+                                                                                                                                                                           90%
+100%
+              baseline
+ 50%          overhead
+              optimized
+              optimized hash field
+     0%
+                    db                         jack                       javac                       mean                            db                       jack                     javac                     mean
+                                                        performance                                                                                                  allocated bytes
+
+
+              Figure 15: SPECjvm98: performance and allocated bytes for string intensive benchmarks
+
+
+   These cases would have to be detected to safely eliminate                                                               optimizations have a negative impact on the performance,
+explicit string copying. Both cases do not apply to any of                                                                 some have a positive one. We only optimize string objects,
+the explicit string copies in the SPECjbb2005 benchmark.                                                                   but we always remove the field offset and we merge the
+To measure which performance could be expected from the                                                                    string’s character array with the string object, which saves
+string optimization if the programmer knows that the alloca-                                                               further memory.
+tion of explicit string copies is unnecessary, all explicit string                                                            Chen et al. implemented two different approaches to re-
+copies were removed for the SPECjbb2005 benchmark. In                                                                      duce the memory consumption. A heap compression algo-
+comparison to the baseline, the “optimized hash field” con-                                                                rithm reduces the minimum heap size of an application [5].
+figuration shows a 18% higher performance and a reduction                                                                  It mainly targets memory constrained environments such as
+of the average used memory after a full garbage collection                                                                 mobile devices and uses a Mark-Compact-Compress-Lazy
+by 20%. Furthermore, the number of allocated bytes is re-                                                                  Allocate garbage collector as its basic component. The ap-
+duced by 11%, and the time necessary for garbage collection                                                                proach can use an arbitrary compression algorithm. The
+is reduced by 30%.                                                                                                         evaluation was done with a “zero removal” compression al-
+                                                                                                                           gorithm, and showed that 35% of memory can be saved on
+                                                                                                                           average. The compression can be applied to all kinds of
+6.        RELATED WORK                                                                                                     Java objects, but has a negative impact on the overall per-
+   Boldi et al. implemented a MutableString class, which                                                                   formance.
+combines the advantages of the classes String and String-                                                                     The second approach exploits frequent field values to re-
+Buffer [3]. A MutableString can be in the state “compact”                                                                  duce the memory usage [4]. It uses the fact that a small
+or “loose”. Depending on this state, the MutableString                                                                     number of distinct values appear in a lot of fields. Two
+has the advantages of the class String or StringBuffer.                                                                    object compressions are proposed to reduce the amount of
+In contrast to our optimization, existing programs must be                                                                 memory for fields. The evaluation with SPECjvm98 shows
+changed and recompiled to be able to use the advantages of                                                                 that the minimum heap size, which allows Java applications
+this newly introduced class. Furthermore, their optimization                                                               to execute without an OutOfMemoryException, is reduced
+does not reduce the memory usage.                                                                                          by up to 24% (14% on average). The loss of performance
+   Tian addressed the performance problem of string con-                                                                   is below 2% for most of the cases. Our approach optimizes
+catenations [17]. Each time two string objects are concate-                                                                only string objects but shows a good reduction of memory
+nated, a new string object is allocated and all characters                                                                 usage and a speedup for string-intensive benchmarks.
+are copied. Using the Java bytecode optimization frame-                                                                       Dolby et al. implemented object inlining in a static com-
+work Soot [18], a bytecode transformation was implemented.                                                                 piler for a dialect of C++ [7]. This optimization can merge
+With this transformation, it is possible to improve the per-                                                               some referenced objects with the referencing one, which im-
+formance of string concatenation nearly up to the perfor-                                                                  proves the cache behavior and reduces the indirection over-
+mance of the class StringBuilder. This optimization has                                                                    head. The average speedup for the C++ benchmarks is 10%
+to be applied directly to the .class file, while our optimiza-                                                             with a maximum of 50%. However, the necessary analysis
+tion is performed automatically behind the scenes by the                                                                   for object inlining takes up to half of the compilation time.
+VM and covers more than just string concatenations.                                                                        In contrast to our optimization, object inlining is not limited
+   Ananian et al. implemented several techniques to reduce                                                                 to string objects, but our optimization is performed at run
+the memory usage of object-oriented programs [1]. These                                                                    time in a virtual machine and has only a negligible analysis
+techniques include field reduction and the elimination of un-                                                              overhead.
+read or constant fields. Furthermore, static specialization is                                                                Wimmer et al. implemented object inlining for the Java
+used to create two different string classes: one string class                                                              HotSpotTM VM [19, 20]. The optimization is performed au-
+without an field offset (SmallString) and one with a field                                                                 tomatically at run time, but cannot optimize strings because
+offset (BigString). If the field offset is zero, a Small-                                                                  the character array can be shared between multiple string
+String is allocated, otherwise a BigString. An evaluation                                                                  objects. The mean peak performance of the SPECjvm98
+with the SPECjvm98 benchmark suite showed that the max-                                                                    benchmark suite is improved by 9% (with a maximum of
+imum live heap size is reduced by up to 40%. Some of the                                                                   51%).
+
+
+                                                                                                                    113
+7.   CONCLUSIONS                                                          ACM Press, 2000.
+   We presented a string optimization that is performed au-           [8] J. Gosling, B. Joy, G. Steele, and G. Bracha. The
+tomatically at run time within the Java HotSpotTM VM.                     JavaTM Language Specification. Addison-Wesley, 3rd
+The string object and the character array of an original                  edition, 2005.
+string are merged into a single object. For this merging,             [9] R. Griesemer and S. Mitrovic. A compiler for the Java
+new bytecodes are introduced that are only used within the                HotSpotTM virtual machine. In L. Böszörményi,
+class String. All methods that allocate string objects are                J. Gutknecht, and G. Pomberger, editors, The School
+rewritten once at run time. The merging removes additional                of Niklaus Wirth: The Art of Simplicity, pages
+field accesses, reduces the memory usage, speeds up garbage               133–152. dpunkt.verlag, 2000.
+collection, and leads to a better cache behavior. The evalu-         [10] T. Kotzmann, C. Wimmer, H. Mössenböck,
+ation with several benchmarks shows that these advantages                 T. Rodriguez, K. Russell, and D. Cox. Design of the
+result in a significantly higher overall performance and a                Java HotSpotTM client compiler for Java 6. ACM
+lower memory usage.                                                       Transactions on Architecture and Code Optimization,
+                                                                          5(1):7, 2008.
+8.   REFERENCES                                                      [11] T. Lindholm and F. Yellin. The JavaTM Virtual
+ [1] C. S. Ananian and M. Rinard. Data size optimizations                 Machine Specification. Addison-Wesley, 2nd edition,
+     for Java programs. In Proceedings of the ACM                         1999.
+     SIGPLAN Conference on Languages, Compilers, and                 [12] M. Paleczny, C. Vick, and C. Click. The Java
+     Tools for Embedded Systems, pages 59–68. ACM Press,                  HotSpotTM server compiler. In Proceedings of the Java
+     2003.                                                                Virtual Machine Research and Technology Symposium,
+ [2] S. M. Blackburn, R. Garner, C. Hoffman, A. M. Khan,                  pages 1–12. USENIX, 2001.
+     K. S. McKinley, R. Bentzur, A. Diwan, D. Feinberg,              [13] K. Russell and D. Detlefs. Eliminating
+     D. Frampton, S. Z. Guyer, M. Hirzel, A. Hosking,                     synchronization-related atomic operations with biased
+     M. Jump, H. Lee, J. E. B. Moss, A. Phansalkar,                       locking and bulk rebiasing. In Proceedings of the ACM
+     D. Stefanović, T. VanDrunen, D. von Dincklage, and                  SIGPLAN Conference on Object-Oriented
+     B. Wiedermann. The DaCapo benchmarks: Java                           Programming, Systems, Languages, and Applications,
+     benchmarking development and analysis. In                            pages 263–272. ACM Press, 2006.
+     Proceedings of the ACM SIGPLAN Conference on                    [14] Standard Performance Evaluation Corporation. The
+     Object-Oriented Programming Systems, Languages,                      SPECjvm98 Benchmarks, 1998.
+     and Applications, pages 169–190. ACM Press, 2006.                    http://www.spec.org/jvm98/.
+ [3] P. Boldi and S. Vigna. Mutable strings in Java:                 [15] Standard Performance Evaluation Corporation. The
+     Design, implementation and lightweight text-search                   SPECjbb2005 Benchmark, 2005.
+     algorithms. Science of Computer Programming,                         http://www.spec.org/jbb2005/.
+     54(1):3–23, 2005.                                               [16] Sun Microsystems, Inc. Java Platform, Standard
+ [4] G. Chen, M. Kandemir, and M. J. Irwin. Exploiting                    Edition 7 Source Snapshot Releases, 2007.
+     frequent field values in Java objects for reducing heap              http://download.java.net/jdk7/.
+     memory requirements. In Proceedings of the                      [17] Y. H. Tian. String concatenation optimization on Java
+     ACM/USENIX International Conference on Virtual                       bytecode. In Proceedings of the Conference on
+     Execution Environments, pages 68–78. ACM Press,                      Programming Languages and Compilers, pages
+     2005.                                                                945–951. CSREA Press, 2006.
+ [5] G. Chen, M. Kandemir, N. Vijaykrishnan, M. J. Irwin,            [18] R. Vallée-Rai, P. Co, E. Gagnon, L. Hendren, P. Lam,
+     B. Mathiske, and M. Wolczko. Heap compression for                    and V. Sundaresan. Soot – A Java optimization
+     memory-constrained Java environments. In                             framework. In Proceedings of the Conference of the
+     Proceedings of the ACM SIGPLAN Conference on                         Centre for Advanced Studies on Collaborative
+     Object-Oriented Programming Systems, Languages,                      Research, pages 125–135. IBM Press, 1999.
+     and Applications, pages 282–301. ACM Press, 2003.               [19] C. Wimmer and H. Mössenböck. Automatic
+ [6] R. Cytron, J. Ferrante, B. K. Rosen, M. N. Wegman,                   feedback-directed object inlining in the Java
+     and F. K. Zadeck. Efficiently computing static single                HotSpotTM virtual machine. In Proceedings of the
+     assignment form and the control dependence graph.                    ACM/USENIX International Conference on Virtual
+     ACM Transactions on Programming Languages and                        Execution Environments, pages 12–21. ACM Press,
+     Systems, 13(4):451–490, 1991.                                        2007.
+ [7] J. Dolby and A. Chien. An automatic object inlining             [20] C. Wimmer and H. Mössenböck. Automatic array
+     optimization and its evaluation. In Proceedings of the               inlining in Java virtual machines. In Proceedings of the
+     ACM SIGPLAN Conference on Programming                                International Symposium on Code Generation and
+     Language Design and Implementation, pages 345–357.                   Optimization, pages 14–23. ACM Press, 2008.
+
+
+
+
+                                                               114
+
