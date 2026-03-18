@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2022/dev/Debian) (preloaded format=xelatex 2026.3.12)  14 MAR 2026 20:06
+This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2022/dev/Debian) (preloaded format=xelatex 2026.3.12)  18 MAR 2026 15:15
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1762,7 +1762,7 @@ LaTeX Font Info:    Font shape `TU/XITSMath-Regular(3)/m/n' will be
 第2章
 [7
 
-] [8] [9] [10] [11] [12]) (./Tex/Chap_Porting.tex [13] [14]
+] [8] [9] [10] [11] [12] [13]) (./Tex/Chap_Porting.tex [14]
 第3章
 
 Underfull \hbox (badness 1152) in paragraph at lines 37--37
@@ -1784,74 +1784,89 @@ File: lstlang1.sty 2020/03/24 1.8d listings language file
 ] [26]
 [27] [28] [29] [30] [31]) (./Tex/Chap_Optimization.tex [32]
 第5章
+LaTeX Font Info:    Font shape `TU/XITSMath-Regular(2)/m/n' will be
+(Font)              scaled to size 7.00075pt on input line 35.
+LaTeX Font Info:    Font shape `TU/XITSMath-Regular(2)/m/n' will be
+(Font)              scaled to size 5.00053pt on input line 35.
+LaTeX Font Info:    Font shape `TU/XITSMath-Regular(3)/m/n' will be
+(Font)              scaled to size 6.99925pt on input line 35.
+LaTeX Font Info:    Font shape `TU/XITSMath-Regular(3)/m/n' will be
+(Font)              scaled to size 4.99947pt on input line 35.
+
+Underfull \hbox (badness 10000) in paragraph at lines 43--44
+[]|\TU/entexttt/m/n/10.53937 Intrinsic \TU/FandolSong-Regular(0)/m/n/10.53937 消
+ 融 与 完 整
+ []
+
 [33
 
-]
-LaTeX Font Info:    Font shape `TU/XITSMath-Regular(2)/m/n' will be
-(Font)              scaled to size 7.00075pt on input line 60.
-LaTeX Font Info:    Font shape `TU/XITSMath-Regular(2)/m/n' will be
-(Font)              scaled to size 5.00053pt on input line 60.
-LaTeX Font Info:    Font shape `TU/XITSMath-Regular(3)/m/n' will be
-(Font)              scaled to size 6.99925pt on input line 60.
-LaTeX Font Info:    Font shape `TU/XITSMath-Regular(3)/m/n' will be
-(Font)              scaled to size 4.99947pt on input line 60.
- [34] [35] [36] [37] [38] [39] [40] [41]
+] [34] [35] [36] [37] [38] [39] [40] [41] [42] [43]
+File: mybenchmark/loongarch64-lsx-full-simd-ablation-key-speedup.pdf Graphic fi
+le (type pdf)
+<use mybenchmark/loongarch64-lsx-full-simd-ablation-key-speedup.pdf>
+ [44] [45]
+File: mybenchmark/intrinsic-ablation-geomean.pdf Graphic file (type pdf)
+<use mybenchmark/intrinsic-ablation-geomean.pdf>
+File: mybenchmark/intrinsic-ablation-heatmap.pdf Graphic file (type pdf)
+<use mybenchmark/intrinsic-ablation-heatmap.pdf>
+ [46] [47]
 File: mybenchmark/final-comparison-heatmap.pdf Graphic file (type pdf)
 <use mybenchmark/final-comparison-heatmap.pdf>
- [42]
+
+[48]
 File: mybenchmark/statistical-validation-stripplot.pdf Graphic file (type pdf)
 <use mybenchmark/statistical-validation-stripplot.pdf>
- [43] [44]
-Underfull \hbox (badness 1005) in paragraph at lines 525--525
+ [49] [50]
+Underfull \hbox (badness 1005) in paragraph at lines 685--685
 []|\TU/entexttt/m/n/10.53937 LoongArch64 memcpy \TU/FandolSong-Regular(0)/m/n/1
 0.53937 快
  []
 
-[45]
+[51]
 File: mybenchmark/failed-schemes-heatmap.pdf Graphic file (type pdf)
 <use mybenchmark/failed-schemes-heatmap.pdf>
- [46] [47] [48]) (./Tex/Chap_Conclusion.tex [49] [50]
-第6章
-[51
+ [52] [53] [54]) (./Tex/Chap_Conclusion.tex [55] [56
 
-] [52] [53] [54])) [55] [56
+]
+第6章
+[57] [58] [59] [60])) [61] [62
 
 ] (./Tex/Appendix.tex
 附录 A
 File: mybenchmark/dexfileverifier-phase-chain-speedup.pdf Graphic file (type pd
 f)
 <use mybenchmark/dexfileverifier-phase-chain-speedup.pdf>
-) [57
+) [63
 
-] [58
+] [64
 
-] (Tmp/Thesis.bbl [59
+] (Tmp/Thesis.bbl [65
 
 
-] [60]
+] [66]
 Underfull \hbox (badness 5008) in paragraph at lines 256--260
 []\TU/FandolSong-Regular(0)/m/n/10.53937 龙 芯 中 科\TU/entexttt/m/n/10.53937 .  Op
 enJDK LoongArch \TU/FandolSong-Regular(0)/m/n/10.53937 移 植 \TU/entexttt/m/n/10.
 53937 [EB/OL].  2023.  [][]$[][][][][] [] [] [] [][][][][][] [] [][][] []
  []
 
-) (./Tex/Backmatter.tex [61] [62
+) (./Tex/Backmatter.tex [67] [68
 
-] [63] [64
+] [69] [70
 
-] [65] [66
+] [71] [72
 
 ]) (Tmp/Thesis.aux)
 Package rerunfilecheck Info: File `Thesis.out' has not changed.
-(rerunfilecheck)             Checksum: 434D788FCD2CF1A50D6F9E2BCC704A5B;21756.
+(rerunfilecheck)             Checksum: EC52795C2E794A6C44CA4A522DDC95D7;22138.
  ) 
 Here is how much of TeX's memory you used:
- 38453 strings out of 477728
- 789929 string characters out of 5842238
- 1389250 words of memory out of 5000000
- 58394 multiletter control sequences out of 15000+600000
+ 38548 strings out of 477728
+ 796262 string characters out of 5842238
+ 1388695 words of memory out of 5000000
+ 58486 multiletter control sequences out of 15000+600000
  479655 words of font info for 137 fonts, out of 8000000 for 9000
  264 hyphenation exceptions out of 8191
  118i,12n,130p,1225b,2933s stack positions out of 5000i,500n,10000p,200000b,80000s
 
-Output written on Tmp/Thesis.pdf (86 pages).
+Output written on Tmp/Thesis.pdf (92 pages).

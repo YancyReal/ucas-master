@@ -20,16 +20,16 @@
 \contentsline {subsection}{\numberline {2.2.4}Intrinsic与运行时快速路径}{9}{subsection.2.2.4}%
 \contentsline {section}{\numberline {2.3}LoongArch架构特性及其对ART的影响}{10}{section.2.3}%
 \contentsline {subsection}{\numberline {2.3.1}寄存器体系与调用约定}{10}{subsection.2.3.1}%
-\contentsline {subsection}{\numberline {2.3.2}控制转移与地址计算特点}{10}{subsection.2.3.2}%
+\contentsline {subsection}{\numberline {2.3.2}控制转移与地址计算特点}{11}{subsection.2.3.2}%
 \contentsline {subsection}{\numberline {2.3.3}内存访问、原子操作与同步语义}{11}{subsection.2.3.3}%
-\contentsline {section}{\numberline {2.4}性能评测与优化问题分析}{11}{section.2.4}%
-\contentsline {subsection}{\numberline {2.4.1}经典JVM benchmark的代表性}{11}{subsection.2.4.1}%
-\contentsline {subsection}{\numberline {2.4.2}Warmup、波动与统计严谨性}{11}{subsection.2.4.2}%
+\contentsline {section}{\numberline {2.4}性能评测与优化问题分析}{12}{section.2.4}%
+\contentsline {subsection}{\numberline {2.4.1}经典JVM benchmark的代表性}{12}{subsection.2.4.1}%
+\contentsline {subsection}{\numberline {2.4.2}Warmup、波动与统计严谨性}{12}{subsection.2.4.2}%
 \contentsline {subsection}{\numberline {2.4.3}低扰动可观测性需求}{12}{subsection.2.4.3}%
-\contentsline {section}{\numberline {2.5}AOSP 15 ART移植的关键技术难点}{12}{section.2.5}%
-\contentsline {subsection}{\numberline {2.5.1}执行引擎适配范围广且耦合紧密}{12}{subsection.2.5.1}%
+\contentsline {section}{\numberline {2.5}AOSP 15 ART移植的关键技术难点}{13}{section.2.5}%
+\contentsline {subsection}{\numberline {2.5.1}执行引擎适配范围广且耦合紧密}{13}{subsection.2.5.1}%
 \contentsline {subsection}{\numberline {2.5.2}正确性验证与性能研究必须并行考虑}{13}{subsection.2.5.2}%
-\contentsline {subsection}{\numberline {2.5.3}新版本ART的复杂性与历史可比性问题}{13}{subsection.2.5.3}%
+\contentsline {subsection}{\numberline {2.5.3}新版本ART的复杂性与历史可比性问题}{14}{subsection.2.5.3}%
 \contentsline {section}{\numberline {2.6}本章小结}{14}{section.2.6}%
 \contentsline {chapter}{\numberline {第3章\hspace {.3em}}LoongArch平台ART执行引擎的适配设计与实现}{15}{chapter.3}%
 \contentsline {section}{\numberline {3.1}总体设计目标与实现策略}{15}{section.3.1}%
@@ -72,53 +72,55 @@
 \contentsline {section}{\numberline {4.7}本章小结}{32}{section.4.7}%
 \contentsline {chapter}{\numberline {第5章\hspace {.3em}}面向LoongArch平台ART的性能优化研究}{33}{chapter.5}%
 \contentsline {section}{\numberline {5.1}优化目标与分析方法}{33}{section.5.1}%
-\contentsline {section}{\numberline {5.2}基线工作负载特征分析}{34}{section.5.2}%
-\contentsline {subsection}{\numberline {5.2.1}DaCapo \texttt {pmd}特征}{34}{subsection.5.2.1}%
-\contentsline {subsection}{\numberline {5.2.2}SPECjvm2008 \texttt {mpegaudio}特征}{35}{subsection.5.2.2}%
-\contentsline {section}{\numberline {5.3}方案一：JIT分层热度阈值调整方案}{36}{section.5.3}%
-\contentsline {subsection}{\numberline {5.3.1}问题背景与设计思路}{36}{subsection.5.3.1}%
-\contentsline {subsection}{\numberline {5.3.2}实现方法}{37}{subsection.5.3.2}%
-\contentsline {subsection}{\numberline {5.3.3}实验结果与分析}{37}{subsection.5.3.3}%
-\contentsline {section}{\numberline {5.4}方案二：运行时字符串搬运批量化方案}{39}{section.5.4}%
-\contentsline {subsection}{\numberline {5.4.1}问题背景与设计思路}{39}{subsection.5.4.1}%
-\contentsline {subsection}{\numberline {5.4.2}实现方法}{39}{subsection.5.4.2}%
-\contentsline {subsection}{\numberline {5.4.3}实验结果与分析}{40}{subsection.5.4.3}%
-\contentsline {section}{\numberline {5.5}方案三：LoongArch64 LSX浮点SIMD向量化方案}{40}{section.5.5}%
-\contentsline {subsection}{\numberline {5.5.1}问题背景与设计思路}{40}{subsection.5.5.1}%
-\contentsline {subsection}{\numberline {5.5.2}实现方法}{41}{subsection.5.5.2}%
-\contentsline {subsection}{\numberline {5.5.3}实验结果与分析}{41}{subsection.5.5.3}%
-\contentsline {section}{\numberline {5.6}三项正式方案的统一对比与重复测量验证}{42}{section.5.6}%
-\contentsline {subsection}{\numberline {5.6.1}同日正式单次结果总览}{42}{subsection.5.6.1}%
-\contentsline {subsection}{\numberline {5.6.2}同日重复测量验证}{43}{subsection.5.6.2}%
-\contentsline {subsection}{\numberline {5.6.3}三项方案的叠加并不天然成立}{44}{subsection.5.6.3}%
-\contentsline {section}{\numberline {5.7}失败方案对照分析}{44}{section.5.7}%
-\contentsline {subsection}{\numberline {5.7.1}解释器与JIT热路径类失败方案}{44}{subsection.5.7.1}%
-\contentsline {subsection}{\numberline {5.7.2}运行时微优化类失败方案}{45}{subsection.5.7.2}%
-\contentsline {subsection}{\numberline {5.7.3}失败方案的共性原因}{46}{subsection.5.7.3}%
-\contentsline {section}{\numberline {5.8}正收益方案与失败方案的对比总结}{48}{section.5.8}%
-\contentsline {subsection}{\numberline {5.8.1}可门控的局部调整与最小能力补齐更易兑现收益}{48}{subsection.5.8.1}%
-\contentsline {subsection}{\numberline {5.8.2}不同workload的收益边界}{48}{subsection.5.8.2}%
-\contentsline {subsection}{\numberline {5.8.3}面向ART执行引擎的优化方法论}{49}{subsection.5.8.3}%
-\contentsline {section}{\numberline {5.9}本章小结}{49}{section.5.9}%
-\contentsline {chapter}{\numberline {第6章\hspace {.3em}}总结与展望}{51}{chapter.6}%
-\contentsline {section}{\numberline {6.1}本文工作总结}{51}{section.6.1}%
-\contentsline {section}{\numberline {6.2}主要工作与贡献凝练}{51}{section.6.2}%
-\contentsline {subsection}{\numberline {6.2.1}完成LoongArch平台ART执行引擎适配}{51}{subsection.6.2.1}%
-\contentsline {subsection}{\numberline {6.2.2}建立系统化验证与实验方法}{52}{subsection.6.2.2}%
-\contentsline {subsection}{\numberline {6.2.3}获得面向典型workload的优化结论}{52}{subsection.6.2.3}%
-\contentsline {subsection}{\numberline {6.2.4}形成以失败样本为约束的优化研究方法}{52}{subsection.6.2.4}%
-\contentsline {section}{\numberline {6.3}工作局限性分析}{53}{section.6.3}%
-\contentsline {subsection}{\numberline {6.3.1}benchmark覆盖范围仍有限}{53}{subsection.6.3.1}%
-\contentsline {subsection}{\numberline {6.3.2}部分结论受debug构建口径约束}{53}{subsection.6.3.2}%
-\contentsline {subsection}{\numberline {6.3.3}部分候选方向仍需进一步探索}{53}{subsection.6.3.3}%
-\contentsline {subsection}{\numberline {6.3.4}因果证据仍以外部观测为主}{54}{subsection.6.3.4}%
-\contentsline {section}{\numberline {6.4}后续工作展望}{54}{section.6.4}%
-\contentsline {subsection}{\numberline {6.4.1}完善AOT与安装期编译支持}{54}{subsection.6.4.1}%
-\contentsline {subsection}{\numberline {6.4.2}探索LoongArch向量扩展优化}{54}{subsection.6.4.2}%
-\contentsline {subsection}{\numberline {6.4.3}扩展benchmark与应用级验证}{54}{subsection.6.4.3}%
-\contentsline {subsection}{\numberline {6.4.4}增强低扰动观测与运行时因果分析}{55}{subsection.6.4.4}%
-\contentsline {section}{\numberline {6.5}本章小结}{55}{section.6.5}%
-\contentsline {chapter}{\numberline {附录 A\hspace {.3em}}补充实验：DexFileVerifier阶段链实验}{57}{appendix.A}%
-\contentsline {chapter}{参考文献}{59}{section*.30}%
-\contentsline {chapter}{致谢}{63}{appendix*.32}%
-\contentsline {chapter}{作者简历及攻读学位期间发表的学术论文与研究成果}{65}{appendix*.33}%
+\contentsline {section}{\numberline {5.2}基线工作负载特征分析}{35}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}DaCapo \texttt {pmd}特征}{35}{subsection.5.2.1}%
+\contentsline {subsection}{\numberline {5.2.2}SPECjvm2008 \texttt {mpegaudio}特征}{36}{subsection.5.2.2}%
+\contentsline {section}{\numberline {5.3}方案一：JIT分层热度阈值调整方案}{37}{section.5.3}%
+\contentsline {subsection}{\numberline {5.3.1}问题背景与设计思路}{37}{subsection.5.3.1}%
+\contentsline {subsection}{\numberline {5.3.2}实现方法}{38}{subsection.5.3.2}%
+\contentsline {subsection}{\numberline {5.3.3}实验结果与分析}{39}{subsection.5.3.3}%
+\contentsline {section}{\numberline {5.4}方案二：运行时字符串搬运批量化方案}{40}{section.5.4}%
+\contentsline {subsection}{\numberline {5.4.1}问题背景与设计思路}{40}{subsection.5.4.1}%
+\contentsline {subsection}{\numberline {5.4.2}实现方法}{40}{subsection.5.4.2}%
+\contentsline {subsection}{\numberline {5.4.3}实验结果与分析}{41}{subsection.5.4.3}%
+\contentsline {section}{\numberline {5.5}方案三：LoongArch64 LSX浮点SIMD向量化方案}{42}{section.5.5}%
+\contentsline {subsection}{\numberline {5.5.1}问题背景与设计思路}{42}{subsection.5.5.1}%
+\contentsline {subsection}{\numberline {5.5.2}实现方法}{42}{subsection.5.5.2}%
+\contentsline {subsection}{\numberline {5.5.3}实验结果与分析}{43}{subsection.5.5.3}%
+\contentsline {subsection}{\numberline {5.5.4}完整SIMD覆盖版的后续消融}{44}{subsection.5.5.4}%
+\contentsline {section}{\numberline {5.6}Intrinsic机制的补充验证}{45}{section.5.6}%
+\contentsline {section}{\numberline {5.7}三项正式方案的统一对比与重复测量验证}{48}{section.5.7}%
+\contentsline {subsection}{\numberline {5.7.1}同日正式单次结果总览}{48}{subsection.5.7.1}%
+\contentsline {subsection}{\numberline {5.7.2}同日重复测量验证}{49}{subsection.5.7.2}%
+\contentsline {subsection}{\numberline {5.7.3}三项方案的叠加并不天然成立}{49}{subsection.5.7.3}%
+\contentsline {section}{\numberline {5.8}失败方案对照分析}{50}{section.5.8}%
+\contentsline {subsection}{\numberline {5.8.1}解释器与JIT热路径类失败方案}{50}{subsection.5.8.1}%
+\contentsline {subsection}{\numberline {5.8.2}运行时微优化类失败方案}{51}{subsection.5.8.2}%
+\contentsline {subsection}{\numberline {5.8.3}失败方案的共性原因}{52}{subsection.5.8.3}%
+\contentsline {section}{\numberline {5.9}正收益方案与失败方案的对比总结}{54}{section.5.9}%
+\contentsline {subsection}{\numberline {5.9.1}可门控的局部调整与最小能力补齐更易兑现收益}{54}{subsection.5.9.1}%
+\contentsline {subsection}{\numberline {5.9.2}不同workload的收益边界}{54}{subsection.5.9.2}%
+\contentsline {subsection}{\numberline {5.9.3}面向ART执行引擎的优化方法论}{54}{subsection.5.9.3}%
+\contentsline {section}{\numberline {5.10}本章小结}{55}{section.5.10}%
+\contentsline {chapter}{\numberline {第6章\hspace {.3em}}总结与展望}{57}{chapter.6}%
+\contentsline {section}{\numberline {6.1}本文工作总结}{57}{section.6.1}%
+\contentsline {section}{\numberline {6.2}主要工作与贡献凝练}{57}{section.6.2}%
+\contentsline {subsection}{\numberline {6.2.1}完成LoongArch平台ART执行引擎适配}{57}{subsection.6.2.1}%
+\contentsline {subsection}{\numberline {6.2.2}建立系统化验证与实验方法}{58}{subsection.6.2.2}%
+\contentsline {subsection}{\numberline {6.2.3}获得面向典型workload的优化结论}{58}{subsection.6.2.3}%
+\contentsline {subsection}{\numberline {6.2.4}形成以失败样本为约束的优化研究方法}{58}{subsection.6.2.4}%
+\contentsline {section}{\numberline {6.3}工作局限性分析}{59}{section.6.3}%
+\contentsline {subsection}{\numberline {6.3.1}benchmark覆盖范围仍有限}{59}{subsection.6.3.1}%
+\contentsline {subsection}{\numberline {6.3.2}部分结论受debug构建口径约束}{59}{subsection.6.3.2}%
+\contentsline {subsection}{\numberline {6.3.3}部分候选方向仍需进一步探索}{59}{subsection.6.3.3}%
+\contentsline {subsection}{\numberline {6.3.4}因果证据仍以外部观测为主}{60}{subsection.6.3.4}%
+\contentsline {section}{\numberline {6.4}后续工作展望}{60}{section.6.4}%
+\contentsline {subsection}{\numberline {6.4.1}完善AOT与安装期编译支持}{60}{subsection.6.4.1}%
+\contentsline {subsection}{\numberline {6.4.2}探索LoongArch向量扩展优化}{60}{subsection.6.4.2}%
+\contentsline {subsection}{\numberline {6.4.3}扩展benchmark与应用级验证}{61}{subsection.6.4.3}%
+\contentsline {subsection}{\numberline {6.4.4}增强低扰动观测与运行时因果分析}{61}{subsection.6.4.4}%
+\contentsline {section}{\numberline {6.5}本章小结}{61}{section.6.5}%
+\contentsline {chapter}{\numberline {附录 A\hspace {.3em}}补充实验：DexFileVerifier阶段链实验}{63}{appendix.A}%
+\contentsline {chapter}{参考文献}{65}{section*.36}%
+\contentsline {chapter}{致谢}{69}{appendix*.38}%
+\contentsline {chapter}{作者简历及攻读学位期间发表的学术论文与研究成果}{71}{appendix*.39}%

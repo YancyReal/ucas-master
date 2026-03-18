@@ -3,11 +3,14 @@
 \addvspace {10.0pt}
 \addvspace {10.0pt}
 \addvspace {10.0pt}
-\contentsline {figure}{\numberline {5.1}{\ignorespaces 三项正式方案相对同日基线的归一化收益热力图\relax }}{43}{figure.caption.23}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces 同日重复测量下方案一与方案三的原始散点和均值\relax }}{43}{figure.caption.24}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces 已归档失败方案相对固定 baseline 的归一化收益热力图\relax }}{47}{figure.caption.28}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces 完整 SIMD 覆盖候选版在关键 workload 上的相对收益\relax }}{44}{figure.caption.25}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces LoongArch64 Intrinsic 开关消融实验的几何平均 speedup\relax }}{46}{figure.caption.27}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces LoongArch64 Intrinsic 开关消融实验的逐 workload 收益热力图\relax }}{47}{figure.caption.28}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces 三项正式方案相对同日基线的归一化收益热力图\relax }}{48}{figure.caption.29}%
+\contentsline {figure}{\numberline {5.5}{\ignorespaces 同日重复测量下方案一与方案三的原始散点和均值\relax }}{49}{figure.caption.30}%
+\contentsline {figure}{\numberline {5.6}{\ignorespaces 已归档失败方案相对固定 baseline 的归一化收益热力图\relax }}{53}{figure.caption.34}%
 \addvspace {10.0pt}
 \addvspace {10.0pt}
-\contentsline {figure}{\numberline {A.1}{\ignorespaces DexFileVerifier 阶段链实验的归一化收益\relax }}{57}{figure.caption.29}%
+\contentsline {figure}{\numberline {A.1}{\ignorespaces DexFileVerifier 阶段链实验的归一化收益\relax }}{63}{figure.caption.35}%
 \addvspace {10.0pt}
 \addvspace {10.0pt}
