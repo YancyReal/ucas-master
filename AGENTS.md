@@ -20,3 +20,4 @@ LaTeX 文件沿用现有入口拆分方式，新增章节优先使用 `Tex/Chap_
 
 ## Agent-Specific Instructions
 - 错误纠正规则：当论文内容涉及实现代码、benchmark 或实验数据时，必须先检查 `/workspace/aosp/art` 与 `/workspace/aosp/tmp/MyBenchMark` 的说明文件，不能默认认为相关信息全部位于当前论文仓库。
+- 错误纠正规则：给出论文审查方案时，必须将“用词用语是否规范”作为独立审查维度明确列出，不能仅检查结构、技术内容和实验设计。

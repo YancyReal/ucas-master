@@ -165,8 +165,7 @@ JIT 进入时机和字符串热路径，第三项则面向规则浮点数值内�
     \end{tabular}
 \end{table}
 
-正是由于这些 workload 在性能响应方向上存在明显差异，本文才能避免把某一项局部优化误写为
-“普遍适用于所有场景的通用结论”。在正式方案中，方案一主要命中 \texttt{pmd} 这类短生命周期
+正是由于这些 workload 在性能响应方向上存在明显差异，本文才能避免把某一项局部优化误写为普遍适用于所有场景的通用结论。在正式方案中，方案一主要命中 \texttt{pmd} 这类短生命周期
 负载，方案二主要用于验证字符串热路径微优化的收益边界，方案三则以
 \texttt{SPECjvm2008/scimark.lu.small} 为主要受益对象；而 \texttt{mpegaudio}、
 \texttt{sor.small} 与 \texttt{fft.small} 则用于观察这些方案的跨 workload 可迁移性与
@@ -252,8 +251,8 @@ JIT，从而导致解释器成本难以被及时回收。
 但通过更早触发 baseline JIT，使 \texttt{pmd} 中部分热点方法提前脱离了解释执行阶段。
 
 第二，对 \texttt{lu.small} 而言，该方案并未改变向量化能力本身，但在正式单次结果中仍伴随
-\texttt{+34.25\%} 的提升。这更适合作为“更早进入 baseline JIT 可能改善部分规则数值
-workload”的附带观察，而不是已经经由重复测量确认的独立主张。换言之，方案一并不只服务于字符串型或
+\texttt{+34.25\%} 的提升。一个可能的解释是，更早进入 baseline JIT 使得数值循环也提前获得了
+编译执行机会，从而间接改善了 \texttt{lu.small} 的吞吐表现。不过，这更适合作为附带观察，而不是已经经由重复测量确认的独立主张。换言之，方案一并不只服务于字符串型或
 解释器型 workload，但它对数值型 benchmark 的影响在当前材料中仍应保持谨慎表述。
 
 第三，对 \texttt{mpegaudio} 而言，\texttt{+1.42\%} 的提升幅度仍然较小，不足以单独构成论文主结论。
@@ -261,7 +260,7 @@ workload”的附带观察，而不是已经经由重复测量确认的独立主
 “对短生命周期、解释器占比较高或 JIT 进入偏晚的 workload 有利”，而不应被概括为“通用 JIT 优化”。
 
 此外，\texttt{16384} 的调参尝试在 \texttt{pmd} 上得到 \texttt{3602\,msec} 的结果，
-明显劣于正式方案。这一现象表明，JIT 热度阈值并非“越低或越高越好”的单调变量，而是与 benchmark
+明显劣于正式方案。这一现象表明，JIT 热度阈值并非单调递减或递增的简单变量，而是与 benchmark
 生命周期、固定成本摊薄能力以及 LoongArch64 \texttt{debug} 构建的整体执行特征密切相关。
 不过，本文在后文的同日重复测量验证中也会看到，该方案在 \texttt{pmd} 上虽然存在正收益样本，
 但方差仍然明显高于 baseline，因此其最稳妥的结论应是“方向正确，但稳定性仍需更严格控制实验进一步确认”。
@@ -484,75 +483,6 @@ SIMD 覆盖版，更准确的论文表述应是：“它补齐了更多 LoongArc
 也从反面说明，后续若要继续扩大 SIMD 的默认收益，仅靠继续补 lowering 还不够，还需要结合更高层的
 循环模式选择、idiom 识别和 pass 级门控进一步控制副作用。
 
-\section{Intrinsic机制的补充验证}\label{sec:intrinsic-ablation}
-
-前三项正式方案分别面向 JIT 进入时机、运行时字符串搬运和 LSX 浮点向量 lowering，但它们并不能直接
-回答另一个基础问题：已经补齐的 LoongArch64 Intrinsic 机制本身，究竟对总体 benchmark 带来多大
-收益。由于 Intrinsic 是新架构 ART 执行引擎成熟度的重要边界，本文额外设计了一组“关闭 / 开启
-Intrinsic”的消融实验，用于量化该机制在当前 LoongArch64 ART 中的实际贡献。这里关闭的不是整个
-JIT，而是 LoongArch64 optimizing 路径中的 \texttt{invoke intrinsic dispatch}；因此，该实验
-主要测量的是 HInvoke Intrinsic 在 JIT/optimizing 路径上的收益，而解释器模式则被用作负对照。
-
-该补充实验仍沿用第 4 章的统一验证链路和目标设备，比较对象分别为“关闭 LoongArch64 invoke
-Intrinsic dispatch”的基线版本与“恢复 Intrinsic 支持”的对照版本。benchmark 选择当前目标
-设备上稳定可用的全部 workload：\texttt{SPECjvm2008} 的 21 个子项和 \texttt{DaCapo} 的
-\texttt{avrora}、\texttt{pmd}、\texttt{h2}（其中 \texttt{h2} 仅在 JIT 模式可用），并分别在
-\texttt{interpreter} 与 \texttt{JIT} 模式下各重复 3 轮。对于 \texttt{SPECjvm2008}，本文采用
-\texttt{enabled\_ops / disabled\_ops} 计算 speedup；对于 \texttt{DaCapo}，采用
-\texttt{disabled\_time / enabled\_time} 计算 speedup，因此表中数值越大表示开启
-Intrinsic 后越有利。
-
-\begin{table}[htbp]
-    \centering
-    \small
-    \caption{Intrinsic 开关消融实验的几何平均 speedup}
-    \label{tab:intrinsic-ablation}
-    \begin{tabular}{lcccc}
-        \hline
-        \textbf{模式} & \textbf{SPEC startup} & \textbf{SPEC throughput} & \textbf{DaCapo} & \textbf{总体} \\
-        \hline
-        \texttt{interpreter} & \texttt{1.0189x} & \texttt{0.9980x} & \texttt{1.0359x} & \texttt{1.0112x} \\
-        \texttt{JIT} & \texttt{1.0339x} & \texttt{1.0508x} & \texttt{1.0387x} & \texttt{1.0415x} \\
-        \hline
-    \end{tabular}
-\end{table}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.82\textwidth]{mybenchmark/intrinsic-ablation-geomean}
-    \caption{LoongArch64 Intrinsic 开关消融实验的几何平均 speedup}
-    \label{fig:intrinsic-ablation-geomean}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.88\textwidth]{mybenchmark/intrinsic-ablation-heatmap}
-    \caption{LoongArch64 Intrinsic 开关消融实验的逐 workload 收益热力图}
-    \label{fig:intrinsic-ablation-heatmap}
-\end{figure}
-
-从表~\ref{tab:intrinsic-ablation} 和图~\ref{fig:intrinsic-ablation-geomean} 可以看到，
-Intrinsic 的主要收益确实集中在 JIT 路径。JIT
-模式下，全部可比较 workload 的几何平均 speedup 为 \texttt{1.0415x}，其中
-\texttt{SPEC throughput} 达到 \texttt{1.0508x}；而 \texttt{interpreter} 模式总体仅为
-\texttt{1.0112x}，23 个可比较 workload 中有 19 个落在 $\pm 2\%$ 区间内，更接近设备抖动和
-短时噪声。这一结果与 Intrinsic 的实现位置是一致的：当前 LoongArch64 Intrinsic dispatch 位于
-optimizing 编译器而非解释器主体，因此其收益主要通过已编译热点代码兑现。
-
-从逐 workload 结果看，图~\ref{fig:intrinsic-ablation-heatmap} 进一步展示出 JIT 下最具
-代表性的收益点是 \texttt{crypto.aes}（\texttt{1.4996x}）、
-\texttt{startup.crypto.aes}（\texttt{1.2993x}）、\texttt{h2}（\texttt{1.1513x}）和
-\texttt{crypto.signverify}（\texttt{1.0604x}）。这些 workload 的共同特点是存在可枚举的标准库
-热点语义，能够被 Intrinsic 直接映射为更短的机器码序列或更直接的辅助路径。相对地，
-\texttt{pmd} 仍然出现了约 \texttt{-5.26\%} 的回退，说明 Intrinsic 并不是对所有 Java
-workload 都普遍有效：如果主导瓶颈仍在 JIT 时机、字符串运行时路径或未命中的库热点上，则单独打开
-Intrinsic 并不能保证端到端收益。
-
-这组补充实验对全文有两点意义。第一，它从实验上证明了“补齐 Intrinsic 支持”确实不是单纯的成熟度
-修饰，而是能够在 JIT 主路径上形成可量化收益的执行引擎能力。第二，它也帮助区分了 Intrinsic 与
-方案三 SIMD 向量化的收益边界：前者主要改善标准库和内建语义路径，后者主要改善显式规则数值循环；
-二者命中的热点类型不同，因此在论文中应分别论证，而不宜混写为同一类后端优化。
-
 \section{三项正式方案的统一对比与重复测量验证}
 
 \subsection{同日正式单次结果总览}
@@ -624,10 +554,79 @@ Intrinsic 并不能保证端到端收益。
 
 从表~\ref{tab:stacking-conflict} 可以看到，方案二加入后，\texttt{pmd} 立即从方案一单独启用时的
 正收益翻转为明显回退；进一步叠加方案三后，\texttt{lu.small} 继续上升，但 \texttt{mpegaudio}
-又出现了显著负向波动。这说明执行引擎优化并不是“把所有看起来有效的局部策略一起打开”就能得到更好
+又出现了显著负向波动。这说明执行引擎优化并不是将所有单独有效的局部策略同时启用就能得到更好
 结果。不同方案可能命中不同 workload 的主路径，也可能在代码体积、运行时固定成本和 JIT 行为层面
 产生相互干扰。因此，本文保留三项方案的方式是“作为独立优化方向分别分析和验证”，而不是将其直接写成
 可统一叠加的默认配置。
+
+\section{Intrinsic机制的补充验证}\label{sec:intrinsic-ablation}
+
+前三项正式方案分别面向 JIT 进入时机、运行时字符串搬运和 LSX 浮点向量 lowering，但它们并不能直接
+回答另一个基础问题：已经补齐的 LoongArch64 Intrinsic 机制本身，究竟对总体 benchmark 带来多大
+收益。由于 Intrinsic 是新架构 ART 执行引擎成熟度的重要边界，本文额外设计了一组“关闭 / 开启
+Intrinsic”的消融实验，用于量化该机制在当前 LoongArch64 ART 中的实际贡献。这里关闭的不是整个
+JIT，而是 LoongArch64 optimizing 路径中的 \texttt{invoke intrinsic dispatch}；因此，该实验
+主要测量的是 HInvoke Intrinsic 在 JIT/optimizing 路径上的收益，而解释器模式则被用作负对照。
+
+该补充实验仍沿用第 4 章的统一验证链路和目标设备，比较对象分别为“关闭 LoongArch64 invoke
+Intrinsic dispatch”的基线版本与“恢复 Intrinsic 支持”的对照版本。benchmark 选择当前目标
+设备上稳定可用的全部 workload：\texttt{SPECjvm2008} 的 21 个子项和 \texttt{DaCapo} 的
+\texttt{avrora}、\texttt{pmd}、\texttt{h2}（其中 \texttt{h2} 仅在 JIT 模式可用），并分别在
+\texttt{interpreter} 与 \texttt{JIT} 模式下各重复 3 轮。对于 \texttt{SPECjvm2008}，本文采用
+\texttt{enabled\_ops / disabled\_ops} 计算 speedup；对于 \texttt{DaCapo}，采用
+\texttt{disabled\_time / enabled\_time} 计算 speedup，因此表中数值越大表示开启
+Intrinsic 后越有利。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{Intrinsic 开关消融实验的几何平均 speedup}
+    \label{tab:intrinsic-ablation}
+    \begin{tabular}{lcccc}
+        \hline
+        \textbf{模式} & \textbf{SPEC startup} & \textbf{SPEC throughput} & \textbf{DaCapo} & \textbf{总体} \\
+        \hline
+        \texttt{interpreter} & \texttt{1.0189x} & \texttt{0.9980x} & \texttt{1.0359x} & \texttt{1.0112x} \\
+        \texttt{JIT} & \texttt{1.0339x} & \texttt{1.0508x} & \texttt{1.0387x} & \texttt{1.0415x} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.82\textwidth]{mybenchmark/intrinsic-ablation-geomean}
+    \caption{LoongArch64 Intrinsic 开关消融实验的几何平均 speedup}
+    \label{fig:intrinsic-ablation-geomean}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{mybenchmark/intrinsic-ablation-heatmap}
+    \caption{LoongArch64 Intrinsic 开关消融实验的逐 workload 收益热力图}
+    \label{fig:intrinsic-ablation-heatmap}
+\end{figure}
+
+从表~\ref{tab:intrinsic-ablation} 和图~\ref{fig:intrinsic-ablation-geomean} 可以看到，
+Intrinsic 的主要收益确实集中在 JIT 路径。JIT
+模式下，全部可比较 workload 的几何平均 speedup 为 \texttt{1.0415x}，其中
+\texttt{SPEC throughput} 达到 \texttt{1.0508x}；而 \texttt{interpreter} 模式总体仅为
+\texttt{1.0112x}，23 个可比较 workload 中有 19 个落在 $\pm 2\%$ 区间内，更接近设备抖动和
+短时噪声。这一结果与 Intrinsic 的实现位置是一致的：当前 LoongArch64 Intrinsic dispatch 位于
+optimizing 编译器而非解释器主体，因此其收益主要通过已编译热点代码兑现。
+
+从逐 workload 结果看，图~\ref{fig:intrinsic-ablation-heatmap} 进一步展示出 JIT 下最具
+代表性的收益点是 \texttt{crypto.aes}（\texttt{1.4996x}）、
+\texttt{startup.crypto.aes}（\texttt{1.2993x}）、\texttt{h2}（\texttt{1.1513x}）和
+\texttt{crypto.signverify}（\texttt{1.0604x}）。这些 workload 的共同特点是存在可枚举的标准库
+热点语义，能够被 Intrinsic 直接映射为更短的机器码序列或更直接的辅助路径。相对地，
+\texttt{pmd} 仍然出现了约 \texttt{-5.26\%} 的回退，说明 Intrinsic 并不是对所有 Java
+workload 都普遍有效：如果主导瓶颈仍在 JIT 时机、字符串运行时路径或未命中的库热点上，则单独打开
+Intrinsic 并不能保证端到端收益。
+
+这组补充实验对全文有两点意义。第一，它从实验上证明了“补齐 Intrinsic 支持”确实不是单纯的成熟度
+修饰，而是能够在 JIT 主路径上形成可量化收益的执行引擎能力。第二，它也帮助区分了 Intrinsic 与
+方案三 SIMD 向量化的收益边界：前者主要改善标准库和内建语义路径，后者主要改善显式规则数值循环；
+二者命中的热点类型不同，因此在论文中应分别论证，而不宜混写为同一类后端优化。
 
 \section{失败方案对照分析}
 
@@ -731,7 +730,7 @@ LoongArch64 的 JIT 后端或主要运行时热路径会在正式 benchmark 中�
     debug、短生命周期 benchmark 口径并不完全一致，因此难以在正式结论中站得住脚。
 \end{enumerate}
 
-这些失败案例说明，LoongArch 平台 ART 的优化并不是“想到哪里就改哪里”的局部修补过程，而是
+这些失败案例说明，LoongArch 平台 ART 的优化并不是缺乏系统规划的局部修补过程，而是
 一个必须持续围绕 workload 主热点、执行模式和固定成本展开的筛选过程。正式方案之所以能够保留，
 并不只是因为它们“跑分更高”，更重要的是它们在热点定位、风险控制和收益兑现之间形成了更稳定的
 闭环。

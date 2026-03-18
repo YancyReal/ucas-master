@@ -13,8 +13,8 @@
 \contentsline {table}{\numberline {5.6}{\ignorespaces 运行时字符串搬运批量化方案结果\relax }}{41}{table.caption.22}%
 \contentsline {table}{\numberline {5.7}{\ignorespaces LoongArch64 LSX 浮点 SIMD 向量化方案结果\relax }}{43}{table.caption.23}%
 \contentsline {table}{\numberline {5.8}{\ignorespaces 完整 SIMD 覆盖候选版的几何平均 speedup\relax }}{44}{table.caption.24}%
-\contentsline {table}{\numberline {5.9}{\ignorespaces Intrinsic 开关消融实验的几何平均 speedup\relax }}{46}{table.caption.26}%
-\contentsline {table}{\numberline {5.10}{\ignorespaces 方案叠加状态与单方案结果对照\relax }}{50}{table.caption.31}%
+\contentsline {table}{\numberline {5.9}{\ignorespaces 方案叠加状态与单方案结果对照\relax }}{47}{table.caption.28}%
+\contentsline {table}{\numberline {5.10}{\ignorespaces Intrinsic 开关消融实验的几何平均 speedup\relax }}{48}{table.caption.29}%
 \contentsline {table}{\numberline {5.11}{\ignorespaces 与 JIT 热路径相关的失败方案对照\relax }}{50}{table.caption.32}%
 \contentsline {table}{\numberline {5.12}{\ignorespaces 与运行时搬运相关的失败方案对照\relax }}{51}{table.caption.33}%
 \addvspace {10.0pt}
