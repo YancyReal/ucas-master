@@ -13,8 +13,8 @@
 其一，ART 属于典型的分层执行系统，解释器、baseline JIT、优化重编译以及运行时辅助路径之
 间存在相互影响；若 baseline 持续漂移，则很难比较不同方案之间的真实边际收益。其二，本文
 的目标并非给出“对所有 Android 应用都成立”的普适结论，而是在统一口径下识别 LoongArch
-平台 ART 当前最值得保留的优化方向，因此更需要强调对照关系和可复核性\citep{Lee2020,
-JavART2022,Perez2012HybridJIT,Xu2018ShareJIT,Blackburn2006,SPECjvm2008}。
+平台 ART 当前最值得保留的优化方向，因此更需要强调对照关系和可复核性\citep{Perez2012HybridJIT,
+Xu2018ShareJIT,Luo2022Hubble,Blackburn2006,SPECjvm2008}。
 
 需要进一步说明的是，本文在第 5 章中同时使用两类实验归档。第一类是方案筛选阶段保留下来的
 \texttt{baseline flamegraph} 与热点摘要，它们主要用于解释为何将某条路径提升为候选优化方向；

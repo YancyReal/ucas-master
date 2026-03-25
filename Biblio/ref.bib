@@ -6,22 +6,6 @@
 
 % ==================== Android / ART 运行时 ====================
 
-@inproceedings{Bornstein2008,
-    author    = {Bornstein, Dan},
-    title     = {Dalvik VM Internals},
-    booktitle = {Google I/O Developer Conference},
-    year      = {2008},
-    address   = {San Francisco, CA},
-}
-
-@inproceedings{Cheng2010,
-    author    = {Cheng, Ben and Buzbee, Bill},
-    title     = {A JIT Compiler for Android's Dalvik VM},
-    booktitle = {Google I/O Developer Conference},
-    year      = {2010},
-    address   = {San Francisco, CA},
-}
-
 @misc{AndroidRuntime2024,
     author       = {{Google}},
     title        = {Android Runtime ({ART}) and Dalvik},
@@ -38,14 +22,6 @@
     note         = {访问于 2026-03-01},
 }
 
-@inproceedings{Ghuloum2014,
-    author    = {Ghuloum, Anwar and Carlstrom, Brian and Rogers, Ian},
-    title     = {{ART}: {Android}'s Runtime Evolved},
-    booktitle = {Google I/O Developer Conference},
-    year      = {2014},
-    address   = {San Francisco, CA},
-}
-
 % ==================== 虚拟机 / JIT 编译技术 ====================
 
 @article{Shi2008,
@@ -56,6 +32,7 @@
     number  = {4},
     pages   = {1--36},
     year    = {2008},
+    doi     = {10.1145/1328195.1328197},
     publisher = {ACM},
 }
 
@@ -74,6 +51,8 @@
     booktitle = {Proceedings of the Java Virtual Machine Research and Technology Symposium},
     year      = {2001},
     pages     = {1--12},
+    address   = {Monterey, CA},
+    url       = {https://www.usenix.org/legacy/events/jvm01/full_papers/paleczny/paleczny.pdf},
     publisher = {USENIX Association},
 }
 
@@ -83,6 +62,7 @@
     booktitle = {Proceedings of the 16th ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)},
     year      = {2001},
     pages     = {180--195},
+    doi       = {10.1145/504311.504296},
     publisher = {ACM},
 }
 
@@ -94,6 +74,7 @@
     number  = {1},
     pages   = {1--32},
     year    = {2008},
+    doi     = {10.1145/1369396.1370017},
     publisher = {ACM},
 }
 
@@ -103,6 +84,7 @@
     booktitle = {Proceedings of the ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI)},
     year      = {1992},
     pages     = {32--43},
+    doi       = {10.1145/143095.143114},
     publisher = {ACM},
 }
 
@@ -112,6 +94,7 @@
     booktitle = {Proceedings of the International Symposium on Code Generation and Optimization (CGO)},
     year      = {2003},
     pages     = {241--252},
+    doi       = {10.1109/CGO.2003.1191549},
     publisher = {IEEE},
 }
 
@@ -121,6 +104,7 @@
     booktitle = {Proceedings of the 9th ACM SIGPLAN/SIGOPS International Conference on Virtual Execution Environments (VEE)},
     year      = {2013},
     pages     = {143--154},
+    doi       = {10.1145/2451512.2451541},
     publisher = {ACM},
 }
 
@@ -132,6 +116,7 @@
     number  = {2},
     pages   = {449--466},
     year    = {2005},
+    doi     = {10.1109/JPROC.2004.840305},
     publisher = {IEEE},
 }
 
@@ -150,15 +135,17 @@
     booktitle = {Proceedings of the 4th International Symposium on Memory Management (ISMM)},
     year      = {2004},
     pages     = {37--48},
+    doi       = {10.1145/1029873.1029879},
     publisher = {ACM},
 }
 
-@inproceedings{Gidra2022,
-    author    = {Gidra, Lokesh and Boehm, Hans-J. and Fernandes, Joel},
-    title     = {Utilizing the {Linux} Userfaultfd System Call in a Compaction Phase of a Garbage Collection Process},
-    booktitle = {Defensive Publications Series},
-    year      = {2022},
-    publisher = {Technical Disclosure Commons},
+@misc{Gidra2022,
+    author       = {Gidra, Lokesh and Boehm, Hans-J. and Fernandes, Joel},
+    title        = {Utilizing the {Linux} Userfaultfd System Call in a Compaction Phase of a Garbage Collection Process},
+    howpublished = {Technical Disclosure Commons},
+    year         = {2020},
+    url          = {https://www.tdcommons.org/dpubs_series/3671/},
+    note         = {Published October 12, 2020},
 }
 
 % ==================== LoongArch 架构 ====================
@@ -195,57 +182,25 @@
     howpublished = {\url{https://github.com/loongson/la-toolchain-conventions}},
 }
 
-@inproceedings{Hu2023LoongArch,
-    author    = {Hu, Weiwu and Gao, Jianfei and Wang, Huandong},
-    title     = {{LoongArch}: A New {RISC} {ISA}},
-    booktitle = {Proceedings of the 50th Annual International Symposium on Computer Architecture (ISCA)},
-    year      = {2023},
-    publisher = {ACM},
-}
-
-@article{Chen2024LoongsonEco,
-    author  = {陈华才 and 张福新 and 武成岗},
-    key     = {Chen Hua Cai Zhang Fu Xin Wu Cheng Gang},
-    title   = {龙芯处理器生态建设：挑战与进展},
-    journal = {计算机研究与发展},
-    volume  = {61},
-    number  = {6},
-    pages   = {1280--1295},
-    year    = {2024},
-}
-
 % ==================== 跨平台移植 ====================
-
-@inproceedings{Wimmer2013,
-    author    = {Wimmer, Christian and W\"{u}rthinger, Thomas and M\"{o}ssenb\"{o}ck, Hanspeter},
-    title     = {Cross-Platform Code Generation with {Graal}},
-    booktitle = {Proceedings of the ACM SIGPLAN International Workshop on Virtual Machines and Intermediate Languages (VMIL)},
-    year      = {2013},
-    publisher = {ACM},
-}
 
 @mastersthesis{Huang2021,
     author  = {黄佳},
     key     = {Huang Jia},
-    title   = {面向龙芯平台的{Android}运行时环境移植与优化},
+    title   = {基于{LoongArch64}指令集的{Java}虚拟机的移植与优化},
     school  = {中国科学院大学},
     year    = {2021},
 }
 
-@mastersthesis{Li2019,
-    author  = {李泽京},
-    key     = {Li Ze Jing},
-    title   = {面向{MIPS}平台的{Android ART}运行时技术研究},
-    school  = {中国科学院大学},
-    year    = {2019},
-}
-
-@misc{OpenJDKLoongArch2023,
-    author       = {{龙芯中科}},
-    key          = {Long Xin Zhong Ke},
-    title        = {{OpenJDK} {LoongArch} 移植},
-    howpublished = {\url{https://github.com/ABI-of-LoongArch}},
-    year         = {2023},
+@article{Lei2012AndroidLoongson,
+    author  = {雷鸣 and 靳婷 and 徐晓亮 and 齐锦},
+    key     = {Lei Ming Jin Ting Xu Xiao Liang Qi Jin},
+    title   = {面向龙芯平台的{Android}系统移植研究},
+    journal = {计算机工程与应用},
+    volume  = {48},
+    number  = {22},
+    pages   = {70--73},
+    year    = {2012},
 }
 
 @misc{AospRiscv2024,
@@ -258,28 +213,25 @@
 
 % ==================== JIT / ART 优化研究 ====================
 
-@inproceedings{Lee2020,
-    author    = {Lee, Byeongcheol and Rajan, Kaushik and Park, Sehun},
-    title     = {Configuration-Aware Optimization for {Android} Runtime},
-    booktitle = {Proceedings of the International Conference on Compilers, Architecture, and Synthesis for Embedded Systems (CASES)},
-    year      = {2020},
-    publisher = {IEEE},
-}
-
 @inproceedings{Perez2012HybridJIT,
     author    = {P{\'e}rez, Guillermo A. and Kao, Chung-Min and Chung, Yeh-Ching and Hsu, Wei-Chung},
     title     = {A Hybrid Just-In-Time Compiler for {Android}: Comparing {JIT} Types and the Result of Cooperation},
     booktitle = {Proceedings of the International Conference on Compilers, Architecture, and Synthesis for Embedded Systems (CASES)},
     year      = {2012},
+    pages     = {41--50},
+    doi       = {10.1145/2380403.2380418},
     publisher = {ACM},
 }
 
-@inproceedings{Xu2018ShareJIT,
+@article{Xu2018ShareJIT,
     author    = {Xu, Xia and Cooper, Keith and Brock, James and Zhang, Yi and Ye, Hongliang},
     title     = {{ShareJIT}: {JIT} Code Cache Sharing across Processes and Its Practical Implementation},
-    booktitle = {Proceedings of the ACM on Programming Languages},
+    journal   = {Proceedings of the ACM on Programming Languages},
+    volume    = {2},
+    number    = {OOPSLA},
+    pages     = {1--23},
     year      = {2018},
-    note      = {OOPSLA},
+    doi       = {10.1145/3276494},
 }
 
 @inproceedings{Luo2022Hubble,
@@ -287,15 +239,9 @@
     title     = {{Hubble}: Performance Debugging with In-Production, Just-In-Time Method Tracing on {Android}},
     booktitle = {Proceedings of the 16th USENIX Symposium on Operating Systems Design and Implementation (OSDI)},
     year      = {2022},
+    pages     = {787--803},
+    url       = {https://www.usenix.org/conference/osdi22/presentation/luo},
     publisher = {USENIX Association},
-}
-
-@inproceedings{JavART2022,
-    author    = {Wang, Peng and Liu, Yanzhi and Chen, Haibo},
-    title     = {{JavART}: Rule-Driven {JIT} Compilation for {Android} Application Startup Acceleration},
-    booktitle = {Proceedings of the ACM SIGPLAN International Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)},
-    year      = {2022},
-    publisher = {ACM},
 }
 
 @inproceedings{Suganuma2005,
@@ -312,6 +258,8 @@
     title     = {Optimized Strings for the {Java HotSpot} Virtual Machine},
     booktitle = {Proceedings of the 6th International Symposium on Principles and Practice of Programming in Java (PPPJ)},
     year      = {2008},
+    pages     = {105--114},
+    doi       = {10.1145/1411732.1411747},
     publisher = {ACM},
 }
 
@@ -320,6 +268,8 @@
     title     = {Efficient Interpretation using Quickening},
     booktitle = {Proceedings of the Dynamic Languages Symposium (DLS)},
     year      = {2010},
+    pages     = {1--14},
+    doi       = {10.1145/1869631.1869633},
     publisher = {ACM},
 }
 
@@ -328,6 +278,8 @@
     title     = {Inline Caching Meets Quickening},
     booktitle = {Proceedings of the 24th European Conference on Object-Oriented Programming (ECOOP)},
     year      = {2010},
+    pages     = {429--451},
+    doi       = {10.1007/978-3-642-14107-2_21},
     publisher = {Springer},
 }
 
@@ -339,6 +291,7 @@
     booktitle = {Proceedings of the 21st ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)},
     year      = {2006},
     pages     = {169--190},
+    doi       = {10.1145/1167473.1167488},
     publisher = {ACM},
 }
 
@@ -354,14 +307,20 @@
     title     = {Statistically Rigorous {Java} Performance Evaluation},
     booktitle = {Proceedings of the 22nd ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)},
     year      = {2007},
+    pages     = {57--76},
+    doi       = {10.1145/1297027.1297033},
     publisher = {ACM},
 }
 
 @article{Barrett2017Warmup,
     author  = {Barrett, Edd and Bolz-Tereick, Carl Friedrich and Killick, Rebecca and Mount, Sarah and Tratt, Laurence},
     title   = {Virtual Machine Warmup Blows Hot and Cold},
-    journal = {arXiv preprint arXiv:1602.00602},
+    journal = {Proceedings of the ACM on Programming Languages},
+    volume  = {1},
+    number  = {OOPSLA},
+    pages   = {1--27},
     year    = {2017},
+    doi     = {10.1145/3133876},
 }
 
 @inproceedings{Prokopec2019Renaissance,
@@ -369,6 +328,8 @@
     title     = {Renaissance: Benchmarking Suite for Parallel Applications on the {JVM}},
     booktitle = {Proceedings of the ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI)},
     year      = {2019},
+    pages     = {31--47},
+    doi       = {10.1145/3314221.3314631},
     publisher = {ACM},
 }
 
@@ -390,12 +351,12 @@
     publisher = {Addison-Wesley},
 }
 
-@article{StatCounter2025,
-    author    = {{StatCounter}},
-    title     = {Mobile Operating System Market Share Worldwide},
-    journal   = {StatCounter Global Stats},
-    year      = {2025},
-    note      = {\url{https://gs.statcounter.com/os-market-share/mobile/worldwide}，访问于 2026-03-01},
+@misc{StatCounter2025,
+    author       = {{StatCounter Global Stats}},
+    title        = {Mobile Operating System Market Share Worldwide},
+    howpublished = {\url{https://gs.statcounter.com/os-market-share/mobile/worldwide}},
+    year         = {2025},
+    note         = {访问于 2026-03-01},
 }
 
 %---------------------------------------------------------------------------%

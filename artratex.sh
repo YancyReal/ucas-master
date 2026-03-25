@@ -103,11 +103,11 @@ fi
 #-
 #-> Open the compiled file
 #-
-if [[ "$System_Name" == "Linux" && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-    echo "No graphical session detected, skip opening PDF viewer."
-else
-    $PDFviewer ./$Tmp/"$FileName".pdf || exit
-fi
+# if [[ "$System_Name" == "Linux" && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+#     echo "No graphical session detected, skip opening PDF viewer."
+# else
+#     $PDFviewer ./$Tmp/"$FileName".pdf || exit
+# fi
 echo "---------------------------------------------------------------------------"
 echo "$TexCompiler $BibCompiler "$FileName".tex finished..."
 echo "---------------------------------------------------------------------------"

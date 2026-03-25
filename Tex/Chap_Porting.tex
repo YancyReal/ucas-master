@@ -20,8 +20,8 @@ LoongArchISA2023,LoongArchELFABI2025,LoongArchToolchain2025}。
 能够运行 Java 代码，而且能够为高频库方法提供足够的机器级实现，形成可用于后续验证与优化的
 稳定基线。
 
-这种阶段化实现策略与新架构平台上的 JVM 移植经验是一致的\citep{Huang2021,OpenJDKLoongArch2023}。
-其核心思想不是一开始就追求所有执行模式同时可用，而是优先保证最小执行路径闭合，再逐步收敛
+这种阶段化实现策略与既有国产平台上的 Java 虚拟机和 Android 系统移植经验是一致的
+\citep{Huang2021,Lei2012AndroidLoongson}。其核心思想不是一开始就追求所有执行模式同时可用，而是优先保证最小执行路径闭合，再逐步收敛
 高性能路径上的体系结构相关细节。对本文而言，这种策略带来了两个直接收益：其一，问题定位边界
 更加清晰，便于将错误限制在单一模块内部；其二，能够尽早建立“可执行、可验证、可回归”的版本，
 为后续性能优化提供稳定基线。
@@ -160,7 +160,7 @@ Nterp 的难点并不在于建立入口骨架，而在于将 200 余条 DEX 字�
 如何生成本地机器码”的问题。ART 的 Optimizing Compiler 以 HIR 为核心中间表示，前端负责构建
 \texttt{HGraph} 并执行平台无关优化，平台后端则负责寄存器分配、调用约定映射和机器指令发射。
 因此，LoongArch64 JIT 后端的核心任务，是将 ART 已有的优化编译基础设施同 LoongArch64 的寄存器、
-指令和调用约定约束连接起来\citep{Aho2006,Wimmer2013,LoongArchELFABI2025,
+指令和调用约定约束连接起来\citep{Aho2006,Huang2021,LoongArchELFABI2025,
 LoongArchToolchain2025}。
 
 本文围绕这一目标，首先补齐了 LoongArch64 的代码生成器类、寄存器阻塞规则、调用约定访问器和栈帧
