@@ -171,7 +171,7 @@ JIT 进入时机和字符串热路径，第三项则面向规则浮点数值内�
 \texttt{sor.small} 与 \texttt{fft.small} 则用于观察这些方案的跨 workload 可迁移性与
 副作用边界。
 
-\section{方案一：JIT分层热度阈值调整方案}
+\section{JIT 分层热度阈值调整（方案一）}
 
 \subsection{问题背景与设计思路}
 
@@ -265,7 +265,7 @@ JIT，从而导致解释器成本难以被及时回收。
 不过，本文在后文的同日重复测量验证中也会看到，该方案在 \texttt{pmd} 上虽然存在正收益样本，
 但方差仍然明显高于 baseline，因此其最稳妥的结论应是“方向正确，但稳定性仍需更严格控制实验进一步确认”。
 
-\section{方案二：运行时字符串搬运批量化方案}
+\section{运行时字符串搬运批量化（方案二）}
 
 \subsection{问题背景与设计思路}
 
@@ -340,7 +340,7 @@ profile 中持续可见，但在正式单次对比中 \texttt{pmd} 与 \texttt{m
 这足以说明运行时字符串搬运批量化至少降低了部分热点路径的固定成本；只是这种降低幅度还不足以在
 更广的 workload 上兑现为稳定大收益。
 
-\section{方案三：LoongArch64 LSX浮点SIMD向量化方案}
+\section{LoongArch64 LSX 浮点 SIMD 向量化（方案三）}
 
 \subsection{问题背景与设计思路}
 
