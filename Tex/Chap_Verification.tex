@@ -91,28 +91,45 @@ cd ${AOSP_ROOT} && art/tools/buildbot-build.sh --target
 ./art/test.py -r --target --no-prebuild --debug --no-image --64 --jit -j 1 -t <case>
 \end{lstlisting}
 
-当需要验证平台适配阶段的整体正确性时，则使用更大范围的目标机测试集合，分别在 C++ 解释器、Nterp
-解释器和 JIT 编译器三种模式下执行。由于三种模式下的全量命令矩阵较长，正文仅保留按执行模式整理后的
-汇总结果；对应命令、结果摘要与原始日志统一保存在外部实验数据目录与统计记录中。按当前归档统计，
-三种执行模式下均完成了 1033 个测试用例的验证，通过情况如表~\ref{tab:target-run-test-result} 所示。
+当需要验证平台适配阶段的整体正确性时，本文最终采用如下目标机全量回归命令：
+
+\begin{lstlisting}[language=bash,basicstyle=\ttfamily\small]
+art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 7
+\end{lstlisting}
+
+该命令固定了目标机、debug、no-prebuild、no-image 与 64 位等运行条件，并通过
+\texttt{--all-compiler} 依次展开 \texttt{interp-ac}、\texttt{interpreter}、\texttt{jit}、
+\texttt{jit-on-first-use}、\texttt{optimizing}、\texttt{speed-profile} 和 \texttt{baseline}
+七种 compiler 变体。由于 \texttt{art/test} 目录当前共包含 1033 个 run-test 用例，因此理论测试配置总数为
+7231。测试框架会根据 \texttt{art/test/knownfailures.json} 中按 \texttt{variant}、\texttt{devices}
+和 \texttt{env\_vars} 描述的规则自动 skip 已知不适用配置；按当前测试框架配置统计，本组回归共对应
+430 个自动 skip 配置，其余 6801 个配置构成实际执行集合。结果如表~\ref{tab:target-run-test-result}
+所示。这里的七种 compiler 变体是 ART run-test 用于组织系统级回归的测试维度，并不与前文按实现机制划分的
+C++ 解释器、Nterp 和 JIT 三条主路径一一对应。
 
 \begin{table}[htbp]
     \centering
     \caption{目标机侧 run-test 验证结果}
     \label{tab:target-run-test-result}
-    \begin{tabular}{lcc}
+    \begin{tabular}{lccc}
         \hline
-        \textbf{执行模式} & \textbf{通过测试数} & \textbf{通过率} \\
+        \textbf{compiler 变体} & \textbf{理论配置数} & \textbf{自动 skip 数} & \textbf{实际执行数} \\
         \hline
-        C++ 解释器 & 1033/1033 & 100\% \\
-        Nterp 解释器 & 1033/1033 & 100\% \\
-        JIT 编译器 & 1033/1033 & 100\% \\
+        \texttt{interp-ac} & 1033 & 67 & 966 \\
+        \texttt{interpreter} & 1033 & 59 & 974 \\
+        \texttt{jit} & 1033 & 57 & 976 \\
+        \texttt{jit-on-first-use} & 1033 & 61 & 972 \\
+        \texttt{optimizing} & 1033 & 70 & 963 \\
+        \texttt{speed-profile} & 1033 & 59 & 974 \\
+        \texttt{baseline} & 1033 & 57 & 976 \\
+        \hline
+        \textbf{总计} & \textbf{7231} & \textbf{430} & \textbf{6801} \\
         \hline
     \end{tabular}
 \end{table}
 
-这一结果说明，LoongArch 平台 ART 执行引擎已经不仅能够运行简单样例，而且在三条主要执行路径上均通过了
-系统性的目标机回归，具备进入基准测试评测阶段的语义基础。
+这一结果说明，LoongArch 平台 ART 执行引擎已经不仅能够运行简单样例，而且能够在固定目标机条件下对
+1033 个 run-test 用例与 7 类 compiler 变体进行系统级回归，具备进入基准测试评测阶段的语义基础。
 
 \subsection{libcore 测试}
 
@@ -252,8 +269,11 @@ LoongArch64 LSX 浮点 SIMD 方案的主要受益对象；\texttt{sor.small} 与
 第一，宿主机侧测试验证了平台适配未破坏 DEX 处理、命令行解析和运行时公共组件等基础功能，为设备侧回归
 提供了前置保证。
 
-第二，目标机侧 run-test 在 C++ 解释器、Nterp 和 JIT 三种执行模式下均通过了 1033/1033 的测试集，
-说明 LoongArch 平台执行引擎的三条主要执行路径在语义层面已经收敛。
+第二，目标机侧 run-test 最终采用
+\texttt{art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 7}
+作为系统级整体验收命令，在 1033 个 run-test 用例和 7 种 compiler 变体上形成了 7231 个测试配置；其中
+430 个配置按照 \texttt{knownfailures.json} 规则自动 skip，其余 6801 个配置构成实际执行集合，说明
+LoongArch 平台执行引擎已经具备较完整的目标机侧系统回归能力。
 
 第三，libcore 测试集的通过表明，LoongArch 平台 ART 不仅在运行时内部测试上具备正确性，也能够支撑
 Java 核心类库层面的实际 API 语义。
