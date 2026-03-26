@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="790" viewBox="0 0 1200 790">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L12,6 L0,12 z" fill="#666666"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="100%" height="100%" fill="#ffffff"/>
+  <rect x="40" y="35" width="1120" height="118" rx="10" ry="10" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.6"/>
+  <rect x="40" y="185" width="525" height="260" rx="10" ry="10" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.6"/>
+  <rect x="595" y="185" width="565" height="260" rx="10" ry="10" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.6"/>
+  <rect x="40" y="480" width="1120" height="112" rx="10" ry="10" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.6"/>
+  <rect x="40" y="630" width="1120" height="72" rx="10" ry="10" fill="#e9e9e9" stroke="#9a9a9a" stroke-width="1.6"/>
+  <text x="72" y="62.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="start" fill="#333333">
+    <tspan x="72" dy="0">外部工具与执行入口</tspan>
+  </text>
+  <text x="72" y="212.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="start" fill="#333333">
+    <tspan x="72" dy="0">编译器侧（art/compiler）</tspan>
+  </text>
+  <text x="627" y="212.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="start" fill="#333333">
+    <tspan x="627" dy="0">运行时侧（art/runtime）</tspan>
+  </text>
+  <text x="72" y="507.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="start" fill="#333333">
+    <tspan x="72" dy="0">公共支撑库与工件层</tspan>
+  </text>
+  <rect x="90" y="82" width="210" height="52" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="195.0" y="108.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="195.0" dy="0">dex2oat</tspan>
+  </text>
+  <rect x="470" y="82" width="280" height="52" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="610.0" y="108.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="610.0" dy="0">app_process / dalvikvm</tspan>
+  </text>
+  <rect x="845" y="82" width="230" height="52" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="960.0" y="108.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="960.0" dy="0">profman / artd</tspan>
+  </text>
+  <rect x="90" y="250" width="195" height="78" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="187.5" y="272.8" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="187.5" dy="0">后端汇编与</tspan>
+    <tspan x="187.5" dy="32.400000000000006">代码生成</tspan>
+  </text>
+  <rect x="315" y="250" width="195" height="78" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="412.5" y="272.8" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="412.5" dy="0">Optimizing</tspan>
+    <tspan x="412.5" dy="32.400000000000006">Compiler</tspan>
+  </text>
+  <rect x="90" y="348" width="195" height="68" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="187.5" y="382.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="21" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="187.5" dy="0">Driver / Linker</tspan>
+  </text>
+  <rect x="315" y="348" width="195" height="68" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="412.5" y="382.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="412.5" dy="0">JNI Compiler</tspan>
+  </text>
+  <rect x="645" y="250" width="205" height="78" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="747.5" y="272.8" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="747.5" dy="0">C++ 解释器</tspan>
+    <tspan x="747.5" dy="32.400000000000006">与 Nterp</tspan>
+  </text>
+  <rect x="890" y="250" width="205" height="78" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="992.5" y="272.8" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="992.5" dy="0">JIT 与</tspan>
+    <tspan x="992.5" dy="32.400000000000006">运行时协同</tspan>
+  </text>
+  <rect x="645" y="348" width="205" height="68" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="747.5" y="382.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="21" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="747.5" dy="0">Quick EntryPoints</tspan>
+  </text>
+  <rect x="890" y="348" width="205" height="68" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="992.5" y="368.5" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="20" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="992.5" dy="0">ClassLinker / GC</tspan>
+    <tspan x="992.5" dy="27.0">Thread / JNI</tspan>
+  </text>
+  <rect x="110" y="525" width="290" height="50" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="255.0" y="550.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="21" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="255.0" dy="0">libdexfile / libartbase</tspan>
+  </text>
+  <rect x="455" y="525" width="290" height="50" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="600.0" y="550.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="21" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="600.0" dy="0">OAT / ELF / CFI</tspan>
+  </text>
+  <rect x="800" y="525" width="290" height="50" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="945.0" y="550.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="21" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="945.0" dy="0">profile / native bridge</tspan>
+  </text>
+  <text x="600" y="667.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="28" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="600" dy="0">LoongArch64 ISA / ABI / Linux-Android 系统环境</tspan>
+  </text>
+  <polyline points="195,134 195,185" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <polyline points="610,134 610,185" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <polyline points="960,134 960,185" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <polyline points="565,316 595,316" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <text x="580" y="292.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="16" font-weight="400" text-anchor="middle" fill="#666666">
+    <tspan x="580" dy="0">编译结果 / 入口协同</tspan>
+  </text>
+  <polyline points="302,445 302,480" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <polyline points="877,445 877,480" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <polyline points="600,592 600,630" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <rect x="70" y="728" width="22" height="22" rx="3" ry="3" fill="#dddddd" stroke="#777777" stroke-width="1.2"/>
+  <text x="110" y="739.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="start" fill="#333333">
+    <tspan x="110" dy="0">阴影框表示本文直接适配或补齐的核心模块</tspan>
+  </text>
+</svg>

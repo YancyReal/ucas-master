@@ -765,51 +765,54 @@ def build_deck() -> None:
     # 10. 单次结果总览
     slide = prs.slides.add_slide(prs.slide_layouts[13])
     add_slide_title(slide, "三项正式方案的单次结果总览")
-    set_placeholder_text(
+    add_textbox(
         slide,
-        1,
+        0.84,
+        2.02,
+        4.55,
+        4.38,
         [
             {
-                "text": "基于 2026-03-13 同日 final-comparison 数据集，在统一基线下比较三项正式方案。",
+                "text": "统一 baseline 下，同日三项正式方案的收益层级已经足够清晰。",
                 "size": 15,
                 "bold": True,
                 "color": NAVY,
                 "space_after": 8,
             },
-            bullet("方案一：JIT 热度阈值调整，pmd +3.30%，方向正确但稳定性不足。"),
-            bullet("方案二：字符串搬运批量化，pmd +0.86%，但 lu.small -8.89%。"),
-            bullet("方案三：LSX 浮点 SIMD，lu.small +44.40%，当前证据最完整。"),
-            bullet("判断标准不是“谁能提分”，而是“谁能形成可解释、可复现结论”。"),
+            bullet("方案一：JIT 热度阈值调整，pmd +3.30%，但复测稳定性不足。"),
+            bullet("方案二：字符串搬运批量化，pmd +0.86%，同时 lu.small -8.89%。"),
+            bullet("方案三：LSX 浮点 SIMD，lu.small +44.40%，且证据链最完整。"),
         ],
         margin=0.10,
     )
-    add_picture_in_placeholder(slide, 2, SPEEDUP)
+    add_picture_contain(slide, SPEEDUP, 5.48, 2.02, 5.55, 4.42)
 
     # 11. 稳定主结论
     slide = prs.slides.add_slide(prs.slide_layouts[13])
     add_slide_title(slide, "稳定主结论：LSX 浮点 SIMD 向量化")
-    set_placeholder_text(
+    add_textbox(
         slide,
-        1,
+        0.84,
+        2.02,
+        4.55,
+        4.20,
         [
             {
-                "text": "为 optimizing compiler 补齐最小可用 LSX 浮点 lowering，是当前最稳的主收益来源。",
+                "text": "LSX 浮点 SIMD 是当前唯一同时满足收益、解释性与复现性的正式方案。",
                 "size": 15,
                 "bold": True,
                 "color": NAVY,
                 "space_after": 8,
             },
-            bullet("覆盖 float32/float64 的 load/store/replicate/add/sub/mul。"),
-            bullet("直接命中 scimark.lu.small 的规则 dense linear algebra 内核。"),
-            bullet("正式单次结果：46.22 → 66.74 ops/m（+44.40%）。"),
-            bullet("同日 3 轮复测：均值 +45.70%，标准差仅 0.50 ops/m。"),
+            bullet("补齐 float32/float64 的核心 lowering，直接命中 lu.small 主热点。"),
+            bullet("正式单次结果：46.22 → 66.74 ops/m，增益 +44.40%。"),
+            bullet("同日 3 轮复测均值 +45.70%，标准差仅 0.50 ops/m。"),
         ],
         margin=0.10,
     )
-    add_metric_card(slide, 0.95, 5.65, 1.7, 0.72, "单次增益", "+44.40%", fill=GREEN)
-    add_metric_card(slide, 2.8, 5.65, 1.9, 0.72, "复测均值", "+45.70%", fill=TEAL)
-    add_metric_card(slide, 4.9, 5.65, 1.45, 0.72, "标准差", "0.50", fill=GREEN)
-    add_picture_in_placeholder(slide, 2, STRIPPLOT)
+    add_metric_card(slide, 0.95, 5.56, 1.92, 0.76, "单次增益", "+44.40%", fill=GREEN)
+    add_metric_card(slide, 3.05, 5.56, 2.10, 0.76, "复测均值", "+45.70%", fill=TEAL)
+    add_picture_contain(slide, STRIPPLOT, 5.48, 2.02, 5.55, 4.42)
 
     # 12. 收益边界
     slide = prs.slides.add_slide(prs.slide_layouts[13])

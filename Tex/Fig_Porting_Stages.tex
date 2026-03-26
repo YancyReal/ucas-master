@@ -1,0 +1,26 @@
+\begin{tikzpicture}[
+    font=\small,
+    every node/.style={align=center},
+    stage/.style={draw=black!55, rounded corners=3pt, fill=white, text width=1.85cm, minimum height=1.25cm, inner sep=3pt, line width=0.75pt},
+    num/.style={circle, draw=black!70, fill=black!8, minimum size=0.56cm, inner sep=0pt, font=\bfseries},
+    flow/.style={->, line width=0.9pt, draw=black!75}
+]
+    \node[stage] (s1) at (1.15,1.10) {\textbf{汇编器与}\\\textbf{机器描述}};
+    \node[stage] (s2) at (3.45,1.10) {\textbf{C++ 解释器}\\\textbf{闭环}};
+    \node[stage] (s3) at (5.75,1.10) {\textbf{Nterp}\\\textbf{闭环}};
+    \node[stage, text width=2.00cm] (s4) at (8.15,1.10) {\textbf{JIT / JNI}\\\textbf{与入口点}};
+    \node[stage] (s5) at (10.55,1.10) {\textbf{Intrinsic}\\\textbf{与热点路径}};
+
+    \node[num] at (1.15,2.15) {1};
+    \node[num] at (3.45,2.15) {2};
+    \node[num] at (5.75,2.15) {3};
+    \node[num] at (8.15,2.15) {4};
+    \node[num] at (10.55,2.15) {5};
+
+    \draw[flow] (s1.east) -- (s2.west);
+    \draw[flow] (s2.east) -- (s3.west);
+    \draw[flow] (s3.east) -- (s4.west);
+    \draw[flow] (s4.east) -- (s5.west);
+
+    \node[font=\scriptsize] at (5.85,0.15) {依赖顺序：可运行 $\rightarrow$ 可高效解释 $\rightarrow$ 可编译执行 $\rightarrow$ 可跨 Java/native $\rightarrow$ 可支撑热点路径};
+\end{tikzpicture}

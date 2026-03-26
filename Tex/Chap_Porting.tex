@@ -20,6 +20,17 @@ LoongArchISA2023,LoongArchELFABI2025,LoongArchToolchain2025}。
 能够运行 Java 代码，而且能够为高频库方法提供足够的机器级实现，形成可用于后续验证与优化的
 稳定基线。
 
+为便于界定本文讨论的模块边界，图~\ref{fig:art-porting-overview} 给出了 AOSP 15 中与 ART
+执行引擎相关的主要结构以及本文直接适配或补齐的重点模块。可以看到，LoongArch 平台适配并不是
+单独补齐某个代码生成器文件，而是需要同时打通编译器侧、运行时侧与公共支撑库之间的接口闭环。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.97\textwidth]{porting/art-porting-overview.pdf}
+    \caption{AOSP 15 中 ART 执行引擎相关结构及本文适配范围}
+    \label{fig:art-porting-overview}
+\end{figure}
+
 这种阶段化实现策略与既有国产平台上的 Java 虚拟机、Android 系统与 ART 运行时移植经验是一致的
 \citep{Huang2021,Lei2012AndroidLoongson,Du2020Loongson2KAndroid,Zhu2025ARTOL}。其核心思想不是一开始就追求所有执行模式同时可用，而是优先保证最小执行路径闭合，再逐步收敛
 高性能路径上的体系结构相关细节。对本文而言，这种策略带来了两个直接收益：其一，问题定位边界
@@ -42,6 +53,17 @@ LoongArchISA2023,LoongArchELFABI2025,LoongArchToolchain2025}。
         \hline
     \end{tabular}
 \end{table}
+
+表~\ref{tab:porting-stages} 给出了阶段化任务拆分，图~\ref{fig:porting-stage-closure}
+则进一步从依赖关系角度展示了各阶段的闭环顺序。前一阶段的结果既是下一阶段的实现前提，也对应不同的
+验证重点：先保证可运行，再保证高效解释、编译执行以及 Java/native 协同，最后补齐标准库热点路径支持。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.84\textwidth]{porting/art-porting-stages.pdf}
+    \caption{LoongArch 平台 ART 执行引擎的阶段化闭环关系}
+    \label{fig:porting-stage-closure}
+\end{figure}
 
 \section{汇编器与基础代码生成支持}
 
@@ -222,6 +244,18 @@ JIT 后端闭环不仅要求“能生成代码”，还要求所生成代码能�
 JIT 和解释器都高度依赖运行时入口点提供服务。对象分配、锁操作、字段访问、类解析、类型检查、
 异常抛出和方法调用等高频操作，最终都需要通过 \texttt{art\_quick\_*} 入口点或相关 trampoline 落到
 运行时实现上。因此，运行时快速路径的补齐并非附属工作，而是 LoongArch64 执行引擎真正可用的必要条件。
+
+从执行语义看，LoongArch 适配也不是将解释器、Nterp、JIT 和 JNI 各自独立实现即可，而是要让它们
+通过统一的运行时入口点协同工作。图~\ref{fig:art-runtime-cooperation} 概括了三类主要执行路径与
+运行时服务之间的关系：C++ 解释器更多直接调用运行时辅助函数，而 Nterp 和编译代码则更依赖
+quick entrypoints 与 trampoline 将对象分配、类解析、异常处理和 JNI 支撑等能力接入主路径。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.97\textwidth]{porting/art-porting-runtime-paths.pdf}
+    \caption{解释执行、编译执行与运行时入口点的协同关系}
+    \label{fig:art-runtime-cooperation}
+\end{figure}
 
 围绕这一目标，本文逐步实现和接入了对象分配入口点、\texttt{CheckInstanceOf} 相关入口、快速字段访问
 入口、快速方法调用桩、类解析入口、字符串相关入口、deopt 入口以及数学辅助入口等关键组件。与此同时，

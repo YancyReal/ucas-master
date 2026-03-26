@@ -2,15 +2,31 @@
 
 除正文中的正式主线外，本文还围绕 \texttt{libdexfile/DexFileVerifier} 的启动期热点进行过
 一组独立阶段链实验，用于观察 DEX 校验路径上的局部优化是否能够形成可复现收益。
-这组实验采用附录阶段链独立基线版本，与正文第 5 章所使用的正式基线版本以及两项
+这组实验采用附录阶段链独立基线版本，与正文第 5 章所使用的正式基线版本以及三项
 正式优化方案完全隔离，因此不并入主结论，仅作为补充材料保留。
+
+之所以单独保留这组实验，是因为 DexFileVerifier 并不是与正式主线无关的偶发热点。ART 官方文档
+明确指出，ART 直接执行 DEX 格式，并在安装期执行比 Dalvik 更严格的字节码验证；同时，合法
+\texttt{.dex} 文件不仅要满足整体结构与控制流约束，还要求字符串数据满足有效的
+\texttt{MUTF-8} 编码，并在多类元数据结构中大量使用 \texttt{uleb128/sleb128}
+变长编码\citep{AndroidRuntime2024,VerifyingAppsArt2023,DexConstraints2025,DexFormat2025}。
+因此，DexFileVerifier 路径上的文件完整性检查、字符串解码和变长整数解析，本身就是启动期与加载期中的
+真实成本链，而不是脱离格式语义的人为微基准。
 
 该阶段链依次包含四组累计改动：第一阶段主要引入文件边界缓存、热点 helper 内联和容器预留容量；
 第二阶段将 \texttt{offset\_to\_type\_map\_} 的访问模式调整为更紧凑的
-\texttt{vector + lower\_bound}；第三阶段加入 UTF-8 查表与 ASCII fast path；第四阶段再
+\texttt{vector + lower\_bound}；这一调整本质上是以连续存储配合比较式搜索来换取更好的局部性，
+而基于比较的搜索实验研究也表明，排序数组及其紧凑布局在小到中等规模集合上通常是很强的搜索基线
+\citep{Khuong2017ArrayLayouts}；第三阶段加入 UTF-8 查表与 ASCII fast path；第四阶段再
 补充 LEB128 fast path。图~\ref{fig:dexfileverifier-phase-chain} 给出了这四个阶段在
 \texttt{startup.helloworld} 与 \texttt{scimark.lu.small} 上的归一化结果。
-图中横轴按“阶段号 + 机制名”标注各阶段。
+图中横轴按“阶段号 + 机制名”标注各阶段。就机制来源而言，第三阶段对应的是 DEX 字符串与描述符
+处理中 \texttt{MUTF-8}/ASCII 主导的逐字节分类路径；相关 UTF-8 校验研究也表明，
+ASCII fast path 与查表式分类在短文本输入上具有明确的方法学依据\citep{Keiser2021UTF8}。
+第四阶段则对应 \texttt{class\_data\_item}、\texttt{encoded\_*} 与
+\texttt{debug\_info\_item} 等结构里反复出现的 \texttt{uleb128/sleb128}
+解码操作\citep{DexFormat2025}。需要强调的是，本文并未将通用 SIMD 文本校验算法直接搬到 ART；
+这里引用相关工作，只是为了说明 UTF-8 查表和 ASCII 快路径属于有根据的方向选择。
 
 \begin{figure}[htbp]
     \centering
@@ -23,4 +39,6 @@
 局部预清理，尚不足以形成稳定基准测试收益；第二阶段首次在基准测试层面形成明确正收益；
 到 \texttt{phase1234} 时，累计收益达到约 \texttt{+5.46\%}。与之相对，
 \texttt{scimark.lu.small} 并未形成稳定提升，说明该方向主要适用于启动期和加载期路径的
-定向优化，不宜概括为通用工作负载加速方案。
+定向优化，不宜概括为通用工作负载加速方案。这与其命中的路径属性是一致：该阶段链主要改善的
+是 DEX 格式校验、字符串解析和变长元数据解码，而不是数值内核中的稳态浮点计算
+\citep{DexConstraints2025,DexFormat2025}。

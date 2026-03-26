@@ -1,0 +1,51 @@
+\begin{tikzpicture}[
+    font=\small,
+    every node/.style={align=center},
+    layer/.style={draw=black!45, rounded corners=3pt, fill=black!2, line width=0.7pt},
+    module/.style={draw=black!60, rounded corners=2pt, fill=white, text width=2.25cm, minimum height=0.82cm, inner sep=3pt, line width=0.65pt},
+    focus/.style={draw=black!75, rounded corners=2pt, fill=black!10, text width=2.25cm, minimum height=0.82cm, inner sep=3pt, line width=0.85pt},
+    title/.style={anchor=west, font=\bfseries},
+    flow/.style={->, line width=0.8pt, draw=black!70}
+]
+    \draw[layer] (0.00,7.15) rectangle (11.40,8.35);
+    \draw[layer] (0.00,4.25) rectangle (5.45,6.75);
+    \draw[layer] (5.95,4.25) rectangle (11.40,6.75);
+    \draw[layer] (0.00,2.55) rectangle (11.40,3.75);
+    \draw[layer, fill=black!8] (0.00,0.95) rectangle (11.40,1.95);
+
+    \node[title] at (0.25,8.05) {外部工具与执行入口};
+    \node[title] at (0.25,6.45) {编译器侧（art/compiler）};
+    \node[title] at (6.20,6.45) {运行时侧（art/runtime）};
+    \node[title] at (0.25,3.45) {公共支撑库与工件层};
+
+    \node[module, text width=1.90cm] (dex2oat) at (1.85,7.65) {dex2oat};
+    \node[module, text width=2.60cm] (app) at (5.70,7.65) {app\_process\\/ dalvikvm};
+    \node[module, text width=2.00cm] (profman) at (9.55,7.65) {profman / artd};
+
+    \node[focus] at (1.70,5.75) {后端汇编与\\代码生成};
+    \node[focus] at (3.75,5.75) {Optimizing\\Compiler};
+    \node[module] at (1.70,4.95) {Driver / Linker};
+    \node[focus] at (3.75,4.95) {JNI Compiler};
+
+    \node[focus] at (7.65,5.75) {C++ 解释器\\与 Nterp};
+    \node[focus] at (9.70,5.75) {JIT 与\\运行时协同};
+    \node[focus] at (7.65,4.95) {Quick\\EntryPoints};
+    \node[module] at (9.70,4.95) {ClassLinker / GC\\Thread / JNI};
+
+    \node[module, text width=2.90cm] at (1.95,3.10) {libdexfile / libartbase};
+    \node[module, text width=2.45cm] at (5.70,3.10) {OAT / ELF / CFI};
+    \node[module, text width=2.90cm] at (9.45,3.10) {profile / native bridge};
+
+    \node[font=\bfseries] at (5.70,1.45) {LoongArch64 ISA / ABI / Linux-Android 系统环境};
+
+    \draw[flow] (dex2oat.south) -- (1.85,6.75);
+    \draw[flow] (app.south) -- (8.65,6.75);
+    \draw[flow] (profman.south) -- (9.55,6.75);
+    \draw[flow] (2.75,4.25) -- (2.75,3.75);
+    \draw[flow] (8.65,4.25) -- (8.65,3.75);
+    \draw[flow] (5.45,5.35) -- node[above, font=\scriptsize] {编译产物与运行时协同} (5.95,5.35);
+    \draw[flow] (5.70,2.55) -- (5.70,1.95);
+
+    \draw[fill=black!10, draw=black!70] (0.20,0.15) rectangle (0.55,0.48);
+    \node[anchor=west, font=\scriptsize] at (0.70,0.31) {阴影框表示本文直接适配或补齐的核心模块};
+\end{tikzpicture}

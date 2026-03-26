@@ -1,0 +1,41 @@
+\begin{tikzpicture}[
+    font=\small,
+    every node/.style={align=center},
+    lane/.style={draw=black!50, rounded corners=3pt, fill=black!2, line width=0.7pt},
+    exec/.style={draw=black!70, rounded corners=2pt, fill=black!10, text width=2.05cm, minimum height=0.78cm, inner sep=3pt, line width=0.8pt},
+    service/.style={draw=black!55, rounded corners=2pt, fill=white, text width=1.80cm, minimum height=0.82cm, inner sep=3pt, line width=0.65pt},
+    flow/.style={->, line width=0.85pt, draw=black!75}
+]
+    \draw[lane] (0.00,1.00) rectangle (2.85,6.45);
+    \draw[lane] (3.20,1.00) rectangle (6.15,6.45);
+    \draw[lane] (6.50,1.00) rectangle (11.40,6.45);
+
+    \node[font=\bfseries] at (1.43,6.12) {执行路径};
+    \node[font=\bfseries] at (4.68,6.12) {入口点与桥接层};
+    \node[font=\bfseries] at (8.95,6.12) {运行时服务};
+
+    \node[exec] (java) at (1.43,5.25) {Java 方法\\/ DEX 字节码};
+    \node[exec] (cpp) at (1.43,4.10) {C++ 解释器};
+    \node[exec] (nterp) at (1.43,2.95) {Nterp};
+    \node[exec] (jit) at (1.43,1.80) {JIT 编译代码};
+
+    \node[exec, text width=2.20cm] (quick) at (4.68,4.55) {quick\\entrypoints};
+    \node[exec, text width=2.20cm] (tramp) at (4.68,3.20) {trampolines};
+    \node[exec, text width=2.20cm] (jni) at (4.68,1.85) {JNI bridge\\/ native stub};
+
+    \node[service] (alloc) at (7.95,4.70) {对象分配\\类型解析};
+    \node[service] (field) at (10.00,4.70) {字段 / 字符串\\辅助};
+    \node[service] (except) at (7.95,2.70) {异常处理\\与 Deopt};
+    \node[service] (gc) at (10.00,2.70) {GC / 锁 / 线程\\JNI 支撑};
+
+    \draw[flow] (java.east) -- (quick.west);
+    \draw[flow] (cpp.east) -- (quick.west);
+    \draw[flow] (nterp.east) -- (tramp.west);
+    \draw[flow] (jit.east) -- (tramp.west);
+    \draw[flow] (jit.east) -- ++(0.55,0) |- (jni.west);
+
+    \draw[flow] (quick.east) -- ++(0.45,0) |- (alloc.west);
+    \draw[flow] (quick.east) -- ++(0.45,0) |- (field.west);
+    \draw[flow] (tramp.east) -- ++(0.45,0) |- (except.west);
+    \draw[flow] (jni.east) -- ++(0.45,0) |- (gc.west);
+\end{tikzpicture}

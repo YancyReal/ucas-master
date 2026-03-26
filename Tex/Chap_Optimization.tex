@@ -191,7 +191,10 @@ JIT，从而导致解释器成本难以被及时回收。
 
 从已有 Android JIT 研究看，移动端运行时的收益往往取决于“何时编译”和“编译成本如何摊薄”的
 匹配关系，而不是单纯追求更激进的优化等级；这一认识也与 hybrid JIT 和 ShareJIT 等工作的经验
-是一致的\citep{Perez2012HybridJIT,Xu2018ShareJIT}。
+是一致的\citep{Perez2012HybridJIT,Xu2018ShareJIT}。与此同时，已有 JVM warm-up 研究也表明，
+短生命周期工作负载中的类加载、解释执行与 JIT 预热固定成本往往长期停留在关键路径上，且并非所有
+基准测试都会快速进入稳定且可复用的单一峰值稳态\citep{Lion2016Warmup,Barrett2017Warmup}。这
+进一步说明，方案一关注的并不是“把优化等级调得更激进”，而是尽量缩短第一层基线 JIT 的进入滞后。
 
 为控制改动边界，本文对该方案设置了严格门控条件：仅在 LoongArch64、\texttt{debug}
 构建、非 Java-debuggable 进程，且用户未显式传入 \texttt{JITWarmupThreshold} 参数时，
@@ -277,6 +280,10 @@ JIT，从而导致解释器成本难以被及时回收。
 \texttt{pmd} 这类频繁构造短字符串、执行替换和拼接操作的工作负载，运行时字符串搬运成本已经足以
 影响最终分数。已有 JVM 字符串优化研究同样指出，字符串表示、复制和编码转换路径中的局部固定成本，
 会在短字符串密集工作负载中被持续放大\citep{Haubl2008OptimizedStrings,Haubl2010CompactStrings}。
+更偏文本处理方向的研究还表明，UTF-8/UTF-16 转码路径中的分类、重排与写回组织方式本身就会显著影响
+吞吐\citep{Cameron2008SIMDUTF,Lemire2022UnicodeSIMD}。不过，这类工作通常面向编码感知的专用
+转码内核，而本文的方案二只在 ART 运行时已经确认的字符串热路径上做 helper 级批量化，因此二者的
+优化层级并不相同。
 
 基于这一观察，本文提出运行时字符串搬运批量化方案。其基本思路是：在不改变字符串压缩判定、不破坏
 语义边界的前提下，将若干高频字符复制路径从逐元素循环改为固定宽度展开实现，从而降低循环控制开销
@@ -350,7 +357,9 @@ profile 中持续可见，但在正式单次对比中 \texttt{pmd} 与 \texttt{m
 前两项方案主要围绕解释器驻留和运行时固定成本展开，而对 SciMark 的 \texttt{lu.small}
 这类规则浮点数值内核而言，更核心的瓶颈在于：LoongArch64 的 ART optimizing 编译器尚未提供
 最小可用的浮点 SIMD 落地路径，导致 loop vectorization 即便在前端识别出可向量化循环，也难以
-在后端真正生成 LSX 向量代码。
+在后端真正生成 LSX 向量代码。已有面向 Java VM 的向量化研究也表明，即便同属 SciMark 数值内核，
+\texttt{LU}、\texttt{FFT} 等工作负载的收益幅度仍会随着循环形态与后端支持能力不同而明显分化
+\citep{Nie2010VectorizationJava}。
 
 基于这一观察，本文提出 LoongArch64 LSX 浮点 SIMD 向量化方案。该方案的目标并不是一次性补齐
 完整的 LoongArch64 SIMD 后端，而是在严格收缩正确性边界的前提下，为
@@ -414,7 +423,8 @@ profile 中持续可见，但在正式单次对比中 \texttt{pmd} 与 \texttt{m
 字符串型或控制流型工作负载，它的收益边界主要集中在规则浮点循环。更有代表性的是，
 \texttt{fft.small} 仍然出现了轻微回退，而同轮补充的 \texttt{sor.small} 也仅接近 \texttt{1.0}；
 这说明“数值工作负载”并不是一个足够精细的分类，是否真正获益仍取决于向量模式、算子种类与后端支持
-能力是否匹配。
+能力是否匹配。这一点与已有 Java VM 向量化研究中“不同 SciMark 子项虽可同时受益，但收益幅度和
+可扩展性并不一致”的观察是一致的\citep{Nie2010VectorizationJava}。
 
 同时需要指出的是，当前方案三仍然是一个面向论文实验的最小能力子集：它默认目标设备具备 LSX，
 并且仅覆盖 \texttt{float32/float64} 的基本向量 load/store、标量广播与加减乘 lowering。

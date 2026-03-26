@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="835" viewBox="0 0 980 835">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L12,6 L0,12 z" fill="#666666"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="100%" height="100%" fill="#ffffff"/>
+  <circle cx="95" cy="101.0" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
+  <text x="95" y="102.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="95" dy="0">1</tspan>
+  </text>
+  <rect x="150" y="55" width="700" height="92" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="500.0" y="88.12" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="500.0" dy="0">汇编器与机器描述</tspan>
+  </text>
+  <text x="500.0" y="119.39999999999999" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#555555">
+    <tspan x="500.0" dy="0">建立最小代码发射能力</tspan>
+  </text>
+  <polyline points="500,147 500,205" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <circle cx="95" cy="251.0" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
+  <text x="95" y="252.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="95" dy="0">2</tspan>
+  </text>
+  <rect x="150" y="205" width="700" height="92" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="500.0" y="238.12" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="500.0" dy="0">C++ 解释器闭环</tspan>
+  </text>
+  <text x="500.0" y="269.4" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#555555">
+    <tspan x="500.0" dy="0">打通调用、返回与异常传播</tspan>
+  </text>
+  <polyline points="500,297 500,355" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <circle cx="95" cy="401.0" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
+  <text x="95" y="402.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="95" dy="0">3</tspan>
+  </text>
+  <rect x="150" y="355" width="700" height="92" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="500.0" y="388.12" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="500.0" dy="0">Nterp 闭环</tspan>
+  </text>
+  <text x="500.0" y="419.4" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#555555">
+    <tspan x="500.0" dy="0">建立高效解释执行路径</tspan>
+  </text>
+  <polyline points="500,447 500,505" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <circle cx="95" cy="551.0" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
+  <text x="95" y="552.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="95" dy="0">4</tspan>
+  </text>
+  <rect x="150" y="505" width="700" height="92" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="500.0" y="538.12" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="500.0" dy="0">JIT / JNI 与入口点</tspan>
+  </text>
+  <text x="500.0" y="569.4" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#555555">
+    <tspan x="500.0" dy="0">建立编译执行与 Java/native 闭环</tspan>
+  </text>
+  <polyline points="500,597 500,655" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <circle cx="95" cy="701.0" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
+  <text x="95" y="702.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="95" dy="0">5</tspan>
+  </text>
+  <rect x="150" y="655" width="700" height="92" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
+  <text x="500.0" y="688.12" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" text-anchor="middle" fill="#333333">
+    <tspan x="500.0" dy="0">Intrinsic 与热点路径</tspan>
+  </text>
+  <text x="500.0" y="719.4" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#555555">
+    <tspan x="500.0" dy="0">形成可验证、可优化的稳定基线</tspan>
+  </text>
+  <rect x="150" y="760" width="700" height="46" rx="8" ry="8" fill="#f3f3f3" stroke="#b5b5b5" stroke-width="1.6"/>
+  <text x="500" y="783.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#333333">
+    <tspan x="500" dy="0">闭环顺序：可运行 → 可高效解释 → 可编译执行 → 可跨 Java/native → 可支撑热点路径</tspan>
+  </text>
+</svg>
