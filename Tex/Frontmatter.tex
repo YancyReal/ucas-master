@@ -29,11 +29,11 @@ libcore 测试与基准测试评测的统一验证链路，形成了固定 JIT �
 方法，为移植结果和后续优化实验提供了可复现支撑。
 
 在性能优化方面，本文基于统一基线对典型工作负载的热点行为进行分析，围绕
-\texttt{DaCapo/pmd}、\texttt{SPECjvm2008/mpegaudio} 与 Scimark 数值子项提出并验证了
-三项正式优化方案：JIT 分层热度阈值调整方案、运行时字符串搬运批量化方案，以及 LoongArch64
+\texttt{DaCapo/pmd}、\texttt{SPECjvm2008/mpegaudio} 与 SciMark 数值子项提出并分析了
+三项优化方案：JIT 分层热度阈值调整方案、运行时字符串搬运批量化方案，以及 LoongArch64
 LSX 浮点 SIMD 向量化方案。实验结果表明，JIT 分层热度阈值调整方案在 \texttt{pmd} 上存在
 可复现的正收益样本，但重复测量仍显示较大方差；运行时字符串搬运批量化方案仅呈现弱正收益，
-更适合作为字符串密集场景的定向微优化；LoongArch64 LSX 浮点 SIMD 向量化方案则在
+属于字符串密集场景的定向微优化；LoongArch64 LSX 浮点 SIMD 向量化方案则在
 \texttt{SPECjvm2008/scimark.lu.small} 上取得了稳定且显著的性能提升，是当前证据最完整的
 主收益结论。进一步结合方案叠加负例与若干失败方案的对照分析，本文归纳出 LoongArch 平台 ART
 执行引擎优化应优先命中主导热点、严格控制全局副作用，并明确不同工作负载的收益边界。
@@ -67,7 +67,7 @@ benchmark evaluation, and further establishes a fixed JIT baseline together
 with reproducible logging and hotspot analysis procedures.
 
 For performance optimization, this thesis analyzes hotspot behavior under a
-fixed baseline and studies three formal schemes on representative workloads: a
+fixed baseline and studies three optimization schemes on representative workloads: a
 tiered JIT hotness threshold adjustment, a runtime string bulk-copy
 optimization, and a LoongArch64 LSX floating-point SIMD vectorization scheme.
 The results show that the tiered JIT threshold adjustment has

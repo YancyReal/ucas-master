@@ -120,6 +120,17 @@
     publisher = {IEEE},
 }
 
+@inproceedings{Grcevski2004JITVM,
+    author    = {Grcevski, Nikola and Kielstra, Allan and Stoodley, Kevin and Stoodley, Mark G. and Sundaresan, Vijay},
+    title     = {Java {Just-In-Time} Compiler and Virtual Machine Improvements for Server and Middleware Applications},
+    booktitle = {Proceedings of the 3rd Virtual Machine Research and Technology Symposium (VM)},
+    year      = {2004},
+    pages     = {151--162},
+    address   = {San Jose, CA},
+    url       = {https://www.usenix.org/conference/vm-04/java-just-time-compiler-and-virtual-machine-improvements-server-and-middleware},
+    publisher = {USENIX Association},
+}
+
 % ==================== 垃圾回收 ====================
 
 @book{Jones1996,
@@ -192,6 +203,22 @@
     year    = {2021},
 }
 
+@mastersthesis{Du2020Loongson2KAndroid,
+    author  = {杜泽旭},
+    key     = {Du Ze Xu},
+    title   = {基于龙芯2K平台的{Android}系统移植与优化},
+    school  = {中国科学院大学},
+    year    = {2020},
+}
+
+@mastersthesis{Zhu2025ARTOL,
+    author  = {朱奇正},
+    key     = {Zhu Qi Zheng},
+    title   = {龙架构安卓运行时的设计与实现},
+    school  = {北京交通大学},
+    year    = {2025},
+}
+
 @article{Lei2012AndroidLoongson,
     author  = {雷鸣 and 靳婷 and 徐晓亮 and 齐锦},
     key     = {Lei Ming Jin Ting Xu Xiao Liang Qi Jin},
@@ -211,7 +238,25 @@
     note         = {访问于 2026-03-01},
 }
 
+@misc{AospArtMain2026,
+    author       = {{Google}},
+    title        = {{AOSP} {ART} Main Branch Source Tree},
+    howpublished = {\url{https://android.googlesource.com/platform/art/+/master/compiler/optimizing/}},
+    year         = {2026},
+    note         = {访问于 2026-03-25},
+}
+
 % ==================== JIT / ART 优化研究 ====================
+
+@inproceedings{Wang2011AOTAndroid,
+    author    = {Wang, Chih-Sheng and P{\'e}rez, Guillermo A. and Chung, Yeh-Ching and Hsu, Wei-Chung and Shih, Wei-Kuan and Hsu, Hong-Rong},
+    title     = {A Method-Based Ahead-of-Time Compiler for {Android} Applications},
+    booktitle = {Proceedings of the 14th International Conference on Compilers, Architectures and Synthesis for Embedded Systems (CASES)},
+    year      = {2011},
+    pages     = {15--24},
+    doi       = {10.1145/2038698.2038704},
+    publisher = {ACM},
+}
 
 @inproceedings{Perez2012HybridJIT,
     author    = {P{\'e}rez, Guillermo A. and Kao, Chung-Min and Chung, Yeh-Ching and Hsu, Wei-Chung},
@@ -244,6 +289,16 @@
     publisher = {USENIX Association},
 }
 
+@inproceedings{Backes2017ARTist,
+    author    = {Backes, Michael and Bugiel, Sven and Schranz, Oliver and von Styp-Rekowsky, Philipp and Weisgerber, Sebastian},
+    title     = {{ARTist}: The {Android} Runtime Instrumentation and Security Toolkit},
+    booktitle = {Proceedings of the 2nd IEEE European Symposium on Security and Privacy (EuroS\&P)},
+    year      = {2017},
+    pages     = {481--495},
+    doi       = {10.1109/EuroSP.2017.43},
+    publisher = {IEEE},
+}
+
 @inproceedings{Suganuma2005,
     author    = {Suganuma, Toshio and Yasue, Toshiaki and Nakatani, Toshio},
     title     = {A Region-Based Compilation Technique for a {Java} Just-In-Time Compiler},
@@ -260,6 +315,30 @@
     year      = {2008},
     pages     = {105--114},
     doi       = {10.1145/1411732.1411747},
+    publisher = {ACM},
+}
+
+@article{Haubl2010CompactStrings,
+    author    = {H{\"a}ubl, Christian and Wimmer, Christian and M{\"o}ssenb{\"o}ck, Hanspeter},
+    title     = {Compact and Efficient Strings for {Java}},
+    journal   = {Science of Computer Programming},
+    volume    = {75},
+    number    = {11},
+    pages     = {1077--1094},
+    year      = {2010},
+    doi       = {10.1016/j.scico.2010.04.010},
+    publisher = {Elsevier},
+}
+
+@article{Casey2007BranchPred,
+    author    = {Casey, Kevin and Ertl, M. Anton and Gregg, David},
+    title     = {Optimizing Indirect Branch Prediction Accuracy in Virtual Machine Interpreters},
+    journal   = {ACM Transactions on Programming Languages and Systems},
+    volume    = {29},
+    number    = {6},
+    pages     = {37:1--37:36},
+    year      = {2007},
+    doi       = {10.1145/1286821.1286828},
     publisher = {ACM},
 }
 
@@ -309,6 +388,26 @@
     year      = {2007},
     pages     = {57--76},
     doi       = {10.1145/1297027.1297033},
+    publisher = {ACM},
+}
+
+@inproceedings{Lion2016Warmup,
+    author    = {Lion, David and Chiu, Adrian and Sun, Hailong and Zhuang, Xin and Grcevski, Nikola and Yuan, Ding},
+    title     = {Don't Get Caught in the Cold, Warm-up Your {JVM}: Understand and Eliminate {JVM} Warm-up Overhead in Data-Parallel Systems},
+    booktitle = {Proceedings of the 12th USENIX Symposium on Operating Systems Design and Implementation (OSDI)},
+    year      = {2016},
+    pages     = {383--400},
+    url       = {https://www.usenix.org/conference/osdi16/technical-sessions/presentation/lion},
+    publisher = {USENIX Association},
+}
+
+@inproceedings{Lengauer2017GCBench,
+    author    = {Lengauer, Philipp and Bitto, Verena and Weninger, Markus and M{\"o}ssenb{\"o}ck, Hanspeter},
+    title     = {A Comprehensive {Java} Benchmark Study on Memory and Garbage Collection Behavior of {DaCapo}, {DaCapo Scala}, and {SPECjvm2008}},
+    booktitle = {Proceedings of the 8th ACM/SPEC on International Conference on Performance Engineering (ICPE)},
+    year      = {2017},
+    pages     = {287--298},
+    doi       = {10.1145/3030207.3030211},
     publisher = {ACM},
 }
 

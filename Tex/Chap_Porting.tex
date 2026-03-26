@@ -20,8 +20,8 @@ LoongArchISA2023,LoongArchELFABI2025,LoongArchToolchain2025}。
 能够运行 Java 代码，而且能够为高频库方法提供足够的机器级实现，形成可用于后续验证与优化的
 稳定基线。
 
-这种阶段化实现策略与既有国产平台上的 Java 虚拟机和 Android 系统移植经验是一致的
-\citep{Huang2021,Lei2012AndroidLoongson}。其核心思想不是一开始就追求所有执行模式同时可用，而是优先保证最小执行路径闭合，再逐步收敛
+这种阶段化实现策略与既有国产平台上的 Java 虚拟机、Android 系统与 ART 运行时移植经验是一致的
+\citep{Huang2021,Lei2012AndroidLoongson,Du2020Loongson2KAndroid,Zhu2025ARTOL}。其核心思想不是一开始就追求所有执行模式同时可用，而是优先保证最小执行路径闭合，再逐步收敛
 高性能路径上的体系结构相关细节。对本文而言，这种策略带来了两个直接收益：其一，问题定位边界
 更加清晰，便于将错误限制在单一模块内部；其二，能够尽早建立“可执行、可验证、可回归”的版本，
 为后续性能优化提供稳定基线。
@@ -30,7 +30,7 @@ LoongArchISA2023,LoongArchELFABI2025,LoongArchToolchain2025}。
     \centering
     \caption{LoongArch 平台 ART 执行引擎适配的阶段化策略}
     \label{tab:porting-stages}
-    \begin{tabular}{p{2.2cm}p{4.2cm}p{6.0cm}}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{6.0cm}}
         \hline
         \textbf{阶段} & \textbf{目标} & \textbf{主要工作} \\
         \hline
@@ -109,7 +109,7 @@ C++ 解释器是本文建立 LoongArch 平台最小可运行路径的起点。�
 
 在实现顺序上，本文首先保证最简单的 Java 程序能够走通“方法调用、解释执行、结果返回”的闭环，
 随后逐步补齐对象分配、字段访问、类型检查和异常处理相关路径。这样做的目的不是长期停留在低性能
-解释执行，而是借助最可移植的执行模式为后续 Nterp 和 JIT 提供语义基线。换言之，C++ 解释器在
+解释执行，而是借助最可移植的执行模式为后续 Nterp 和 JIT 提供语义基线。因此，C++ 解释器在
 本文中既是功能起点，也是后续高性能路径的重要参照系。
 
 \subsection{Nterp框架建立}
@@ -245,7 +245,7 @@ JIT 和解释器都高度依赖运行时入口点提供服务。对象分配、�
 等典型数值计算路径。与此同时，本文还根据 AOSP 15 的演化情况同步扩展了运行时支撑，修复和补齐了
 若干原本仅在其他架构上完整可用的热点路径。
 
-需要强调的是，本文在适配阶段对 Intrinsic 的处理原则是“优先补齐能力，再讨论进一步优化”。也就是说，
+适配阶段对 Intrinsic 的处理遵循“优先补齐能力，再讨论进一步优化”的原则。
 这一阶段的目标首先是确保标准库热点路径在 LoongArch 平台上具备正确、稳定的机器级实现，而不是立即将
 所有平台特化收益都压榨到极致。这一保守而渐进的策略，为后续在稳定基线之上继续开展执行引擎优化提供了
 更可靠的起点。
