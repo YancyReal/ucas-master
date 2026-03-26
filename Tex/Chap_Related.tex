@@ -198,7 +198,7 @@ workload 恰恰更容易让 JIT 阈值、调试信息固定成本和运行时初
 
 这也是为什么既有国产平台上的 Java 虚拟机、Android 系统与 ART 运行时移植工作，往往都采用“由最小
 闭环逐步扩展”的实现策略，而不是试图一次性补齐所有高性能路径\citep{Huang2021,Lei2012AndroidLoongson,
-Du2020Loongson2KAndroid,Zhu2025ARTOL}。本文后续的实现章节同样遵循这一思路：
+Du2020Loongson2KAndroid}。本文后续的实现章节同样遵循这一思路：
 先让 C++ 解释器成为语义基线，再逐步扩展到 Nterp、JIT、JNI 和快速路径。
 
 \subsection{正确性验证与性能研究必须并行考虑}

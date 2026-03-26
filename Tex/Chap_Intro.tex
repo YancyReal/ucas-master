@@ -78,14 +78,13 @@ Haubl2010CompactStrings}。特别是在大量短字符串构造、拼接与替�
 
 \subsection{LoongArch平台JVM与ART移植研究}
 
-在国产处理器平台上的虚拟机与 Android 运行时移植方面，已有研究已从早期系统整体移植推进到直接面向
-LoongArch 平台的 ART 实现。黄佳的工作完成了基于 LoongArch64 指令集的 Java 虚拟机移植与优化，
-验证了在新架构平台上补齐汇编器、解释器和编译器后端的可行性\citep{Huang2021}。杜泽旭面向龙芯 2K
-平台完成了 Android 系统移植与优化，涉及 ART 运行时与图形子系统适配\citep{Du2020Loongson2KAndroid}；
-朱奇正则进一步实现了龙架构上的 Android Runtime，覆盖解释器、JIT、运行时、JNI 与 OSR 等关键
-组件\citep{Zhu2025ARTOL}。更早期面向龙芯平台的 Android 系统移植研究也说明，系统整体移植、
+在国产处理器平台上的虚拟机与 Android 运行时移植方面，已有研究已从早期系统整体移植推进到围绕
+LoongArch 平台执行环境关键组件的适配探索。黄佳的工作完成了基于 LoongArch64 指令集的 Java
+虚拟机移植与优化，验证了在新架构平台上补齐汇编器、解释器和编译器后端的可行性\citep{Huang2021}。
+杜泽旭面向龙芯 2K 平台完成了 Android 系统移植与优化，涉及 ART 运行时与图形子系统适配
+\citep{Du2020Loongson2KAndroid}；更早期面向龙芯平台的 Android 系统移植研究也说明，系统整体移植、
 虚拟机适配与性能验证需要协同推进\citep{Lei2012AndroidLoongson}。这些工作为本文提供了直接参考，
-也意味着本文不能再把“LoongArch 上缺少 ART 实现”作为研究缺口。本文真正关注的空白在于：面向
+也说明本文不能把国产平台上的 Android 运行时适配简单视为完全空白。本文真正关注的空白在于：面向
 AOSP 15 的较新版本 ART，如何在固定 baseline 下组织 workload 驱动的系统化优化，并通过失败方案
 对照分析明确收益边界。
 

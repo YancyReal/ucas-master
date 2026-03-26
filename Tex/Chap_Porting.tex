@@ -32,7 +32,7 @@ LoongArchISA2023,LoongArchELFABI2025,LoongArchToolchain2025}。
 \end{figure}
 
 这种阶段化实现策略与既有国产平台上的 Java 虚拟机、Android 系统与 ART 运行时移植经验是一致的
-\citep{Huang2021,Lei2012AndroidLoongson,Du2020Loongson2KAndroid,Zhu2025ARTOL}。其核心思想不是一开始就追求所有执行模式同时可用，而是优先保证最小执行路径闭合，再逐步收敛
+\citep{Huang2021,Lei2012AndroidLoongson,Du2020Loongson2KAndroid}。其核心思想不是一开始就追求所有执行模式同时可用，而是优先保证最小执行路径闭合，再逐步收敛
 高性能路径上的体系结构相关细节。对本文而言，这种策略带来了两个直接收益：其一，问题定位边界
 更加清晰，便于将错误限制在单一模块内部；其二，能够尽早建立“可执行、可验证、可回归”的版本，
 为后续性能优化提供稳定基线。

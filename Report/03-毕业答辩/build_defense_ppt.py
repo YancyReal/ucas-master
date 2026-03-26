@@ -708,21 +708,28 @@ def build_deck() -> None:
 
     # 8. 系统验证结果
     slide = prs.slides.add_slide(prs.slide_layouts[14])
-    add_slide_title(slide, "统一验证链路与正确性结果")
-    add_assertion_band(slide, "先证明语义正确，再讨论 benchmark 收益", y=1.18)
-    table_shape = slide.placeholders[1].insert_table(5, 3)
+    add_slide_title(slide, "正确性验证结果")
+    table_shape = slide.placeholders[1].insert_table(7, 3)
     table = table_shape.table
-    table.columns[0].width = Inches(2.45)
-    table.columns[1].width = Inches(2.45)
-    table.columns[2].width = Inches(3.4)
+    table.columns[0].width = Inches(2.35)
+    table.columns[1].width = Inches(1.65)
+    table.columns[2].width = Inches(6.25)
 
-    headers = ["验证对象", "结果", "说明"]
+    headers = ["验证项", "结果", "说明"]
     rows = [
-        ("C++ 解释器", "1033/1033", "通过率 100%"),
-        ("Nterp 解释器", "1033/1033", "通过率 100%"),
-        ("JIT 编译器", "1033/1033", "通过率 100%"),
-        ("libcore", "主要包级测试通过", "少量自动跳过，不影响主结论"),
+        ("run-test 用例总数", "1033", "art/test 当前 run-test 用例总数"),
+        (
+            "compiler 变体",
+            "7 类",
+            "interp-ac、interpreter、jit、jit-on-first-use、optimizing、speed-profile、baseline",
+        ),
+        ("理论配置数", "7231", "1033 × 7"),
+        ("自动 skip", "430", "根据 knownfailures 规则自动跳过"),
+        ("实际执行数", "6801", "系统级目标机回归实际执行集合"),
+        ("libcore", "主要测试包通过", "少量因架构条件限制自动跳过，不影响主要正确性结论"),
     ]
+    for row in table.rows:
+        row.height = Inches(0.65)
     for col, header in enumerate(headers):
         cell = table.cell(0, col)
         cell.fill.solid()
@@ -735,29 +742,9 @@ def build_deck() -> None:
             cell = table.cell(row_idx, col_idx)
             cell.fill.solid()
             cell.fill.fore_color.rgb = rgb(fill_color)
-            set_table_cell(cell, value, size=12, bold=False, color=DARK)
-
-    add_textbox(
-        slide,
-        0.92,
-        6.12,
-        9.55,
-        0.38,
-        [
-            {
-                "text": "结论：三条主要执行路径均通过系统性目标机回归，ART 已具备进入性能研究阶段的语义基础。",
-                "size": 13,
-                "bold": True,
-                "color": NAVY,
-                "align": PP_ALIGN.CENTER,
-            }
-        ],
-        fill=BG,
-        line=GREEN,
-        radius=True,
-        margin=0.02,
-        valign=MSO_ANCHOR.MIDDLE,
-    )
+            align = PP_ALIGN.LEFT if col_idx == 2 else PP_ALIGN.CENTER
+            size = 11.5 if col_idx == 2 else 12
+            set_table_cell(cell, value, size=size, bold=False, color=DARK, align=align)
 
     # 9. 分节页
     add_section_slide(prs, "三、性能优化研究", "统一 baseline、热点驱动与收益边界")
