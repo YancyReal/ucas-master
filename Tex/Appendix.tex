@@ -87,7 +87,7 @@
     \label{fig:scheme3-full-ablation-key}
 \end{figure}
 
-从表~\ref{tab:scheme3-full-ablation} 可以看到，如果评价标准是“全部 \texttt{JIT} 工作负载的几何平均”，正文采用的最小版本 \texttt{S1} 仍然更稳妥，因为 \texttt{S1 / S0 = 1.0318x}，而 \texttt{S2 / S0 = 1.0252x}，\texttt{S2 / S1} 仅为 \texttt{0.9936x}。这说明继续扩大 SIMD 覆盖不会自动带来整体均值上升，部分 startup 或非关键工作负载上的小幅拖累已经足以抵消一部分新增收益。
+表~\ref{tab:scheme3-full-ablation} 表明，如果评价标准是“全部 \texttt{JIT} 工作负载的几何平均”，正文采用的最小版本 \texttt{S1} 仍然更稳妥，因为 \texttt{S1 / S0 = 1.0318x}，而 \texttt{S2 / S0 = 1.0252x}，\texttt{S2 / S1} 仅为 \texttt{0.9936x}。继续扩大 SIMD 覆盖并不会自动带来整体均值上升，部分 startup 或非关键工作负载上的小幅拖累已经足以抵消一部分新增收益。
 
 但图~\ref{fig:scheme3-full-ablation-key} 也表明，\texttt{S2} 并非简单退化版本。相对 \texttt{S1}，\texttt{S2} 在关键工作负载上的几何平均仍有 \texttt{1.0157x} 的增益，并在 \texttt{scimark.lu.small}、\texttt{h2} 和 \texttt{avrora} 上继续取得局部提升。因此，更合适的结论是：\texttt{S1} 仍应保留为正文方案三的正式版本，而 \texttt{S2} 则应视为“完整覆盖候选增强版”，留待后续继续验证。
 
@@ -144,4 +144,4 @@
     \label{fig:failed-schemes-heatmap}
 \end{figure}
 
-图~\ref{fig:failed-schemes-heatmap} 汇总了筛选阶段已归档失败方案相对于固定对照基线的归一化结果。可以看到，绝大多数失败方案即便触达了某个局部热点，也没有跨过基准测试级总收益门槛。对本文而言，这些负结果的意义在于为正式方案提供参照：真正值得保留的方向，不仅要能降低局部热点，更要能在统一实验设置下稳定改善最终分数。
+图~\ref{fig:failed-schemes-heatmap} 汇总了筛选阶段已归档失败方案相对于固定对照基线的归一化结果。绝大多数失败方案即便触达了某个局部热点，也没有跨过基准测试级总收益门槛。对本文而言，这些负结果的意义在于为正式方案提供参照：真正值得保留的方向，不仅要能降低局部热点，更要能在统一实验设置下稳定改善最终分数。

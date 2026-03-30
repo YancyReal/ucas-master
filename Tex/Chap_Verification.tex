@@ -15,7 +15,15 @@
     \item 在验证通过后运行基准测试，采集分数、日志与热点数据。
 \end{enumerate}
 
-这一设计的核心目的，是将“系统正确”和“性能变化”严格区分。若相关回归未通过，则后续跑分结果不具有
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{verification/experiment-validation-workflow.pdf}
+    \caption{本文正确性验证与性能评测的组织流程}
+    \label{fig:verification-workflow}
+\end{figure}
+
+图~\ref{fig:verification-workflow} 概括了从固定源码状态到正式数据归档的实验组织流程，其中“先正确性，
+后性能”是全文实验设计的基本约束。这一组织方式的核心目的，是将“系统正确”和“性能变化”严格区分。若相关回归未通过，则后续跑分结果不具有
 解释价值；只有在正确性得到约束后，性能差异才可以归因于方案本身。本章因此不再展开与本地环境强绑定的
 脚本细节，而重点说明支撑论文结论的实验思路、数据来源和验证结果。
 
@@ -208,6 +216,11 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
     \item \textbf{设备状态与后台负载扰动。} 基准测试结果会受到目标机温度、后台服务活动、
     CPU 频率波动和前序运行历史的影响。因此，本文不混用不同日期的数据源，而是将
     \texttt{final-comparison} 与 \texttt{statistical-validation-20260314} 严格分离。
+    \item \textbf{基准测试覆盖范围有限。} 本文正文最终保留的正式工作负载包括
+    \texttt{pmd}、\texttt{mpegaudio}、\texttt{lu.small}、\texttt{sor.small} 和
+    \texttt{fft.small}。这些工作负载已经能够支撑第 5 章的主要结论，但对并发类工作负载、
+    复杂服务型应用和更长生命周期应用的覆盖仍然有限。因此，正文结果应被理解为固定实验设置下的
+    阶段性结论，而不是 LoongArch 平台 ART 的完整性能画像。
     \item \textbf{\texttt{debug} 构建限制。} 正式性能结论统一建立在 LoongArch64
     \texttt{debug} ART 环境下。这一设置有利于适配阶段的问题暴露，但也会放大部分 JIT 调试信息与
     运行时固定成本。因此，本文所有性能结论都被限制为固定 LoongArch64 \texttt{debug JIT}

@@ -23,7 +23,7 @@
   </text>
   <rect x="150" y="205" width="700" height="92" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
   <text x="500.0" y="238.12" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="500.0" dy="0">C++ 解释器闭环</tspan>
+    <tspan x="500.0" dy="0">C++ 解释器可运行路径</tspan>
   </text>
   <text x="500.0" y="269.4" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#555555">
     <tspan x="500.0" dy="0">打通调用、返回与异常传播</tspan>
@@ -35,7 +35,7 @@
   </text>
   <rect x="150" y="355" width="700" height="92" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
   <text x="500.0" y="388.12" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="500.0" dy="0">Nterp 闭环</tspan>
+    <tspan x="500.0" dy="0">Nterp 高效解释路径</tspan>
   </text>
   <text x="500.0" y="419.4" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#555555">
     <tspan x="500.0" dy="0">建立高效解释执行路径</tspan>
@@ -50,7 +50,7 @@
     <tspan x="500.0" dy="0">JIT / JNI 与入口点</tspan>
   </text>
   <text x="500.0" y="569.4" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#555555">
-    <tspan x="500.0" dy="0">建立编译执行与 Java/native 闭环</tspan>
+    <tspan x="500.0" dy="0">建立编译执行与 Java/native 调用链</tspan>
   </text>
   <polyline points="500,597 500,655" fill="none" stroke="#666666" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
   <circle cx="95" cy="701.0" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
@@ -66,6 +66,6 @@
   </text>
   <rect x="150" y="760" width="700" height="46" rx="8" ry="8" fill="#f3f3f3" stroke="#b5b5b5" stroke-width="1.6"/>
   <text x="500" y="783.0" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" font-weight="400" text-anchor="middle" fill="#333333">
-    <tspan x="500" dy="0">闭环顺序：可运行 → 可高效解释 → 可编译执行 → 可跨 Java/native → 可支撑热点路径</tspan>
+    <tspan x="500" dy="0">演进顺序：可运行 → 可高效解释 → 可编译执行 → 可跨 Java/native → 可支撑热点路径</tspan>
   </text>
 </svg>

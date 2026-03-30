@@ -6,8 +6,8 @@
     flow/.style={->, line width=0.9pt, draw=black!75}
 ]
     \node[stage] (s1) at (1.15,1.10) {\textbf{汇编器与}\\\textbf{机器描述}};
-    \node[stage] (s2) at (3.45,1.10) {\textbf{C++ 解释器}\\\textbf{闭环}};
-    \node[stage] (s3) at (5.75,1.10) {\textbf{Nterp}\\\textbf{闭环}};
+    \node[stage] (s2) at (3.45,1.10) {\textbf{C++ 解释器}\\\textbf{可运行路径}};
+    \node[stage] (s3) at (5.75,1.10) {\textbf{Nterp}\\\textbf{高效解释路径}};
     \node[stage, text width=2.00cm] (s4) at (8.15,1.10) {\textbf{JIT / JNI}\\\textbf{与入口点}};
     \node[stage] (s5) at (10.55,1.10) {\textbf{Intrinsic}\\\textbf{与热点路径}};
 
