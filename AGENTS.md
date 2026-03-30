@@ -4,7 +4,7 @@
 本仓库用于维护硕士论文源码。主入口是 `Thesis.tex`；章节内容放在 `Tex/`，其中 `Mainmatter.tex` 串联 `Chap_*.tex`；样式和模板类在 `Style/`；参考文献在 `Biblio/ref.bib`；图片在 `Img/`；编译产物输出到 `Tmp/`。`Report/ucasproposal/` 是独立仓库，用于中期报告，不应与主论文改动混在一次提交中。
 
 ## External Code & Experiment Sources
-论文涉及的实际项目代码不在本仓库内，而在 `/workspace/aosp/art`；benchmark、实验结果和方案报告在 `/workspace/aosp/tmp/MyBenchMark`。修改论文中的实现细节、实验流程、性能结论前，先核对这两个目录下的说明文档与现有数据，不要把 `ucasthesis/` 误当成源码或结果归档仓库。
+论文涉及的实际项目代码不在本仓库内，而在 `/workspace/aosp/art`；benchmark、实验结果和方案报告在 `/workspace/aosp/tmp/MyBenchMark`。其中，仓库说明中的 `/workspace/aosp/` 是逻辑路径，对应 `la55` 机器上的 `/home/yanxi/loongson/aosp15.la/`；因此 `/workspace/aosp/art` 实际对应 `la55:/home/yanxi/loongson/aosp15.la/art`，`/workspace/aosp/tmp/MyBenchMark` 实际对应 `la55:/home/yanxi/loongson/aosp15.la/tmp/MyBenchMark`。修改论文中的实现细节、实验流程、性能结论前，先核对这两个目录下的说明文档与现有数据，不要把 `ucasthesis/` 误当成源码或结果归档仓库。
 
 ## Build, Test, and Development Commands
 - `cd /workspace/ucasthesis && ./artratex.sh xa Thesis.tex`：编译主论文。
@@ -20,4 +20,5 @@ LaTeX 文件沿用现有入口拆分方式，新增章节优先使用 `Tex/Chap_
 
 ## Agent-Specific Instructions
 - 错误纠正规则：当论文内容涉及实现代码、benchmark 或实验数据时，必须先检查 `/workspace/aosp/art` 与 `/workspace/aosp/tmp/MyBenchMark` 的说明文件，不能默认认为相关信息全部位于当前论文仓库。
+- 错误纠正规则：若当前本地环境不存在 `/workspace/aosp/...`，应先通过 `ssh la55` 到 `/home/yanxi/loongson/aosp15.la/...` 对应目录查询，不得在未核对远端路径映射前直接判定外部代码或实验目录缺失。
 - 错误纠正规则：给出论文审查方案时，必须将“用词用语是否规范”作为独立审查维度明确列出，不能仅检查结构、技术内容和实验设计。
