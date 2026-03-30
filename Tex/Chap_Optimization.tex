@@ -4,9 +4,9 @@
 
 在第 3 章完成执行引擎适配、第 4 章建立统一实验设计后，本文进一步考察 LoongArch 平台 ART 在固定实验条件下的性能提升空间。本章关注的问题不是“还能找到多少局部热点”，而是“哪些优化方向能够在统一基线下形成有解释力的实验结论”。因此，正文只保留三项正式方案及其对照结果：JIT 分层热度阈值调整、运行时字符串搬运批量化，以及 LoongArch64 LSX 浮点 SIMD 向量化。
 
-本章正式单次对比统一使用第 4 章所述 \texttt{test-data/final-comparison/} 数据集，基线数值见表~\ref{tab:formal-baseline-values}；重复测量验证统一使用 \texttt{test-data/statistical-validation-20260314/} 数据集，不与前一日数据混算。候选方案在进入 benchmark 之前，均先执行与改动路径直接相关的目标机 run-test 回归。只有在语义正确性得到约束后，性能变化才具有分析价值。
+本章正式单次对比统一使用第 4 章所述 \texttt{test-data/final-comparison/} 数据集，基线数值见表~\ref{tab:formal-baseline-values}；重复测量验证统一使用 \texttt{test-data/statistical-validation-20260314/} 数据集，不与前一日数据混算。候选方案在进入基准测试之前，均先执行与改动路径直接相关的目标机 run-test 回归。只有在语义正确性得到约束后，性能变化才具有分析价值。
 
-正文保留的五个工作负载及其作用如表~\ref{tab:optimization-workloads} 所示。它们覆盖了短生命周期负载、字符串密集路径以及规则浮点数值内核，能够支持三项正式方案的主要结论；更大范围的候选筛选、Intrinsic 补充验证、完整 SIMD 覆盖候选版消融和失败方案归档，则统一移至附录第~\ref{app:intrinsic-ablation} 节、第~\ref{app:full-simd-ablation} 节和第~\ref{app:failed-schemes} 节。
+正文保留的五个工作负载及其作用如表~\ref{tab:optimization-workloads} 所示。它们覆盖了短生命周期工作负载、字符串密集路径以及规则浮点数值内核，能够支持三项正式方案的主要结论；更大范围的候选筛选、Intrinsic 补充验证、完整 SIMD 覆盖候选版消融和失败方案归档，则统一移至附录第~\ref{app:intrinsic-ablation} 节、第~\ref{app:full-simd-ablation} 节和第~\ref{app:failed-schemes} 节。
 
 \begin{table}[htbp]
     \centering
@@ -18,25 +18,25 @@
         \textbf{工作负载} & \textbf{主要运行特征} & \textbf{正文中的主要作用} \\
         \hline
         \texttt{pmd} & 生命周期较短，解释执行、JIT 固定成本和字符串路径同时可见 & 观察方案一和方案二的收益 \\
-        \texttt{mpegaudio} & 吞吐型负载，数组和浮点处理较多 & 作为跨工作负载对照 \\
+        \texttt{mpegaudio} & 吞吐型工作负载，数组和浮点处理较多 & 作为跨工作负载对照 \\
         \texttt{lu.small} & 规则浮点循环明显 & 验证方案三的主要收益 \\
-        \texttt{sor.small} & 数值型 workload，但向量模式较简单 & 观察 SIMD 收益的可迁移性 \\
+        \texttt{sor.small} & 数值型工作负载，但向量模式较简单 & 观察 SIMD 收益的可迁移性 \\
         \texttt{fft.small} & 复杂数值内核，访存和算子形态更复杂 & 观察 SIMD 收益边界 \\
         \hline
     \end{tabular}
 \end{table}
 
-三项正式方案的筛选依据可以概括为以下三点。第一，改动必须命中正式工作负载中持续出现的热点，而不是只针对偶发样本。第二，改动范围要清晰，便于限定适用条件和验证范围。第三，回归测试结果与 benchmark 结果之间应能形成一致解释。后文据此依次讨论三项正式方案。
+三项正式方案的筛选依据可以概括为以下三点。第一，改动必须命中正式工作负载中持续出现的热点，而不是只针对偶发样本。第二，改动范围要清晰，便于限定适用条件和验证范围。第三，回归测试结果与基准测试结果之间应能形成一致解释。后文据此依次讨论三项正式方案。
 
 \section{JIT 分层热度阈值调整（方案一）}
 
 \subsection{设计思路与实现}
 
-在 LoongArch64 \texttt{debug} JIT 环境下，\texttt{pmd} 这类短生命周期 workload 的一部分热点方法在运行结束前仍停留在解释执行阶段，导致解释器成本难以及时回收。基于这一观察，本文提出方案一：仅下调第一层基线 JIT 的默认 warmup 阈值，使热点方法更早进入编译执行；而 \texttt{optimize\_threshold} 保持不变，避免同步放大第二层优化编译的额外开销\citep{Arnold2005,ArtJitCompiler2024,Perez2012HybridJIT,Xu2018ShareJIT}。
+在 LoongArch64 \texttt{debug} JIT 环境下，\texttt{pmd} 这类短生命周期工作负载的一部分热点方法在运行结束前仍停留在解释执行阶段，导致解释器成本难以及时回收。基于这一观察，本文提出方案一：仅下调第一层基线 JIT 的默认 warmup 阈值，使热点方法更早进入编译执行；而 \texttt{optimize\_threshold} 保持不变，避免同步放大第二层优化编译的额外开销\citep{Arnold2005,ArtJitCompiler2024,Perez2012HybridJIT,Xu2018ShareJIT}。
 
 该方案的正式实现版本主要修改 \texttt{art/runtime/jit/} 下的三个文件。首先，在 \texttt{jit\_options.h} 和 \texttt{jit\_options.cc} 中区分默认阈值与显式传入阈值；其次，在 \texttt{jit.cc} 中于 \texttt{Jit::Create()} 阶段完成阈值调整。自动调整只在 LoongArch64、\texttt{debug}、非 Java-debuggable 进程且用户未显式传入 \texttt{JITWarmupThreshold} 时启用，因此改动范围保持在平台默认策略微调，而不是改变所有 JIT 参数的语义。
 
-进入 benchmark 之前，本文对方案一执行了 \texttt{708-jit-cache-churn}、\texttt{667-jit-jni-stub} 等最小相关 run-test 回归，结果通过；\texttt{137-cfi} 由测试框架自动跳过，不影响后续分析。
+进入基准测试之前，本文对方案一执行了 \texttt{708-jit-cache-churn}、\texttt{667-jit-jni-stub} 等最小相关 run-test 回归，结果通过；\texttt{137-cfi} 由测试框架自动跳过，不影响后续分析。
 
 \subsection{结果分析}
 
@@ -58,19 +58,19 @@
     \end{tabular}
 \end{table}
 
-从表~\ref{tab:scheme1-result} 可以看出，方案一最具代表性的结果是 \texttt{pmd} 的 \texttt{+3.30\%}。这说明对于解释执行比例较高、运行时间较短的 workload，更早进入基线 JIT 确实能够减少解释器驻留时间。\texttt{mpegaudio} 仅有轻微提升，表明该方案对更依赖稳态代码质量的 workload 帮助有限。\texttt{lu.small} 在正式单次结果中也出现了明显增幅，但这一现象更适合作为附带观察：它说明更早进入编译态可能间接改善部分数值循环，却不足以单独构成稳定结论。
+从表~\ref{tab:scheme1-result} 可以看出，方案一最具代表性的结果是 \texttt{pmd} 的 \texttt{+3.30\%}。这说明对于解释执行比例较高、运行时间较短的工作负载，更早进入基线 JIT 确实能够减少解释器驻留时间。\texttt{mpegaudio} 仅有轻微提升，表明该方案对更依赖稳态代码质量的工作负载帮助有限。\texttt{lu.small} 在正式单次结果中也出现了明显增幅，但这一现象更适合作为附带观察：它说明更早进入编译态可能间接改善部分数值循环，却不足以单独构成稳定结论。
 
-因此，方案一的更稳妥表述是：它对 \texttt{pmd} 这类短生命周期 workload 有明确帮助，但其收益强度仍需结合重复测量进一步判断，不能直接写成通用 JIT 优化结论。
+因此，方案一的更稳妥表述是：它对 \texttt{pmd} 这类短生命周期工作负载有明确帮助，但其收益强度仍需结合重复测量进一步判断，不能直接写成通用 JIT 优化结论。
 
 \section{运行时字符串搬运批量化（方案二）}
 
 \subsection{设计思路与实现}
 
-对 \texttt{pmd} 的持续分析表明，字符串替换、字符串拼接和 UTF-16 构造路径是稳定出现的运行时热点。这意味着对于频繁构造短字符串的 workload，字符串搬运成本已经足以影响总分。基于这一观察，本文提出方案二：在不改变字符串语义和压缩判定的前提下，将若干高频复制路径由逐元素循环改为固定宽度展开实现，以降低循环控制和分支判断的额外成本\citep{Haubl2008OptimizedStrings,Haubl2010CompactStrings}。
+对 \texttt{pmd} 的持续分析表明，字符串替换、字符串拼接和 UTF-16 构造路径是稳定出现的运行时热点。这意味着对于频繁构造短字符串的工作负载，字符串搬运成本已经足以影响总分。基于这一观察，本文提出方案二：在不改变字符串语义和压缩判定的前提下，将若干高频复制路径由逐元素循环改为固定宽度展开实现，以降低循环控制和分支判断的额外成本\citep{Haubl2008OptimizedStrings,Haubl2010CompactStrings}。
 
 该方案的正式实现版本主要涉及三个文件：在 \texttt{string-alloc-inl.h} 中新增字符串搬运辅助函数，在 \texttt{string.cc} 中将字符串替换、拼接和 UTF-16 构造接入统一的批量搬运实现，并在 \texttt{art/test/624-checker-stringops/src/Main.java} 中补充小长度 UTF-16 构造回归，用于覆盖 \texttt{length < 8} 的边界情况。
 
-方案二进入 benchmark 前重点回归了字符串语义、profile 保存和 JIT 路径相关测试，包括 \texttt{624-checker-stringops}、\texttt{595-profile-saving}、\texttt{667-jit-jni-stub} 和 \texttt{708-jit-cache-churn} 等代表性用例，结果通过。
+方案二进入基准测试前重点回归了字符串语义、profile 保存和 JIT 路径相关测试，包括 \texttt{624-checker-stringops}、\texttt{595-profile-saving}、\texttt{667-jit-jni-stub} 和 \texttt{708-jit-cache-churn} 等代表性用例，结果通过。
 
 \subsection{结果分析}
 
@@ -92,7 +92,7 @@
     \end{tabular}
 \end{table}
 
-与方案一和方案三相比，方案二的收益明显更弱。\texttt{pmd} 和 \texttt{mpegaudio} 上都只有约 \texttt{1\%} 的轻微提升，说明字符串搬运路径虽然被命中，但并不是这些 workload 的主导瓶颈。更重要的是，\texttt{lu.small} 出现了 \texttt{-8.89\%} 的回退，这说明该方案只适合字符串密集场景，而不适合作为通用默认策略。
+与方案一和方案三相比，方案二的收益明显更弱。\texttt{pmd} 和 \texttt{mpegaudio} 上都只有约 \texttt{1\%} 的轻微提升，说明字符串搬运路径虽然被命中，但并不是这些工作负载的主导瓶颈。更重要的是，\texttt{lu.small} 出现了 \texttt{-8.89\%} 的回退，这说明该方案只适合字符串密集场景，而不适合作为通用默认策略。
 
 因此，方案二在本文中的定位应当是“定向微优化”。它证明了 LoongArch 平台 ART 的字符串热路径仍有局部改进空间，但这一类改动对总体性能的影响高度依赖工作负载类型。
 
@@ -104,7 +104,7 @@
 
 基于这一观察，本文提出方案三：在严格收缩正确性边界的前提下，为 LoongArch64 补齐最小可用的 LSX 浮点 SIMD 路径，使规则浮点循环至少能够完成标量广播、向量 load/store 和向量加减乘 lowering。正式实现版本主要修改 \texttt{art/compiler/optimizing/} 下的三个文件：在 \texttt{loop\_optimization.cc} 中为 LoongArch64 打开受限的浮点向量化入口，在 \texttt{code\_generator\_loongarch64.h} 中设置 SIMD 图下的寄存器宽度约束，并在 \texttt{code\_generator\_loongarch64.cc} 中补齐核心 LSX lowering。
 
-进入 benchmark 之前，方案三重点回归了 SIMD 图和 JIT 路径相关测试，包括 \texttt{527-checker-array-access-simd}、\texttt{656-checker-simd-opt}、\texttt{570-checker-osr} 和 \texttt{708-jit-cache-churn} 等代表性用例，结果通过。
+进入基准测试之前，方案三重点回归了 SIMD 图和 JIT 路径相关测试，包括 \texttt{527-checker-array-access-simd}、\texttt{656-checker-simd-opt}、\texttt{570-checker-osr} 和 \texttt{708-jit-cache-churn} 等代表性用例，结果通过。
 
 \subsection{结果分析}
 
@@ -127,9 +127,9 @@
     \end{tabular}
 \end{table}
 
-方案三是本文当前最明确、也最容易解释的正收益方案。在正式单次对比中，\texttt{lu.small} 提升 \texttt{44.40\%}。这说明只要补齐 LoongArch64 所缺失的最小 LSX 浮点 SIMD 路径，规则浮点数值内核就能够显著受益。与之相对，\texttt{pmd} 基本持平，\texttt{mpegaudio} 也只有轻微波动。这说明该方案不会自然改善字符串型或控制流主导的 workload。
+方案三是本文当前最明确、也最容易解释的正收益方案。在正式单次对比中，\texttt{lu.small} 提升 \texttt{44.40\%}。这说明只要补齐 LoongArch64 所缺失的最小 LSX 浮点 SIMD 路径，规则浮点数值内核就能够显著受益。与之相对，\texttt{pmd} 基本持平，\texttt{mpegaudio} 也只有轻微波动。这说明该方案不会自然改善字符串型或控制流主导的工作负载。
 
-\texttt{fft.small} 的轻微回退进一步说明，“数值 workload”并不是足够精细的分类。是否真正获益，仍然取决于循环形态、向量模式和后端支持能力是否匹配。因此，方案三的结论应表述为：LoongArch64 最小可用的 LSX 浮点 SIMD 路径已经足以在规则数值内核上兑现显著收益，但这并不等于完整 SIMD 后端已经全面成熟。围绕完整覆盖候选版的补充消融见附录第~\ref{app:full-simd-ablation} 节。
+\texttt{fft.small} 的轻微回退进一步说明，“数值类工作负载”并不是足够精细的分类。是否真正获益，仍然取决于循环形态、向量模式和后端支持能力是否匹配。因此，方案三的结论应表述为：LoongArch64 最小可用的 LSX 浮点 SIMD 路径已经足以在规则数值内核上兑现显著收益，但这并不等于完整 SIMD 后端已经全面成熟。围绕完整覆盖候选版的补充消融见附录第~\ref{app:full-simd-ablation} 节。
 
 \section{统一对比与结论强度}
 
@@ -144,9 +144,9 @@
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-从图~\ref{fig:final-comparison-heatmap} 可以得到四点。第一，方案一在 \texttt{pmd} 上最具代表性，说明它更适合解决短生命周期 workload 的 JIT 进入时机问题。第二，方案二在 \texttt{pmd} 和 \texttt{mpegaudio} 上只有弱正收益，却在 \texttt{lu.small} 上回退，说明它只能作为定向微优化。第三，方案三在 \texttt{lu.small} 上形成压倒性的单方案收益，但对 \texttt{pmd} 接近中性。第四，\texttt{sor.small} 和 \texttt{fft.small} 都没有复现 \texttt{lu.small} 的显著增幅，这再次说明并非所有数值循环都会从当前最小 LSX lowering 中获益。
+从图~\ref{fig:final-comparison-heatmap} 可以得到四点。第一，方案一在 \texttt{pmd} 上最具代表性，说明它更适合解决短生命周期工作负载的 JIT 进入时机问题。第二，方案二在 \texttt{pmd} 和 \texttt{mpegaudio} 上只有弱正收益，却在 \texttt{lu.small} 上回退，说明它只能作为定向微优化。第三，方案三在 \texttt{lu.small} 上形成压倒性的单方案收益，但对 \texttt{pmd} 接近中性。第四，\texttt{sor.small} 和 \texttt{fft.small} 都没有复现 \texttt{lu.small} 的显著增幅，这再次说明并非所有数值循环都会从当前最小 LSX lowering 中获益。
 
-因此，在正式单次对比层面，三项方案已经表现出较清晰的分工：方案一主要改善短生命周期 workload，方案二主要命中字符串热路径，方案三则直接作用于规则浮点数值内核。正文后续关于方案强弱的判断，都以这一统一对比为基础。
+因此，在正式单次对比层面，三项方案已经表现出较清晰的分工：方案一主要改善短生命周期工作负载，方案二主要命中字符串热路径，方案三则直接作用于规则浮点数值内核。正文后续关于方案强弱的判断，都以这一统一对比为基础。
 
 \subsection{同日重复测量验证}
 
@@ -185,11 +185,11 @@
 
 表~\ref{tab:stacking-conflict} 显示，方案二加入后，\texttt{pmd} 会从方案一单独启用时的正收益转为明显回退；继续叠加方案三后，\texttt{lu.small} 虽然进一步上升，但 \texttt{mpegaudio} 又出现显著下降。这说明执行引擎优化并不是把所有单独有效的局部策略同时打开就能得到更好结果。不同方案命中的主路径不同，也可能在代码体积、运行时固定成本和 JIT 行为上彼此干扰。
 
-因此，本文对三项正式方案的组织方式是“分别分析、分别验证”，而不是将其写成统一叠加后的默认配置。附录第~\ref{app:failed-schemes} 节保留的负结果归档进一步说明，即使某项改动能降低局部热点，也未必能够跨过 benchmark 级总收益门槛。
+因此，本文对三项正式方案的组织方式是“分别分析、分别验证”，而不是将其写成统一叠加后的默认配置。附录第~\ref{app:failed-schemes} 节保留的负结果归档进一步说明，即使某项改动能降低局部热点，也未必能够跨过基准测试级总收益门槛。
 
 \section{本章小结}
 
 本章在固定实验设置下，围绕 JIT 分层热度阈值调整、运行时字符串搬运批量化和 LoongArch64 LSX 浮点 SIMD 向量化三项正式方案开展了性能优化研究。正式单次对比表明，方案一在 \texttt{pmd} 上最具代表性，方案二属于字符串密集场景下的定向微优化，方案三则在 \texttt{lu.small} 上形成了最明确的单方案收益。重复测量进一步显示，方案三已经具备可稳定复现的证据强度，而方案一仍应以“收益方向明确但波动较大”的保守表述写入论文。
 
-综合三项正式方案的统一对比和叠加结果，可以得到两个结论。其一，LoongArch 平台 ART 的优化需要始终围绕具体 workload 的主路径展开，不能把局部收益直接外推为通用结论。其二，真正值得保留的方案，不仅要能提高分数，还要能在统一实验设置下说明“为何有效、对谁有效、边界在哪里”。这也正是本章与补充实验、候选消融和失败归档在写作职责上的分界。
+综合三项正式方案的统一对比和叠加结果，可以得到两个结论。其一，LoongArch 平台 ART 的优化需要始终围绕具体工作负载的主路径展开，不能把局部收益直接外推为通用结论。其二，真正值得保留的方案，不仅要能提高分数，还要能在统一实验设置下说明“为何有效、对谁有效、边界在哪里”。这也正是本章与补充实验、候选消融和失败归档在写作职责上的分界。
 %---------------------------------------------------------------------------%

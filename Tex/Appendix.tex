@@ -21,9 +21,9 @@
 
 \section{Intrinsic 机制的补充验证}\label{app:intrinsic-ablation}
 
-正文第 5 章讨论的是三项正式方案，但 LoongArch64 Intrinsic 机制本身仍然值得单独说明。为量化该机制对 benchmark 的真实贡献，本文额外设计了一组“关闭 / 开启 Intrinsic”的补充实验，比较两种状态在 \texttt{JIT} 与 \texttt{interpreter} 两种执行模式下的差异。该实验的目的，是回答 Intrinsic 支持是否已经形成可量化收益，而不是把它与正文三项正式方案并列为同一层级的论文主线。
+正文第 5 章讨论的是三项正式方案，但 LoongArch64 Intrinsic 机制本身仍然值得单独说明。为量化该机制对基准测试的真实贡献，本文额外设计了一组“关闭 / 开启 Intrinsic”的补充实验，比较两种状态在 \texttt{JIT} 与 \texttt{interpreter} 两种执行模式下的差异。该实验的目的，是回答 Intrinsic 支持是否已经形成可量化收益，而不是把它与正文三项正式方案并列为同一层级的论文主线。
 
-该补充实验比较的对象分别为“关闭 LoongArch64 invoke Intrinsic dispatch”的基线版本与“恢复 Intrinsic 支持”的对照版本。测试集合覆盖 21 个 \texttt{SPECjvm2008} workload，以及 \texttt{DaCapo} 的 \texttt{avrora}、\texttt{pmd} 和 \texttt{h2}；其中 \texttt{h2} 仅在 \texttt{JIT} 模式可用。对 \texttt{SPECjvm2008}，本文采用 \texttt{enabled\_ops / disabled\_ops} 计算 speedup；对 \texttt{DaCapo}，采用 \texttt{disabled\_time / enabled\_time} 计算 speedup，因此表中数值越大表示开启 Intrinsic 后越有利。
+该补充实验比较的对象分别为“关闭 LoongArch64 invoke Intrinsic dispatch”的基线版本与“恢复 Intrinsic 支持”的对照版本。测试集合覆盖 21 个 \texttt{SPECjvm2008} 工作负载，以及 \texttt{DaCapo} 的 \texttt{avrora}、\texttt{pmd} 和 \texttt{h2}；其中 \texttt{h2} 仅在 \texttt{JIT} 模式可用。对 \texttt{SPECjvm2008}，本文采用 \texttt{enabled\_ops / disabled\_ops} 计算 speedup；对 \texttt{DaCapo}，采用 \texttt{disabled\_time / enabled\_time} 计算 speedup，因此表中数值越大表示开启 Intrinsic 后越有利。
 
 \begin{table}[htbp]
     \centering
@@ -54,15 +54,15 @@
     \label{fig:intrinsic-ablation-heatmap}
 \end{figure}
 
-表~\ref{tab:intrinsic-ablation} 和图~\ref{fig:intrinsic-ablation-geomean} 表明，Intrinsic 的主要收益集中在 \texttt{JIT} 路径：\texttt{JIT} 模式下全部可比较 workload 的几何平均 speedup 为 \texttt{1.0415x}，而 \texttt{interpreter} 模式总体仅为 \texttt{1.0112x}。这一结果与其实现位置是一致的，因为当前 LoongArch64 Intrinsic dispatch 位于 optimizing 编译器而非解释器主体。
+表~\ref{tab:intrinsic-ablation} 和图~\ref{fig:intrinsic-ablation-geomean} 表明，Intrinsic 的主要收益集中在 \texttt{JIT} 路径：\texttt{JIT} 模式下全部可比较工作负载的几何平均 speedup 为 \texttt{1.0415x}，而 \texttt{interpreter} 模式总体仅为 \texttt{1.0112x}。这一结果与其实现位置是一致的，因为当前 LoongArch64 Intrinsic dispatch 位于 optimizing 编译器而非解释器主体。
 
-从逐 workload 结果看，\texttt{crypto.aes}、\texttt{startup.crypto.aes}、\texttt{h2} 和 \texttt{crypto.signverify} 是最具代表性的收益点，说明 Intrinsic 更适合命中标准库和内建语义路径。相对地，\texttt{pmd} 仍出现明显回退，这也说明 Intrinsic 并不是对所有 Java workload 都普遍有效。正文不将该实验并入主线，正是因为它回答的是“LoongArch64 Intrinsic 机制总体是否有价值”，而不是“三项正式方案中哪一项最值得保留”。
+从逐工作负载结果看，\texttt{crypto.aes}、\texttt{startup.crypto.aes}、\texttt{h2} 和 \texttt{crypto.signverify} 是最具代表性的收益点，说明 Intrinsic 更适合命中标准库和内建语义路径。相对地，\texttt{pmd} 仍出现明显回退，这也说明 Intrinsic 并不是对所有 Java 工作负载都普遍有效。正文不将该实验并入主线，正是因为它回答的是“LoongArch64 Intrinsic 机制总体是否有价值”，而不是“三项正式方案中哪一项最值得保留”。
 
 \section{完整 SIMD 覆盖候选版消融}\label{app:full-simd-ablation}
 
 在完成正文方案三之后，本文又围绕 LoongArch64 SIMD 能力补齐做了一轮后续候选实验，比较三种状态：\texttt{S0} 为无 SIMD 对照基线，\texttt{S1} 为正文采用的最小可用 SIMD 版本，\texttt{S2} 为后续整理出的完整 SIMD 覆盖候选版。该实验使用 \texttt{2026-03-18} 独立采集的数据集，目的不是替换正文方案三的正式结论，而是回答“能力覆盖继续扩大后，整体收益是否还能稳定上升”。
 
-本轮消融覆盖当前设备上可稳定运行的 21 个 \texttt{SPECjvm2008} workload，以及 \texttt{DaCapo} 的 \texttt{avrora}、\texttt{pmd} 和 \texttt{h2}。所有 workload 默认重复 3 轮，\texttt{lu.small}、\texttt{sor.small}、\texttt{fft.small}、\texttt{mpegaudio}、\texttt{h2} 和 \texttt{pmd} 在 \texttt{JIT} 模式下扩展到 5 轮。由于该实验不与正文第 5 章共享同一正式基线链，因此这里只讨论 \texttt{S0/S1/S2} 之间的相对关系，不与正文中的绝对收益数值直接混写。
+本轮消融覆盖当前设备上可稳定运行的 21 个 \texttt{SPECjvm2008} 工作负载，以及 \texttt{DaCapo} 的 \texttt{avrora}、\texttt{pmd} 和 \texttt{h2}。所有工作负载默认重复 3 轮，\texttt{lu.small}、\texttt{sor.small}、\texttt{fft.small}、\texttt{mpegaudio}、\texttt{h2} 和 \texttt{pmd} 在 \texttt{JIT} 模式下扩展到 5 轮。由于该实验不与正文第 5 章共享同一正式基线链，因此这里只讨论 \texttt{S0/S1/S2} 之间的相对关系，不与正文中的绝对收益数值直接混写。
 
 \begin{table}[htbp]
     \centering
@@ -87,7 +87,7 @@
     \label{fig:scheme3-full-ablation-key}
 \end{figure}
 
-从表~\ref{tab:scheme3-full-ablation} 可以看到，如果评价标准是“全部 \texttt{JIT} workload 的几何平均”，正文采用的最小版本 \texttt{S1} 仍然更稳妥，因为 \texttt{S1 / S0 = 1.0318x}，而 \texttt{S2 / S0 = 1.0252x}，\texttt{S2 / S1} 仅为 \texttt{0.9936x}。这说明继续扩大 SIMD 覆盖不会自动带来整体均值上升，部分 startup 或非关键 workload 上的小幅拖累已经足以抵消一部分新增收益。
+从表~\ref{tab:scheme3-full-ablation} 可以看到，如果评价标准是“全部 \texttt{JIT} 工作负载的几何平均”，正文采用的最小版本 \texttt{S1} 仍然更稳妥，因为 \texttt{S1 / S0 = 1.0318x}，而 \texttt{S2 / S0 = 1.0252x}，\texttt{S2 / S1} 仅为 \texttt{0.9936x}。这说明继续扩大 SIMD 覆盖不会自动带来整体均值上升，部分 startup 或非关键工作负载上的小幅拖累已经足以抵消一部分新增收益。
 
 但图~\ref{fig:scheme3-full-ablation-key} 也表明，\texttt{S2} 并非简单退化版本。相对 \texttt{S1}，\texttt{S2} 在关键工作负载上的几何平均仍有 \texttt{1.0157x} 的增益，并在 \texttt{scimark.lu.small}、\texttt{h2} 和 \texttt{avrora} 上继续取得局部提升。因此，更合适的结论是：\texttt{S1} 仍应保留为正文方案三的正式版本，而 \texttt{S2} 则应视为“完整覆盖候选增强版”，留待后续继续验证。
 
@@ -109,12 +109,12 @@
         JIT 优化重编译阈值调整 & -11.23\% & -2.03\% & 只加快第二层编译，未解决第一层基线 JIT 进入过晚的问题 \\
         OSR 热路径内联策略调整 & -17.78\% & -2.34\% & 节省的调用边界成本有限，却增加了热路径代码体积 \\
         Switch 解释器类型缓存快路径 & -11.81\% & -7.28\% & 额外检查成本高于节省下来的类型解析成本 \\
-        解释器已解析类型快路径 & -18.39\% & -5.59\% & 命中的是局部解析成本，未触及正式 workload 的主路径 \\
+        解释器已解析类型快路径 & -18.39\% & -5.59\% & 命中的是局部解析成本，未触及正式工作负载的主路径 \\
         \hline
     \end{tabular}
 \end{table}
 
-这些结果说明，与 JIT 时机或解释器路径相关的方案，只有在确实命中正式 workload 的主导成本时才可能形成收益。单纯调节第二层阈值、扩展解释器快路径或改写 OSR 检查，并不会自动转化为 benchmark 级提升。
+这些结果说明，与 JIT 时机或解释器路径相关的方案，只有在确实命中正式工作负载的主导成本时才可能形成收益。单纯调节第二层阈值、扩展解释器快路径或改写 OSR 检查，并不会自动转化为基准测试级提升。
 
 \subsection{与运行时搬运和局部热点相关的失败方案}
 
@@ -128,8 +128,8 @@
         \textbf{方案} & \textbf{\texttt{pmd}} & \textbf{\texttt{mpegaudio}} & \textbf{主要原因} \\
         \hline
         原始数组批量搬运展开 & -9.79\% & -1.72\% & 命中的只是次级热点，收益不足以覆盖额外代码体积和调度变化 \\
-        \texttt{memcpy} 入口补齐 & -11.95\% & -2.45\% & 补齐了接口，但没有证据表明正式 workload 会稳定落到该入口 \\
-        DexFileVerifier 容器替换 & -11.91\% & N/A & 局部热点下降，但启动期局部改动未转化为 benchmark 总收益 \\
+        \texttt{memcpy} 入口补齐 & -11.95\% & -2.45\% & 补齐了接口，但没有证据表明正式工作负载会稳定落到该入口 \\
+        DexFileVerifier 容器替换 & -11.91\% & N/A & 局部热点下降，但启动期局部改动未转化为基准测试总收益 \\
         CRC32 JNI 快路径优化 & N/A & -14.28\% & 目标函数占比过低，优化对象并非主导瓶颈 \\
         \hline
     \end{tabular}
@@ -144,4 +144,4 @@
     \label{fig:failed-schemes-heatmap}
 \end{figure}
 
-图~\ref{fig:failed-schemes-heatmap} 汇总了筛选阶段已归档失败方案相对于固定对照基线的归一化结果。可以看到，绝大多数失败方案即便触达了某个局部热点，也没有跨过 benchmark 级总收益门槛。对本文而言，这些负结果的意义在于为正式方案提供参照：真正值得保留的方向，不仅要能降低局部热点，更要能在统一实验设置下稳定改善最终分数。
+图~\ref{fig:failed-schemes-heatmap} 汇总了筛选阶段已归档失败方案相对于固定对照基线的归一化结果。可以看到，绝大多数失败方案即便触达了某个局部热点，也没有跨过基准测试级总收益门槛。对本文而言，这些负结果的意义在于为正式方案提供参照：真正值得保留的方向，不仅要能降低局部热点，更要能在统一实验设置下稳定改善最终分数。
