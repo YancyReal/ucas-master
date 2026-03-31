@@ -52,6 +52,23 @@
   <rect x="50" y="430" width="1100" height="190" rx="28" ry="28" fill="#d9e4c2" class="panel"/>
   <text x="80" y="474" class="cn section-title">性能评测与证据组织</text>
 
+  <rect x="110" y="506" width="255" height="88" rx="18" ry="18" class="card"/>
+  <text x="237.5" y="542" text-anchor="middle" class="cn card-title">基准测试评测</text>
+  <text x="237.5" y="570" text-anchor="middle" class="cn card-sub">DaCapo / SPECjvm2008</text>
+
+  <rect x="445" y="506" width="255" height="88" rx="18" ry="18" class="card"/>
+  <text x="572.5" y="538" text-anchor="middle" class="cn card-title">正式对比快照</text>
+  <text x="572.5" y="564" text-anchor="middle" class="cn tag">Snapshot-A</text>
+
+  <rect x="780" y="506" width="255" height="88" rx="18" ry="18" class="card"/>
+  <text x="907.5" y="538" text-anchor="middle" class="cn card-title">统计验证快照</text>
+  <text x="907.5" y="564" text-anchor="middle" class="cn tag">Snapshot-B</text>
+
+  <path d="M365 538 L445 538" class="connector"/>
+  <polyline points="365,562 392,562 392,612 760,612 760,562 780,562" class="connector"/>
+  <path d="M600 408 L600 430" class="connector"/>
+  <path d="M600 620 L600 650" class="connector"/>
+
   <rect x="210" y="650" width="780" height="76" rx="20" ry="20" fill="#ffffff" class="panel"/>
   <text x="600" y="682" text-anchor="middle" class="cn card-title">结果归档与分析证据</text>
   <text x="600" y="708" text-anchor="middle" class="cn card-sub">运行日志 / 性能数据 / 剖析报告 / 可视化分析结果</text>
