@@ -23,8 +23,9 @@
   <text x="80" y="94" class="cn section-title">一致性构建与正确性闭环</text>
 
   <rect x="85" y="128" width="230" height="124" rx="18" ry="18" class="card"/>
-  <text x="200" y="168" text-anchor="middle" class="cn card-title">固定源码状态与实验基线</text>
-  <text x="200" y="198" text-anchor="middle" class="cn card-sub">统一 LoongArch64 目标环境</text>
+  <text x="200" y="160" text-anchor="middle" class="cn card-title">固定源码状态</text>
+  <text x="200" y="188" text-anchor="middle" class="cn card-title">与实验基线</text>
+  <text x="200" y="216" text-anchor="middle" class="cn card-sub">统一 LoongArch64 目标环境</text>
 
   <rect x="350" y="128" width="230" height="124" rx="18" ry="18" class="card"/>
   <text x="465" y="168" text-anchor="middle" class="cn card-title">完整构建 ART 实验产物</text>
