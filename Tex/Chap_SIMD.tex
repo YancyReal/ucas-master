@@ -1,0 +1,318 @@
+\chapter{主结论与综合讨论：LoongArch64 最小可用 LSX 浮点 SIMD 路径}\label{chap:simd}
+
+\section{规则浮点数值内核的向量化问题定义}
+
+第 6 章讨论的三类案例都属于局部路径上的成本收缩，而本章关注的问题则来自编译器后端能力本身：当 ART 前端已经
+能够识别可向量化循环时，LoongArch64 后端是否具备足以把向量 IR 真正落成向量机器码的最小 LSX lowering 路径。
+这一问题之所以成为全文主结论，是因为它对应的收益最强、原理最清楚，也最能体现平台适配从“可运行”走向
+“可高效运行”的关键跃迁。
+
+以 \texttt{scimark.lu.small} 为代表的规则浮点数值内核，通常具备如下特征：循环可计数、数组访问为连续单位步长、
+存在循环不变量广播值，以及以加减乘为主的稳定算子组合。对于这类内核，性能瓶颈不再主要体现为解释器驻留或
+运行时固定成本，而是体现为\emph{向量化机会是否真正落到目标 ISA 上}。如果前端只能构造向量 IR，却无法在
+LoongArch64 后端完成 lowering，那么这些循环本质上仍然停留在标量执行路径。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{规则浮点数值内核进入正文主结论的结构条件}
+    \label{tab:simd-kernel-features}
+    \begin{tabular}{p{3.0cm}p{7.6cm}}
+        \hline
+        \textbf{条件} & \textbf{对 LSX 最小路径的含义} \\
+        \hline
+        连续单位步长数组访问 & 便于直接映射到 \texttt{VecLoad/VecStore}，避免复杂 gather/scatter 需求 \\
+        循环不变量广播值 & 需要后端支持标量到向量的复制，即 \texttt{VecReplicateScalar} \\
+        加减乘为主的稳定算子组合 & 只需最小可用的浮点 \texttt{VecAdd/VecSub/VecMul} 即可解释主要收益 \\
+        向量长度可由 128-bit 自然决定 & \texttt{float32} 对应 4 lane，\texttt{float64} 对应 2 lane，适配 LSX 宽度 \\
+        不依赖复杂 idiom 与完整后端覆盖 & 使正文能够先证明“最小可用路径成立”，而非过早扩展到完整 SIMD 后端 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:simd-kernel-features} 说明了为何本章能够把问题收缩为“最小可用 LSX 浮点 SIMD 路径”。
+\texttt{lu.small} 内层循环最关键的计算模式可以概括为“标量广播值乘以一段连续数组，再减到另一段连续数组”。
+它对向量化提出的不是无限制的 ISA 覆盖要求，而是一组相对克制但必须闭环的能力需求：广播、连续 load/store、
+浮点加减乘，以及必要的类型转换。只要这组最小能力被补齐，就足以把原本停留在标量流上的热点循环改写为真正的
+LSX 向量流。
+
+\section{LoongArch64 最小可用 LSX 浮点 SIMD 路径}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{optimization/scheme3-vectorization-boundary.pdf}
+    \caption{LoongArch64 最小可用 LSX 浮点 SIMD 路径的边界与能力范围，只保留正文真正依赖的最小闭环能力}
+    \label{fig:scheme3-vectorization-boundary}
+\end{figure}
+
+图~\ref{fig:scheme3-vectorization-boundary} 给出了本文正式方案三的能力边界。这里的关键词是“最小可用”，即正文
+明确只回答一个受限问题：\textbf{LoongArch64 是否已经具备让规则浮点循环稳定落成 LSX 向量机器码的最小能力集。}
+这一定义主动排除了更宽泛但也更难收束的叙事，例如“一次性完成完整 SIMD 后端”或“让所有数值 workload 自动受益”。
+
+在实现上，本文将最小路径限定为如下能力集合：
+\begin{itemize}
+    \item 面向 \texttt{float32/float64} 的 128-bit 向量路径，其中 \texttt{float32} 为 4 lane，
+    \texttt{float64} 为 2 lane；
+    \item 支持 \texttt{VecReplicateScalar}、\texttt{VecLoad}、\texttt{VecStore}、
+    \texttt{VecAdd}、\texttt{VecSub}、\texttt{VecMul} 等最小闭环算子；
+    \item 对 \texttt{int32 -> float32} 与 \texttt{int64 -> float64} 提供受限的
+    \texttt{VecCnv}，仅服务于正文真正需要的循环形态；
+    \item 不将完整 idiom 覆盖、复杂 reduction 优化和更宽泛的整数向量路径写成正文前提。
+\end{itemize}
+
+之所以采用这一边界，而不是直接以完整 SIMD 覆盖版为正文主角，原因在于研究问题必须与证据强度匹配。若把问题
+表述为“LoongArch64 SIMD 后端已经完成”，则后文需要同时解释更多 workload 的中性或负向结果，也会稀释
+\texttt{lu.small} 上最清楚的收益链条；而采用最小可用路径，则可以把收益直接绑定到“Loop Vectorization
+能否真正落地为 LSX 向量机器码”这一关键断点上。
+
+\begin{lstlisting}[language=C++,caption={最小可用 LSX 路径的保守启用规则（伪代码）},label={lst:lsx-enable-rule}]
+if (!is_loongarch64) return ScalarPath;
+if (!loop.IsCountable() || !loop.IsUnitStride()) return ScalarPath;
+if (packed_type not in {float32, float64}) return ScalarPath;
+if (op_set not subset of {ReplicateScalar, Load, Store, Add, Sub, Mul, Cnv}) {
+  return ScalarPath;
+}
+if (!vector_length_matches_128bit_lsx(packed_type)) return ScalarPath;
+if (!can_lower_all_required_ir_nodes_to_lsx()) return ScalarPath;
+return MinimalLSXPath;
+\end{lstlisting}
+
+伪代码~\ref{lst:lsx-enable-rule} 概括了这一正式方案的启用哲学：只有当循环形态、数据类型、向量长度与 lowering
+能力同时满足条件时，才进入 LSX 向量路径；否则保持既有标量路径不变。这样做的目的并不是保守本身，而是避免把
+尚未充分验证的后端能力混入正式结论，从而保证“启用即有清楚语义，失配即回到原有标量路径”的安全边界。
+
+\section{从 Loop Vectorization 到 LSX Lowering 的关键链路}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.97\textwidth]{optimization/scheme3-lsx-lowering.pdf}
+    \caption{从 Loop Vectorization 到 LSX Lowering 的关键链路，展示向量 IR 如何落到 LSX 目标指令}
+    \label{fig:scheme3-lsx-lowering}
+\end{figure}
+
+图~\ref{fig:scheme3-lsx-lowering} 展示了本文最关心的技术链路，即从前端识别可向量化循环，到构造向量 IR，再到
+LoongArch64 后端把这些 IR 节点 lowering 为 LSX 指令序列的全过程。正文选择把这一链路单独展开，是为了证明
+方案三不是“分数突然变好”的黑箱现象，而是后端能力缺口被明确补齐后的直接结果。
+
+从实现结构看，这条链路至少包含三个关键环节。第一，\texttt{loop\_optimization.cc} 负责识别循环是否满足
+向量化条件，并在 LoongArch64 上允许受限的 \texttt{VecLoad/Replicate -> VecCnv} 等路径通过。第二，
+中间表示层将标量循环重写为 \texttt{HVecReplicateScalar}、\texttt{HVecLoad}、\texttt{HVecStore}、
+\texttt{HVecAdd}、\texttt{HVecSub}、\texttt{HVecMul} 与受限的 \texttt{HVecCnv}。第三，
+\texttt{code\_generator\_loongarch64.cc} 负责把这些向量 IR 节点进一步 lowering 为具体的 LSX 指令。
+
+为使这一过程更具可读性，表~\ref{tab:ir-to-lsx-mapping} 总结了正文正式方案真正依赖的 IR 到 LSX 指令映射。
+这些指令名并非推断，而是直接对应 LoongArch64 后端代码中的 lowering 入口。
+
+\begin{table}[htbp]
+    \centering
+    \scriptsize
+    \caption{正文正式方案中关键向量 IR 到 LSX 指令的映射}
+    \label{tab:ir-to-lsx-mapping}
+    \begin{tabular}{p{3.4cm}p{4.3cm}p{4.0cm}}
+        \hline
+        \textbf{ART 向量 IR} & \textbf{对应 LSX 指令/序列} & \textbf{关键边界条件} \\
+        \hline
+        \texttt{ReplicateScalar<f32>} & \texttt{Movfr2gr\_s + vreplgr2vr.w} & 标量值先经 GPR，再广播到 4-lane 向量 \\
+        \texttt{ReplicateScalar<f64>} & \texttt{Movfr2gr\_d + vreplgr2vr.d} & 标量值先经 GPR，再广播到 2-lane 向量 \\
+        \texttt{VecLoad<f32/f64>} & \texttt{vld} & 连续单位步长访存，地址计算满足 LSX 向量宽度 \\
+        \texttt{VecStore<f32/f64>} & \texttt{vst} & 与 load 路径对称，沿既有数组布局写回 \\
+        \texttt{VecAdd<f32/f64>} & \texttt{vfadd.s / vfadd.d} & 仅对浮点 lane 开放，不混入整数扩展语义 \\
+        \texttt{VecSub<f32/f64>} & \texttt{vfsub.s / vfsub.d} & 维持与标量减法一致的浮点语义 \\
+        \texttt{VecMul<f32/f64>} & \texttt{vfmul.s / vfmul.d} & 直接命中 \texttt{lu.small} 的核心乘法内核 \\
+        \texttt{VecCnv<i32/64 -> f32/64>} & \texttt{vffint.s.w / vffint.d.l} & 仅保留正文所需的受限类型转换路径 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:ir-to-lsx-mapping} 所体现的，不只是“会生成几条指令”，而是方案三的技术硬核所在：前端向量化产生的
+IR 节点已经能够在 LoongArch64 后端找到一一对应的 LSX 落点，从而使 \texttt{lu.small} 这类规则浮点循环真正
+从标量流切换为向量流。也正因此，后文的性能收益才能被解释为“后端路径补齐”而非其它偶然因素。
+
+\section{实现边界、正确性回归与保守启用策略}
+
+\subsection{实现边界}
+
+方案三的正式实现集中在 \texttt{art/compiler/optimizing/} 目录下的三个文件中。
+\begin{itemize}
+    \item \texttt{loop\_optimization.cc}：为 LoongArch64 打开受限的浮点向量化入口，并允许正文真正需要的
+    \texttt{VecLoad/Replicate -> VecCnv} 等最小链路成立。
+    \item \texttt{code\_generator\_loongarch64.h}：把 SIMD 图的寄存器宽度约束到 \texttt{16 bytes}，
+    与 128-bit LSX 宽度保持一致。
+    \item \texttt{code\_generator\_loongarch64.cc}：补齐最关键的 LSX lowering，包括广播、
+    向量 load/store、浮点加减乘与受限类型转换。
+\end{itemize}
+
+这里最重要的不是“改了多少文件”，而是边界是否清楚。本文没有把完整 SIMD 覆盖、更多 idiom 识别或更宽泛的
+整数向量路径一并写入正式方案；正文正式版本只回答“规则浮点循环所需的最小 LSX lowering 是否已经成立”。
+这种受限边界使得第 7 章的结果解释更直接，也便于后文与完整 SIMD 候选版形成清楚对照。
+
+\subsection{正确性回归}
+
+由于方案三直接修改编译器后端，任何轻率的放宽都可能把性能结论建立在错误代码生成之上。因此，本文在进入
+benchmark 前重点回归了与 SIMD 图和 JIT 路径直接相关的测试：
+\texttt{527-checker-array-access-simd}、\texttt{656-checker-simd-opt}、
+\texttt{570-checker-osr} 和 \texttt{708-jit-cache-churn}。这些回归的目标，不是证明完整后端已经覆盖
+所有 SIMD 场景，而是确认本文新引入的最小 lowering 至少在目标图形结构上可编译、可执行、可回归。
+
+这一回归策略与本章的正式主张是一致的。因为正文追求的是“最小可用路径”的成立，所以正确性验证也围绕这条最小
+链路展开，而不是提前将完整 SIMD 候选版的风险和复杂性混入正式证据。
+
+\subsection{保守启用策略}
+
+第 7.2 节的伪代码已经给出了总体启用规则，这里进一步强调其含义。所谓“保守启用”，并非指简单地减少优化尝试，
+而是指仅当循环形态、向量长度、类型组合与目标 lowering 全部满足条件时，才允许向量路径真正落地；一旦超出
+这组边界，仍然回到原有标量生成路径。这一策略对于编译器优化尤其重要，因为它保证了两点：第一，新增向量路径
+不会无约束地污染其它未验证模式；第二，正文中观察到的收益可以明确归因于最小 LSX 路径，而不是来自偶然触发的
+更大范围后端变化。
+
+\section{正式结果与重复测量验证}
+
+\subsection{正式对比快照结果}
+
+方案三在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme3-result} 所示。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{方案三在正式对比快照中的结果}
+    \label{tab:scheme3-result}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{基准测试项} & \textbf{基线结果} & \textbf{方案结果} & \textbf{相对变化} \\
+        \hline
+        \texttt{pmd} & \texttt{3272\,msec} & \texttt{3270\,msec} & +0.06\% \\
+        \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.84\,ops/m} & +1.81\% \\
+        \texttt{lu.small} & \texttt{46.22\,ops/m} & \texttt{66.74\,ops/m} & +44.40\% \\
+        \texttt{fft.small} & \texttt{76.43\,ops/m} & \texttt{74.44\,ops/m} & -2.60\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:scheme3-result} 中最具代表性的结果是 \texttt{lu.small} 的 \texttt{+44.40\%}。这一结果之所以
+能被写成全文最强结论，不仅因为它数值显著，更因为它与前文建立的机理链完全一致：当规则浮点循环所需的最小
+LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接落为目标向量指令，收益因此能以非常直接的方式
+兑现出来。
+
+与之相对，\texttt{pmd} 基本持平，\texttt{mpegaudio} 只有轻微波动，\texttt{fft.small} 则出现小幅回退。
+这些结果进一步说明，本章的主张并不是“数值 workload 都会自动从 SIMD 中获益”，而是“规则浮点数值内核在
+最小 LSX 路径成立时可以获得显著收益”。\texttt{sor.small} 也基本贴近 \texttt{1.0}，说明数值类型相近并不
+足以保证收益，循环模式、向量长度匹配和后端 lowering 支持才是决定性因素。
+
+\subsection{统计验证快照与结论强度}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{mybenchmark/statistical-validation-stripplot.pdf}
+    \caption{统计验证快照中方案一与方案三的原始散点和均值，用于区分稳定收益与仅具方向性的收益}
+    \label{fig:statistical-validation-stripplot}
+\end{figure}
+
+仅凭单次正式快照，还不足以说明收益是否稳定。因此，本文进一步利用统计验证快照（\texttt{Snapshot-B}）对最关键
+的两条性能主张进行重复测量，其中与本章直接相关的是方案三在 \texttt{lu.small} 上的稳定性。如图
+~\ref{fig:statistical-validation-stripplot} 所示，方案三的三轮结果稳定集中在 \texttt{68--69\,ops/m}
+区间，均值由 \texttt{47.30\,ops/m} 提升到 \texttt{68.91\,ops/m}，相对基线增幅达到 \texttt{+45.70\%}，
+标准差仅 \texttt{0.50\,ops/m}。
+
+这意味着，方案三的收益不是来自偶然样本，而是能够在相邻时间窗口中稳定复现的结果。正因为有
+\texttt{Snapshot-B} 的支撑，本文才有足够依据把“LoongArch64 最小可用 LSX 浮点 SIMD 路径已经成立”写成
+全文最强结论。相比之下，第 6 章的方案一虽然也在图~\ref{fig:statistical-validation-stripplot} 中被展示，
+但其波动明显更大，因此不宜写成同强度结论。
+
+\section{与完整 SIMD 覆盖候选版的边界比较}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{mybenchmark/loongarch64-lsx-full-simd-ablation-geomean.pdf}
+    \caption{最小 SIMD 正式方案与完整 SIMD 覆盖候选版的几何平均比较，体现 \texttt{S1} 的整体稳健性}
+    \label{fig:lsx-full-simd-ablation-geomean}
+\end{figure}
+
+为了避免把正文方案三误写成“LoongArch64 完整 SIMD 后端”，本文又引入完整 SIMD 候选消融快照
+（\texttt{Snapshot-E}）进行边界比较。该快照比较了三种状态：无 SIMD 基线 \texttt{S0}、正文正式方案
+\texttt{S1} 与完整覆盖候选版 \texttt{S2}。图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角下的
+总体结果。
+
+结果表明，如果评价口径是“全部可运行 JIT workload 的几何平均”，则当前最优版本仍然是正文采用的
+\texttt{S1}：\texttt{S1/S0 = 1.0318x}，而 \texttt{S2/S0 = 1.0252x}，\texttt{S2/S1 = 0.9936x}。
+这说明完整覆盖版虽然补齐了更多 lowering 和 idiom，但在当前阶段仍存在部分 startup 或非关键 workload 的小幅
+拖累，尚不足以把整体均值推到 \texttt{S1} 之上。
+
+然而，\texttt{S2} 并非“没有价值”的版本。若只观察关键 SIMD 敏感 workload，\texttt{S2} 在
+\texttt{lu.small}、\texttt{h2}、\texttt{avrora} 等任务上继续超过 \texttt{S1}，说明更宽的后端覆盖确实能够
+在某些模式上进一步放大收益。也正因如此，本文并未否定完整覆盖版，而是将其清楚降级为“候选增强版/边界比较对象”：
+它展示了进一步扩展后端能力的潜力，但当前证据尚不足以支持它取代 \texttt{S1} 成为新的正文正式方案。
+
+这种处理方式有助于保持论文本身的学术节奏。正文第 7 章首先证明最小可用路径已经成立，然后再说明完整覆盖候选版
+在关键 workload 上更强、但在整体几何平均上尚未胜出，从而把“已成立的主结论”和“尚待继续扩展的后续方向”
+清楚地区分开来。关于 \texttt{S0/S1/S2} 的全部数据、关键 workload 结果与解释边界，详见附录第
+~\ref{app:full-simd-ablation} 节。
+
+\section{三项正式方案的统一比较与叠加效应}
+
+\subsection{统一比较：三项方案分别命中不同主路径}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{mybenchmark/final-comparison-heatmap.pdf}
+    \caption{三项正式方案在五个代表性 workload 上的统一比较，展示各方案命中的 workload 边界}
+    \label{fig:final-comparison-heatmap}
+\end{figure}
+
+在完成方案三自身论证之后，正文最后还需要回答一个更高层的问题：三项正式方案在统一口径下究竟分别解决了什么，
+以及它们能否被看作同一种“默认优化项”。图~\ref{fig:final-comparison-heatmap} 汇总了正式对比快照
+（\texttt{Snapshot-A}）中五个代表性 workload 的统一结果。
+
+从图~\ref{fig:final-comparison-heatmap} 可以得到三个直接结论。第一，方案一在 \texttt{pmd} 上最具代表性，
+说明它更适合解释短生命周期 workload 的 JIT 进入时机问题。第二，方案二在 \texttt{pmd} 与 \texttt{mpegaudio}
+上只有弱正收益，却在 \texttt{lu.small} 上回退，说明它只能被理解为定向微优化。第三，方案三在
+\texttt{lu.small} 上取得压倒性收益，但对 \texttt{pmd} 接近中性，对 \texttt{sor.small} 与
+\texttt{fft.small} 并未自动复制同等提升，这再次说明其作用对象是\emph{规则浮点数值内核}，而不是所有数值类
+workload 的统称。
+
+因此，三项正式方案的关系并不是“同一类优化项的强弱排序”，而是针对不同主路径的分工：方案一主要命中控制流与
+JIT 进入时机，方案二主要命中字符串热路径的数据搬移，方案三则直接作用于规则浮点数值内核的后端向量化缺口。
+这也是为什么 \texttt{DexFileVerifier} 没有被混入这张统一图中，因为它属于独立快照上的启动期正交案例，而非
+\texttt{Snapshot-A} 口径下的正式三方案比较对象。
+
+\subsection{叠加效应：局部有效并不意味着可组合}
+
+除单方案比较外，本文还整理了三项正式方案的叠加状态，如表~\ref{tab:stacking-conflict} 所示。这样做的目的
+不是提出统一默认配置，而是检验这些各自有效的改动是否具有可组合性。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{三项正式方案的叠加状态与单方案结果对照}
+    \label{tab:stacking-conflict}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{状态} & \textbf{\texttt{pmd}} & \textbf{\texttt{mpegaudio}} & \textbf{\texttt{lu.small}} \\
+        \hline
+        方案一单独启用 & +3.30\% & +1.42\% & +34.25\% \\
+        方案一 + 方案二 & -8.56\% & +1.65\% & +29.16\% \\
+        方案一 + 方案二 + 方案三 & -9.54\% & -12.45\% & +50.41\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:stacking-conflict} 说明，一个方案在单独启用时有效，并不意味着它与其他方案天然可叠加。
+当方案二加入后，\texttt{pmd} 会从方案一单独启用时的正收益转为明显回退；继续叠加方案三后，
+\texttt{lu.small} 虽然进一步上升，但 \texttt{mpegaudio} 又出现显著下降。这说明不同方案命中的主路径不同，
+也可能在代码体积、运行时固定成本和 JIT 行为上彼此干扰。
+
+这组叠加结果对全文结论具有收束作用。它表明 LoongArch 平台 ART 的性能优化不能被写成“把所有看起来合理的局部
+策略同时打开就会更快”的工程直觉，而必须始终围绕具体 workload 的主路径单独判断。也正因此，本文将三项方案
+组织为“分别分析、分别验证”，而不是将其写成一个统一默认配置。
+
+\section{本章小结}
+
+本章集中托起了全文最强结论，即 LoongArch64 最小可用 LSX 浮点 SIMD 路径已经成立，并能够在规则浮点数值内核上
+兑现显著、稳定且可解释的收益。通过明确问题定义、限定最小能力边界、展示 IR 到 LSX 指令的 lowering 链路、
+回归正确性约束，并结合 \texttt{Snapshot-A} 与 \texttt{Snapshot-B} 两类证据，本文将方案三从“一个有效方案”
+提升为“全文主结论”。
+
+进一步地，与完整 SIMD 覆盖候选版的比较表明，当前正式方案 \texttt{S1} 仍是整体几何平均意义下更稳妥的版本，
+而完整覆盖候选版 \texttt{S2} 更适合作为后续扩展方向保留。最后，通过与方案一、方案二的统一比较和叠加效应分析，
+本文得到更系统的结论：LoongArch 平台 ART 的性能优化必须围绕具体 workload 的主导成本展开；真正值得写入正文
+主结论的方案，不仅要带来收益，更要能够解释“为何有效、对谁有效、边界在哪里、为何不能简单叠加”。
+%---------------------------------------------------------------------------%

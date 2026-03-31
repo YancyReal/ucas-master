@@ -19,24 +19,31 @@
 
 面向国产处理器平台完善 Android 运行时，是基础软件生态建设中的关键一环。针对 AOSP 15 官方
 主线尚未提供 LoongArch 架构 ART 执行引擎实现的问题，本文以 AOSP 15 的 Android Runtime
-（ART）为对象，开展执行引擎适配、正确性验证与性能优化研究。
+（ART）为对象，围绕执行引擎适配、统一证据链构建和工作负载驱动优化展开研究。
 
-本文完成了 LoongArch 平台 ART 执行引擎关键模块的适配，补齐了汇编器、C++解释器、Nterp、
-JIT 编译器后端、JNI 编译器、运行时快速路径以及部分 Intrinsic 支持，建立了可运行的 ART 执行
-环境。在此基础上，本文面向 LoongArch64 目标设备组织统一实验流程，构建了覆盖编译、部署、
-目标机回归、libcore 测试和基准测试评测的验证体系，为性能结论提供一致、可重复的实验基础。
+本文首先完成了 LoongArch 平台 ART 执行引擎关键模块的适配，补齐了汇编器、C++解释器、
+Nterp、JIT 编译器后端、JNI 编译器、运行时快速路径以及部分 Intrinsic 支持，建立了可运行的
+ART 执行环境。由此，本文不仅回答了“能否在 LoongArch 上运行 ART”的问题，也为后续性能研究
+提供了必要的系统基础。
 
-在固定基线下，本文评估了三项正式优化方案：JIT 分层热度阈值调整、运行时字符串搬运批量化，
-以及 LoongArch64 LSX 浮点 SIMD 向量化。结果表明，方案一在 \texttt{DaCapo/pmd} 上取得
-\texttt{+3.30\%} 的单次收益，说明更早进入基线 JIT 对短生命周期工作负载具有积极作用，但重复测量
-波动仍较大；方案二在 \texttt{pmd} 与 \texttt{mpegaudio} 上仅有弱正收益，更适合作为字符串密集
-场景的定向微优化；方案三在 \texttt{SPECjvm2008/scimark.lu.small} 上取得 \texttt{+44.40\%}
-的正式对比收益，并在同日重复测量中保持 \texttt{+45.70\%} 的稳定提升，是全文最明确的性能优化
-结论。
+在能力构建完成后，本文面向 LoongArch64 目标设备组织统一实验流程，构建了覆盖编译、部署、
+目标机回归、libcore 测试和基准测试评测的验证体系，并将进入正文的实验数据抽象为正式对比快照
+（\texttt{Snapshot-A}）、统计验证快照（\texttt{Snapshot-B}）、启动期校验快照
+（\texttt{Snapshot-C}）、Intrinsic 补充验证快照（\texttt{Snapshot-D}）和完整 SIMD 候选
+消融快照（\texttt{Snapshot-E}），从而在避免工程日志式叙述的同时保留结果可追溯性。
 
-本文说明，AOSP 15 ART 在 LoongArch 平台上的执行引擎适配是可行的；在统一实验设计和固定基线
-约束下，围绕主导热点开展定向优化，能够得到有据可依的性能收益。本文为国产处理器平台上的
-Android 运行时完善与后续优化研究提供了工程基础和实验依据。
+在统一证据链下，本文将 JIT 进入时机与运行时数据批量搬移组织为两类代表性局部优化案例，并将
+LoongArch64 最小可用 LSX 浮点 SIMD 路径作为全文主结论。在正式对比快照
+（\texttt{Snapshot-A}）中，方案一在 \texttt{DaCapo/pmd} 上取得 \texttt{+3.30\%} 的单次收益，
+体现出更早进入基线 JIT 对短生命周期工作负载的积极方向，但统计验证快照
+（\texttt{Snapshot-B}）显示其波动仍然较大；方案二在 \texttt{pmd} 与 \texttt{mpegaudio}
+上仅表现出弱正收益，更适合作为字符串密集场景的定向微优化；方案三在
+\texttt{SPECjvm2008/scimark.lu.small} 上取得 \texttt{+44.40\%} 的正式对比收益，并在
+\texttt{Snapshot-B} 中保持 \texttt{+45.70\%} 的稳定提升，是全文最明确、证据最强的性能优化结论。
+
+本文说明，AOSP 15 ART 在 LoongArch 平台上的执行引擎适配是可行的；在统一实验设计、固定基线
+和明确证据边界的约束下，围绕主导热点开展分层次优化，能够得到有据可依的性能收益。本文为国产
+处理器平台上的 Android 运行时完善与后续优化研究提供了工程基础、实验方法和性能结论。
 
 \keywords{LoongArch，Android Runtime，执行引擎适配，JIT 编译，性能优化}% 中文关键词
 %-
@@ -47,39 +54,44 @@ Android 运行时完善与后续优化研究提供了工程基础和实验依据
 Improving the Android runtime environment on domestic processor platforms is an
 important part of building a complete system software ecosystem. However, AOSP
 15 does not provide an official ART execution engine implementation for the
-LoongArch architecture, leaving a critical gap in application execution support
-on this platform. This thesis takes Android Runtime (ART) in AOSP 15 as the
-research target and studies execution engine adaptation, experimental
-validation, and performance optimization for LoongArch.
+LoongArch architecture. This thesis therefore takes Android Runtime (ART) in
+AOSP 15 as the research target and studies execution engine adaptation, unified
+evidence construction, and workload-driven optimization for LoongArch.
 
 First, this work completes the adaptation of key ART execution engine
 components for LoongArch, including the assembler, C++ interpreter, Nterp, the
 JIT compiler backend, the JNI compiler, runtime fast paths, and selected
 intrinsics, thereby establishing a runnable ART execution environment. Second,
-it designs a unified experimental framework on a LoongArch64 target device,
+it builds a unified experimental framework on a LoongArch64 target device,
 covering compilation, deployment, target-side regression tests, libcore tests,
-and benchmark evaluation, so that subsequent performance conclusions are
-supported by repeatable evidence.
+and benchmark evaluation. To keep the thesis narrative abstract while
+preserving traceability, the evidence is organized as five experiment snapshots
+from \texttt{Snapshot-A} to \texttt{Snapshot-E}, corresponding to formal
+comparison, statistical validation, startup-phase validation, intrinsic
+ablation, and full-SIMD candidate ablation.
 
-Under a fixed baseline, this thesis evaluates three optimization schemes on
-representative workloads: a tiered JIT hotness threshold adjustment, a runtime
-string bulk-copy optimization, and a LoongArch64 LSX floating-point SIMD
-vectorization scheme. The formal comparison shows that Scheme 1 achieves a
-\texttt{+3.30\%} single-run improvement on \texttt{DaCapo/pmd} but still
-exhibits large variance under repeated measurements; Scheme 2 only delivers
-weak gains on \texttt{pmd} and \texttt{mpegaudio}, and is therefore better
-characterized as a targeted micro-optimization for string-intensive workloads;
-Scheme 3 achieves a \texttt{+44.40\%} formal improvement on
+Under this evidence framework, the thesis treats JIT entry timing and runtime
+data bulk movement as two representative local optimization cases, and
+positions the minimum viable LoongArch64 LSX floating-point SIMD path as the
+main conclusion. In the formal comparison snapshot (\texttt{Snapshot-A}),
+Scheme 1 achieves a \texttt{+3.30\%} single-run improvement on
+\texttt{DaCapo/pmd}, indicating the benefit direction of earlier baseline JIT
+entry for short-lived workloads, although \texttt{Snapshot-B} still reveals
+substantial variance. Scheme 2 only delivers weak positive gains on
+\texttt{pmd} and \texttt{mpegaudio}, making it better characterized as a
+targeted micro-optimization for string-intensive paths. Scheme 3 achieves a
+\texttt{+44.40\%} formal improvement on
 \texttt{SPECjvm2008/scimark.lu.small} and maintains a stable
-\texttt{+45.70\%} gain in same-day repeated measurements, making it the
-strongest optimization result in this thesis.
+\texttt{+45.70\%} gain in \texttt{Snapshot-B}, making it the strongest and
+best-supported optimization result in this thesis.
 
 The results demonstrate that adapting the AOSP 15 ART execution engine to the
-LoongArch platform is feasible, and that targeted optimizations on dominant
+LoongArch platform is feasible, and that layered optimizations on dominant
 hotspots can produce credible performance gains under a unified experimental
-design and a fixed baseline. This work provides both an engineering foundation
-and experimental evidence for further improving Android runtime support on
-domestic processor platforms.
+design, a fixed baseline, and explicit evidence boundaries. This work provides
+an engineering foundation, an experimental methodology, and performance
+conclusions for further improving Android runtime support on domestic processor
+platforms.
 
 \KEYWORDS{LoongArch, Android Runtime, execution engine adaptation, JIT compilation, performance optimization}% 英文关键词
 %---------------------------------------------------------------------------%

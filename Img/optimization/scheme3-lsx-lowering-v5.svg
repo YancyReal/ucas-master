@@ -1,0 +1,102 @@
+<svg viewBox="0 0 1600 860" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L0,10 L9,5 z" fill="#4d5966"/>
+    </marker>
+    <style>
+      .panel-label { font-family: "Helvetica","Arial","TeX Gyre Heros",sans-serif; font-size: 22px; font-weight: 700; fill: #243b53; }
+      .node-title { font-family: "Helvetica","Arial","TeX Gyre Heros",sans-serif; font-size: 22px; font-weight: 700; fill: #243b53; text-anchor: middle; }
+      .node-sub { font-family: "Helvetica","Arial","TeX Gyre Heros",sans-serif; font-size: 15px; fill: #52606d; text-anchor: middle; }
+      .mono { font-family: "IBM Plex Mono","SFMono-Regular",Menlo,Monaco,Consolas,monospace; font-size: 12px; fill: #486581; text-anchor: middle; }
+      .mono-left { font-family: "IBM Plex Mono","SFMono-Regular",Menlo,Monaco,Consolas,monospace; font-size: 15px; fill: #334e68; }
+      .head { font-family: "IBM Plex Mono","SFMono-Regular",Menlo,Monaco,Consolas,monospace; font-size: 15px; font-weight: 700; fill: #243b53; }
+      .note { font-family: "Helvetica","Arial","TeX Gyre Heros",sans-serif; font-size: 15px; fill: #52606d; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="860" fill="#ffffff"/>
+
+  <text x="72" y="64" class="panel-label">A</text>
+  <text x="108" y="64" class="note">Minimal LSX lowering path</text>
+
+  <g>
+    <rect x="72" y="96" width="236" height="146" rx="10" ry="10" fill="#EEF2F5" stroke="#BFC9D4" stroke-width="1.4"/>
+    <text x="190" y="146" class="node-title">Countable float loop</text>
+    <text x="190" y="182" class="mono">lu.small</text>
+    <text x="190" y="212" class="node-sub">unit stride · float32 / float64</text>
+  </g>
+
+  <g>
+    <rect x="356" y="96" width="244" height="146" rx="10" ry="10" fill="#D0E0F0" stroke="#B2C6D8" stroke-width="1.4"/>
+    <text x="478" y="146" class="node-title">Loop vectorization</text>
+    <text x="478" y="182" class="mono">loop_optimization.cc</text>
+    <text x="478" y="212" class="node-sub">recognize unit-stride / countable loop</text>
+  </g>
+
+  <g>
+    <rect x="640" y="96" width="252" height="146" rx="10" ry="10" fill="#D0E0F0" stroke="#B2C6D8" stroke-width="1.4"/>
+    <text x="766" y="146" class="node-title">HGraph / HVec IR</text>
+    <text x="766" y="182" class="mono">HVecLoad · HVecStore · HVecAdd</text>
+    <text x="766" y="206" class="mono">HVecSub · HVecMul · HVecCnv</text>
+  </g>
+
+  <g>
+    <rect x="932" y="96" width="252" height="146" rx="10" ry="10" fill="#FAD7C5" stroke="#E7B7A3" stroke-width="1.4"/>
+    <text x="1058" y="146" class="node-title">LSX lowering</text>
+    <text x="1058" y="178" class="mono">code_generator_</text>
+    <text x="1058" y="198" class="mono">loongarch64.cc</text>
+    <text x="1058" y="220" class="node-sub">lower the minimal float path only</text>
+  </g>
+
+  <g>
+    <rect x="1224" y="96" width="280" height="146" rx="10" ry="10" fill="#E8F0EB" stroke="#C2D2C7" stroke-width="1.4"/>
+    <text x="1364" y="146" class="node-title">LSX instruction sequence</text>
+    <text x="1364" y="182" class="mono">vreplgr2vr · vld / vst</text>
+    <text x="1364" y="206" class="mono">vfadd · vfsub · vfmul · vffint</text>
+  </g>
+
+  <path d="M308 169 L356 169" fill="none" stroke="#4d5966" stroke-width="2.0" marker-end="url(#arrow)"/>
+  <path d="M600 169 L640 169" fill="none" stroke="#4d5966" stroke-width="2.0" marker-end="url(#arrow)"/>
+  <path d="M892 169 L932 169" fill="none" stroke="#4d5966" stroke-width="2.0" marker-end="url(#arrow)"/>
+  <path d="M1184 169 L1224 169" fill="none" stroke="#4d5966" stroke-width="2.0" marker-end="url(#arrow)"/>
+
+  <g>
+    <rect x="72" y="288" width="1432" height="74" rx="8" ry="8" fill="#FFFFFF" stroke="#C9D4DE" stroke-width="1.2" stroke-dasharray="6 4"/>
+    <text x="96" y="334" class="note">Enable only if: countable loop, unit stride, float32/64, and all required IR nodes are lowerable; otherwise keep the existing scalar path.</text>
+  </g>
+
+  <path d="M1058 242 L1058 286" fill="none" stroke="#7D8A97" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+
+  <text x="72" y="430" class="panel-label">B</text>
+  <text x="108" y="430" class="note">IR-to-Assembly lowering mapping</text>
+
+  <rect x="96" y="456" width="1408" height="58" fill="#FFFFFF" stroke="#C9D4DE" stroke-width="1.2"/>
+  <line x1="470" y1="456" x2="470" y2="754" stroke="#C9D4DE" stroke-width="1.1"/>
+  <line x1="902" y1="456" x2="902" y2="754" stroke="#C9D4DE" stroke-width="1.1"/>
+  <text x="122" y="492" class="head">ART_IR</text>
+  <text x="496" y="492" class="head">LSX_SEQUENCE</text>
+  <text x="928" y="492" class="head">BOUNDARY</text>
+
+  <line x1="96" y1="514" x2="1504" y2="514" stroke="#C9D4DE" stroke-width="1.0"/>
+  <line x1="96" y1="574" x2="1504" y2="574" stroke="#C9D4DE" stroke-width="1.0"/>
+  <line x1="96" y1="634" x2="1504" y2="634" stroke="#C9D4DE" stroke-width="1.0"/>
+  <line x1="96" y1="694" x2="1504" y2="694" stroke="#C9D4DE" stroke-width="1.0"/>
+  <line x1="96" y1="754" x2="1504" y2="754" stroke="#C9D4DE" stroke-width="1.0"/>
+
+  <text x="122" y="552" class="mono-left">ReplicateScalar&lt;f32/f64&gt;</text>
+  <text x="496" y="552" class="mono-left">Movfr2gr + vreplgr2vr.w/d</text>
+  <text x="928" y="546" class="note">broadcast scalar through GPR into 4-lane / 2-lane vector</text>
+
+  <text x="122" y="612" class="mono-left">VecLoad / VecStore</text>
+  <text x="496" y="612" class="mono-left">vld / vst</text>
+  <text x="928" y="606" class="note">continuous unit-stride access with 128-bit LSX width</text>
+
+  <text x="122" y="672" class="mono-left">VecAdd / VecSub / VecMul</text>
+  <text x="496" y="664" class="mono-left">vfadd.s/.d · vfsub.s/.d</text>
+  <text x="496" y="688" class="mono-left">vfmul.s/.d</text>
+  <text x="928" y="666" class="note">float lanes only; no broader integer SIMD path assumed</text>
+
+  <text x="122" y="732" class="mono-left">VecCnv&lt;i32/64 -&gt; f32/64&gt;</text>
+  <text x="496" y="732" class="mono-left">vffint.s.w / vffint.d.l</text>
+  <text x="928" y="732" class="note">restricted conversion path kept only for the formal scheme</text>
+</svg>

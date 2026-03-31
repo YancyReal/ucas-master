@@ -1,0 +1,79 @@
+\section{DEX 校验阶段链的详细数据与阶段映射}\label{app:dexverifier-details}
+
+\subsection{Flamegraph 筛选依据}
+
+本附录对应第 6.3 节中的启动期校验快照（\texttt{Snapshot-C}），用于保留 \texttt{DexFileVerifier}
+阶段链的详细可追溯材料。正文仅保留主结论和主要图表，而将更细的 flamegraph 依据、源码位置与原始数据表
+集中放在本附录中。
+
+\texttt{startup.helloworld} 之所以被选为主目标 workload，是因为 baseline flamegraph 中 verifier、
+container probing 与字符串校验相关路径的 flat hot share 近似合计约为 \texttt{5.3\%}，已经足以支撑
+独立优化分析。相比之下，\texttt{scimark.lu.small} 上这组热点仅约 \texttt{0.3\%} 到 \texttt{0.4\%}，
+因此被保留为负对照，而不作为收益结论的依据。
+
+\subsection{四阶段提交链与源码位置}
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{\texttt{DexFileVerifier} 四阶段提交链与源码位置}
+    \label{tab:app-dexverifier-chain}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{2.0cm}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{5.7cm}}
+        \hline
+        \textbf{阶段} & \textbf{主要文件} & \textbf{核心变化} \\
+        \hline
+        \texttt{phase1} & \shortstack[l]{\texttt{dex\_file\_}\\\texttt{verifier.cc}} & 缓存边界、热点 helper 强制内联、预留容器容量 \\
+        \texttt{phase12} & \shortstack[l]{\texttt{dex\_file\_}\\\texttt{verifier.cc}} & \texttt{offset\_to\_type\_map\_} 改为 \texttt{vector + lower\_bound} \\
+        \texttt{phase123} & \shortstack[l]{\texttt{dex\_file\_}\\\texttt{verifier.cc}、\\\texttt{utf-inl.h}} & UTF-8 查表、\texttt{prefetch} 与 ASCII fast path \\
+        \texttt{phase1234} & \shortstack[l]{\texttt{dex\_file\_}\\\texttt{verifier.cc}} & LEB128 fast path \\
+        \hline
+    \end{tabular}
+\end{table}
+
+如表~\ref{tab:app-dexverifier-chain} 所示，这条阶段链主要集中在
+\texttt{art/libdexfile/dex/dex\_file\_verifier.cc} 与 \texttt{art/libdexfile/dex/utf-inl.h}
+两个文件中。正文将其写成阶段链，而非单点容器优化，正是因为 baseline flamegraph 显示 container probing、
+字符串校验和元数据解码是逐层衔接的主成本链。
+
+\subsection{正式数据表与补充分析}
+
+\begin{table}[htbp]
+    \centering
+    \scriptsize
+    \caption{\texttt{startup.helloworld} 上的阶段链正式数据}
+    \label{tab:app-dexverifier-startup}
+    \begin{tabular}{lcccc}
+        \hline
+        \textbf{阶段} & \textbf{3 轮原始分数（\texttt{ops/m}）} & \textbf{均值} & \textbf{标准差} & \textbf{相对 baseline} \\
+        \hline
+        \texttt{baseline} & \texttt{36.74, 36.74, 37.38} & \texttt{36.9533} & \texttt{0.3017} & \texttt{+0.00\%} \\
+        \texttt{phase1} & \texttt{37.83, 36.92, 33.71} & \texttt{36.1533} & \texttt{1.7672} & \texttt{-2.16\%} \\
+        \texttt{phase12} & \texttt{38.78, 38.76, 38.68} & \texttt{38.7400} & \texttt{0.0432} & \texttt{+4.83\%} \\
+        \texttt{phase123} & \texttt{38.86, 38.12, 38.91} & \texttt{38.6300} & \texttt{0.3612} & \texttt{+4.54\%} \\
+        \texttt{phase1234} & \texttt{39.01, 38.91, 38.99} & \texttt{38.9700} & \texttt{0.0432} & \texttt{+5.46\%} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \scriptsize
+    \caption{\texttt{scimark.lu.small} 作为负对照的阶段链正式数据}
+    \label{tab:app-dexverifier-lu}
+    \begin{tabular}{lcccc}
+        \hline
+        \textbf{阶段} & \textbf{3 轮原始分数（\texttt{ops/m}）} & \textbf{均值} & \textbf{标准差} & \textbf{相对 baseline} \\
+        \hline
+        \texttt{baseline} & \texttt{82.37, 77.93, 82.90} & \texttt{81.0667} & \texttt{2.2285} & \texttt{+0.00\%} \\
+        \texttt{phase1} & \texttt{82.92, 82.93, 82.68} & \texttt{82.8433} & \texttt{0.1156} & \texttt{+2.19\%} \\
+        \texttt{phase12} & \texttt{82.88, 82.88, 81.89} & \texttt{82.5500} & \texttt{0.4667} & \texttt{+1.83\%} \\
+        \texttt{phase123} & \texttt{82.78, 82.77, 82.85} & \texttt{82.8000} & \texttt{0.0356} & \texttt{+2.14\%} \\
+        \texttt{phase1234} & \texttt{82.83, 82.85, 80.34} & \texttt{82.0067} & \texttt{1.1785} & \texttt{+1.16\%} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:app-dexverifier-startup} 与表~\ref{tab:app-dexverifier-lu} 共同支持第 6.3 节的写法：
+\texttt{phase12} 是第一段被 benchmark 明确验证的主收益阶段，而 \texttt{phase1234} 给出了最终最优点；
+\texttt{lu.small} 只承担负对照角色，不应用来支撑收益结论。
+%---------------------------------------------------------------------------%

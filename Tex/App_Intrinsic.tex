@@ -1,0 +1,50 @@
+\section{Intrinsic 机制的补充验证}\label{app:intrinsic-ablation}
+
+\subsection{实验设计与比较口径}
+
+本附录用于补充说明 LoongArch64 ART intrinsic 的整体收益边界。之所以不将该结果纳入正文三项正式方案，是因为
+intrinsic 开关对应的是较宽泛的库调用与编译器机制增强，而不是第 5 章收缩出的三类研究问题之一。它更适合作为
+“机制补充证据”存在，用于说明 LoongArch64 平台的 JIT/optimizing 路径并非只有正文三项改动在发挥作用。
+
+本轮实验比较“关闭 intrinsic”与“开启 intrinsic”两种状态，并同时在 \texttt{JIT} 与
+\texttt{interpreter} 两种模式下观测结果。其中，\texttt{JIT} 模式用于衡量 intrinsic 真实收益，
+\texttt{interpreter} 模式作为负对照。若收益主要来自编译器 intrinsic dispatch，则理论上
+\texttt{interpreter} 结果应整体贴近 \texttt{1.0x}。
+
+\subsection{几何平均结果}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.78\textwidth]{mybenchmark/intrinsic-ablation-geomean.pdf}
+    \caption{Intrinsic 开关在 \texttt{JIT} 与 \texttt{interpreter} 下的几何平均结果}
+    \label{fig:intrinsic-ablation-geomean}
+\end{figure}
+
+图~\ref{fig:intrinsic-ablation-geomean} 表明，在 \texttt{JIT} 模式下，LoongArch64 intrinsic 开关带来了
+稳定的整体正收益：全部可比较 workload 的几何平均 speedup 为 \texttt{1.0415x}，其中
+\texttt{SPEC startup} 为 \texttt{1.0339x}，\texttt{SPEC throughput} 为 \texttt{1.0508x}，
+\texttt{DaCapo} 为 \texttt{1.0387x}。相比之下，\texttt{interpreter} 模式总体接近负对照，
+大部分 workload 落在 \texttt{\pm 2\%} 波动范围内。
+
+这一结果支持如下判断：intrinsic 的主要收益确实集中在 \texttt{JIT/optimizing} 路径，而非设备漂移或
+其它构建差异。因此，虽然 intrinsic 不构成本文正文主线，但它仍然是 LoongArch64 平台 ART 性能画像中值得保留的
+机制性背景。
+
+\subsection{逐工作负载边界分析}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{mybenchmark/intrinsic-ablation-heatmap.pdf}
+    \caption{Intrinsic 开关在代表性 workload 上的逐项比较}
+    \label{fig:intrinsic-ablation-heatmap}
+\end{figure}
+
+图~\ref{fig:intrinsic-ablation-heatmap} 进一步说明，intrinsic 收益主要集中在加解密与部分库热点 workload。
+其中，\texttt{crypto.aes} 达到 \texttt{1.4996x}，\texttt{startup.crypto.aes} 为 \texttt{1.2993x}；
+\texttt{h2} 约为 \texttt{1.1513x}，\texttt{crypto.signverify} 约为 \texttt{1.0604x}。
+相比之下，\texttt{pmd} 出现 \texttt{0.9474x} 的负向样本，说明其主导成本并不在 intrinsic 命中的热点上。
+
+因此，本附录的正确用法并不是把 intrinsic 写成“额外一章正式方案”，而是用它说明：LoongArch64 平台 ART 的
+优化空间具有多层结构。正文三项正式方案回答的是控制流、运行时热路径与后端向量化缺口，而 intrinsic 机制则作为
+更宽泛的补充能力，被保留在附录中供读者理解整体背景。
+%---------------------------------------------------------------------------%

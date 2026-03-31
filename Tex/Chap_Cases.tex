@@ -1,0 +1,281 @@
+\chapter{代表性局部优化案例：执行期与启动期路径}\label{chap:cases}
+
+\section{面向短生命周期工作负载的 JIT 进入时机优化}
+
+\subsection{问题界定与机理}
+
+在 LoongArch64 \texttt{debug} JIT 环境中，\texttt{pmd} 一类短生命周期 workload 暴露出的首要矛盾，
+并不是 optimizing 编译质量不足，而是热点方法可能在 benchmark 结束前仍然停留在解释执行阶段。
+ART 的分层 JIT 至少包含两级关键阈值：第一层阈值 \texttt{warmup\_threshold} 决定方法何时进入
+baseline JIT，第二层阈值 \texttt{optimize\_threshold} 决定方法何时进一步进入 optimizing 编译。
+当生命周期较短、热度累积窗口有限时，若第一层进入偏晚，则第二层是否更早启动并不能从根本上解决问题
+\citep{Arnold2005,ArtJitCompiler2024,
+Perez2012HybridJIT,Xu2018ShareJIT}。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{optimization/scheme1-tiered-jit-flow.pdf}
+    \caption{短生命周期 workload 下 JIT 分层进入时机的主要矛盾，核心在于 baseline JIT 是否足够早触发}
+    \label{fig:scheme1-tiered-jit-flow}
+\end{figure}
+
+图~\ref{fig:scheme1-tiered-jit-flow} 展示了这一问题的本质。对 \texttt{pmd} 而言，更关键的是让热点方法及时
+脱离解释器并进入 baseline JIT，而不是过早追求第二层优化编译。正文因此将该案例的研究问题明确限定为：
+LoongArch64 \texttt{debug} ART 的默认第一层阈值是否偏保守，从而让短生命周期 workload 丧失了最重要的
+编译收益窗口。
+
+\subsection{为何保留这一方向}
+
+与第 5 章中未保留的 \texttt{optimize\_threshold}、OSR 热路径和解释器快路径类方向相比，方案一之所以适合写成
+正文案例，在于它同时满足两个条件。其一，它直接作用于“方法来不及进入 baseline JIT”这一首要矛盾，而不是把
+作用点放在第二层优化或某个局部解释器分支。其二，它的边界足够收敛，可以清楚回答“影响哪类 workload、为何仅在
+特定运行时条件下启用、何时不应生效”。
+
+这一选择也体现了本文的写作策略。第 6 章并不追求把 JIT 相关尝试全部写入正文，而是保留最能代表控制流问题本质的
+一个案例。附录第~\ref{app:candidate-schemes} 节中进一步归档的 JIT 候选方向说明，单独调整第二层阈值、OSR
+内联或解释器热路径，并不能像方案一这样对 \texttt{pmd} 给出清楚、聚焦且可复核的因果解释。
+
+\subsection{实现边界与正确性约束}
+
+方案一的正式实现主要位于以下三个文件：
+\begin{itemize}
+    \item \texttt{art/runtime/jit/jit\_options.h}
+    \item \texttt{art/runtime/jit/jit\_options.cc}
+    \item \texttt{art/runtime/jit/jit.cc}
+\end{itemize}
+其中，\texttt{jit\_options.cc} 负责保留运行时参数解析结果，并区分默认阈值与用户显式传入阈值；
+\texttt{jit.cc} 在 \texttt{Jit::Create()} 阶段仅在
+\texttt{LoongArch64 + debug + 非 Java-debuggable} 且用户未显式指定
+\texttt{JITWarmupThreshold} 时，将默认 \texttt{warmup\_threshold} 下调到 \texttt{8192}；
+\texttt{optimize\_threshold} 保持原值不变。
+
+这样的实现边界意味着，本文改变的是 LoongArch64 平台默认第一层进入策略，而不是改写所有调用方的参数语义。
+从研究角度看，这一边界是有意为之的：若同时改动第一层与第二层阈值，就会让“究竟是谁带来了收益”变得难以解释；
+若无条件覆盖用户显式参数，又会把平台默认策略研究变成对外部调用语义的侵入式修改。
+
+在正确性约束方面，方案一进入 benchmark 前执行了 \texttt{708-jit-cache-churn}、
+\texttt{667-jit-jni-stub} 等与 JIT 路径直接相关的目标机 run-test。其验证重点不是穷尽所有 JIT 行为，
+而是确认阈值微调没有破坏代码缓存、JNI 桩与基本编译路径的语义约束。这与第 4 章提出的“最小相关回归优先”
+原则保持一致。
+
+\subsection{正式结果与结论强度}
+
+方案一在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme1-result} 所示。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{方案一在正式对比快照中的结果}
+    \label{tab:scheme1-result}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{基准测试项} & \textbf{基线结果} & \textbf{方案结果} & \textbf{相对变化} \\
+        \hline
+        \texttt{pmd} & \texttt{3272\,msec} & \texttt{3164\,msec} & +3.30\% \\
+        \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.74\,ops/m} & +1.42\% \\
+        \texttt{lu.small} & \texttt{46.22\,ops/m} & \texttt{62.05\,ops/m} & +34.25\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:scheme1-result} 中最具代表性的结果是 \texttt{pmd} 的 \texttt{+3.30\%}。这一变化与图
+~\ref{fig:scheme1-tiered-jit-flow} 所示机理一致，即方法更早进入 baseline JIT 后，短生命周期 workload
+能够更快回收解释器驻留成本。\texttt{mpegaudio} 只出现轻微提升，也符合其更依赖稳态吞吐而非进入时机的特点。
+
+\texttt{lu.small} 在单次正式快照中也出现了可观增幅，但本文并不将其写成与第 7 章同强度的主结论。更稳妥的解释
+是：当规则数值循环运行时间足够长时，更早进入编译态同样可能带来附带收益，但它并不能回答“为何 LoongArch64
+数值内核能够在向量化后获得显著提升”这一更核心的问题。因此，方案一的正式定位仍然是控制流与 JIT 进入时机案例。
+
+进一步地，统计验证快照（\texttt{Snapshot-B}）表明，方案一在 \texttt{pmd} 上虽然呈现出与正式单次快照
+一致的受益方向，但三轮样本中仍存在显著抖动，尚不足以被表述为“均值稳定提升”的强结论。由此可见，方案一的论文
+价值更多在于揭示 LoongArch64 \texttt{debug} ART 中第一层进入时机的敏感性，而不是给出一个可以无条件推广的
+统一默认配置。
+
+\section{面向运行时字符串热路径的数据批量搬移机制优化}
+
+\subsection{问题界定与机理}
+
+方案二针对的是运行时字符串热路径中的高频搬移成本。对 \texttt{pmd} 的 flamegraph、profile 与运行时实现路径
+持续分析后可以发现，字符串替换、字符串拼接、UTF-16 构造以及 \texttt{StringBuilderAppend} 相关路径会稳定出现，
+其代表性入口包括 \texttt{String::DoReplace()}、\texttt{String::DoConcat()} 与
+\texttt{String::AllocFromUtf16()}。
+这些路径的共同特征是：字符串往往不长，但调用频繁；复制、替换和 UTF-16 构造逻辑本身较简单，因此循环控制、
+索引换算和逐元素分支很难被真正的工作量摊薄\citep{Haubl2008OptimizedStrings,Haubl2010CompactStrings}。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{optimization/scheme2-string-copy-paths.pdf}
+    \caption{方案二的字符串热路径与 8 路批量搬移思路，强调在不改变语义的前提下压缩循环框架开销}
+    \label{fig:scheme2-string-copy-paths}
+\end{figure}
+
+图~\ref{fig:scheme2-string-copy-paths} 概括了方案二的基本思想。本文并不改变压缩字符串判定、字符语义或对象布局，
+而是把正式 workload 中持续出现的几类复制路径，统一改写为 8 路展开的批量搬移，让“真正的字符复制”占比提高，
+并让循环框架和边界判断占比下降。换言之，本节解决的不是一般性的“内存复制优化”，而是运行时热路径中的
+\emph{小长度、高频次、语义固定} 复制问题。
+
+\subsection{为何保留这一方向}
+
+字符串热路径批量搬移能够进入正文，关键在于它同时满足“命中正式 workload 主路径”和“边界清楚”两个条件。
+相比之下，第 5 章中未保留的原始数组批量搬运、\texttt{memcpy} 接线与 CRC32 JNI 快路径等方向，要么入口过宽，
+难以说明正式 workload 是否稳定落入；要么热点占比过低，即便局部成本下降，也不足以转化为 benchmark 级收益。
+
+因此，正文最终保留的不是“所有复制都批量化”，而是“只围绕正式 workload 中持续出现的字符串热路径做局部展开”。
+这一选择的直接好处是：若 \texttt{pmd} 受益，可以回到字符串替换、拼接和 UTF-16 构造这些路径解释原因；
+若某些工作负载不受益，也能够明确说明其主路径并不在这里。这样的可解释性，正是本文将其保留为正式方案二的原因。
+
+\subsection{实现边界与正确性约束}
+
+方案二的正式实现主要涉及三部分。其一，\texttt{art/runtime/mirror/string-alloc-inl.h} 为
+\texttt{AllocFromByteArray()}、\texttt{AllocFromUtf16ByteArray()} 和 \texttt{AllocFromString()}
+等路径接入批量搬移 helper；其二，\texttt{art/runtime/mirror/string.cc} 将 \texttt{DoReplace()}、
+\texttt{DoConcat()} 和 \texttt{AllocFromUtf16()} 等热点路径改写为展开实现；其三，测试侧在
+\texttt{art/test/624-checker-stringops/src/Main.java} 中补充小长度 UTF-16 构造回归，用于覆盖
+\texttt{length < 8} 的边界情形。
+
+这里的边界测试并不是形式化补充，而是源于真实实现问题。初版实现曾在 \texttt{length < 8} 时因无符号下溢导致
+越界访问，最终修复为图~\ref{fig:scheme2-string-copy-paths} 所示的“\texttt{i + 8 <= length} 才进入
+展开循环，剩余元素走尾部路径”结构。进入 benchmark 之前，本文围绕字符串语义、profile 保存和 JIT 路径执行了
+\texttt{624-checker-stringops}、\texttt{595-profile-saving}、\texttt{570-checker-osr}、
+\texttt{667-jit-jni-stub} 和 \texttt{708-jit-cache-churn} 等代表性回归，结果通过。
+
+\subsection{正式结果与边界解释}
+
+方案二在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme2-result} 所示。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{方案二在正式对比快照中的结果}
+    \label{tab:scheme2-result}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{基准测试项} & \textbf{基线结果} & \textbf{方案结果} & \textbf{相对变化} \\
+        \hline
+        \texttt{pmd} & \texttt{3272\,msec} & \texttt{3244\,msec} & +0.86\% \\
+        \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.56\,ops/m} & +0.71\% \\
+        \texttt{lu.small} & \texttt{46.22\,ops/m} & \texttt{42.11\,ops/m} & -8.89\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+与方案一和第 7 章的方案三相比，方案二的收益明显更弱。\texttt{pmd} 和 \texttt{mpegaudio} 上都只有约
+\texttt{1\%} 的轻微提升，这说明字符串热路径虽然被命中，但并不是这些 workload 的唯一主导瓶颈。方案二的价值，
+更多在于证明 LoongArch 平台 ART 的运行时字符串路径仍存在清楚的局部改进空间，而不是证明“字符串一优化，
+整体分数就会显著上升”。
+
+更关键的是，\texttt{lu.small} 出现了 \texttt{-8.89\%} 的回退。这一结果进一步说明，方案二的收益高度依赖
+workload 类型：如果主路径不是短字符串构造、拼接与替换，而是规则数值循环，那么额外引入的代码体积和调度变化
+反而可能成为负担。因此，方案二在本文中的定位应当是\emph{定向微优化}，而不是可以无差别打开的通用默认策略。
+
+\section{正交启动期案例：面向 DEX 校验路径的阶段链优化}
+
+\subsection{问题来源与正文角色}
+
+\texttt{DexFileVerifier} 相关工作之所以没有被写成“未保留方向”，是因为它与前两节的执行期优化并不处于同一类
+证据口径。它不共享正式三方案的统一 baseline，也不适合直接与 \texttt{pmd}、\texttt{lu.small} 的单方案
+结果放在同一张主图中比较；但在启动期 workload 上，它形成了一条具有明确热点来源、明确阶段划分和明确负对照
+的独立证据链，因此值得作为第 6 章的正交案例保留。
+
+在启动期校验快照（\texttt{Snapshot-C}）中，\texttt{startup.helloworld} 的 baseline flamegraph 表明，
+\texttt{OffsetToPtr}、\texttt{FindIndexImpl}、\texttt{ElementForIndex}、\texttt{PtrToOffset} 与
+\texttt{CheckIntraDebugInfoItem} 等 verifier、container 与字符串校验相关路径的 flat hot share
+近似合计约为 \texttt{5.3\%}。相比之下，\texttt{scimark.lu.small} 上这组热点仅约
+\texttt{0.3\%} 到 \texttt{0.4\%}。因此，本文将 \texttt{startup.helloworld} 作为主目标 workload，
+将 \texttt{lu.small} 作为负对照，而不把后者误写成这一案例的收益证明。
+
+\subsection{四阶段阶段链与实现边界}
+
+\texttt{Snapshot-C} 并非一次性堆叠所有改动，而是沿着主热点路径拆解为四个阶段，如表
+~\ref{tab:dexverifier-phases} 所示。这样的组织方式有两个目的：其一，观察每一阶段究竟命中了哪一类成本；
+其二，避免把多个局部变更混成无法解释的总结果。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{\texttt{DexFileVerifier} 阶段链的四个阶段及其主要作用，用于区分主收益阶段与次级收益阶段}
+    \label{tab:dexverifier-phases}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{6.0cm}}
+        \hline
+        \textbf{阶段} & \textbf{主要改动} & \textbf{预期作用} \\
+        \hline
+        \texttt{phase1} & 缓存边界、热点 helper 强制内联、预留类型映射容量 & 降低边界检查、函数调用与扩容前置成本 \\
+        \texttt{phase12} & 类型映射由 Hash 风格查询改为 \texttt{vector + lower\_bound} & 消除 probing 链和随机访问带来的主要 container 成本 \\
+        \texttt{phase123} & UTF-8 查表、\texttt{prefetch} 与 ASCII fast path & 降低字符串校验与改写成本 \\
+        \texttt{phase1234} & LEB128 fast path & 压低元数据顺序解码成本，形成最终最优点 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+上述改动主要集中在 \texttt{dex\_file\_verifier.cc} 与 \texttt{utf-inl.h} 两个文件中。
+进入 benchmark 之前，本文对每个阶段均执行 \texttt{art\_libdexfile\_tests} 的
+\texttt{DexFileVerifierTest.*} 相关回归，\texttt{49/49} 用例全部通过。这样的验证方式与前两节的“最小相关
+回归优先”相一致，也保证后续 benchmark 结果能够被解释为启动期校验链本身的变化，而不是基础语义错误。
+
+\subsection{阶段结果与机制解释}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{mybenchmark/dexfileverifier-phase-chain-speedup.pdf}
+    \caption{\texttt{DexFileVerifier} 阶段链在主目标 workload 与负对照上的相对收益，其中 \texttt{phase12} 为首个稳定有效阶段}
+    \label{fig:dexverifier-phase-chain-speedup}
+\end{figure}
+
+{\emergencystretch=2em
+图~\ref{fig:dexverifier-phase-chain-speedup} 给出 \texttt{Snapshot-C} 的阶段链结果。\texttt{phase1}
+尚未形成稳定正收益。在主目标 \texttt{startup.helloworld} 上，其均值甚至略低于 baseline。
+但在 \texttt{phase12} 中，当 \texttt{offset\_to\_type\_map\_} 被替换为 \texttt{vector + lower\_bound}
+后，均值相对 baseline 提升到 \texttt{+4.83\%}，且标准差显著收敛。这表明启动期 verifier 的主导成本确实不是
+边界检查本身，而是 Hash 容器 probing 链。\par}
+
+继续向后看，\texttt{phase123} 在保留正收益的同时，并未形成新的明显台阶，说明 UTF-8/ASCII fast path
+更像是巩固收益的次级优化，而不是主导阶段；\texttt{phase1234} 则进一步将收益推进到 \texttt{+5.46\%}，
+说明当 container 成本被压下去之后，LEB128 元数据解码的细粒度成本开始显露，并成为新的可兑现收益点。
+
+负对照 \texttt{lu.small} 的作用在这里也非常关键。它在各阶段都围绕 \texttt{82\,ops/m} 附近波动，且 verifier
+hot share 仅 \texttt{0.3\%} 到 \texttt{0.4\%}，因此不应被当作该阶段链的收益证明。由此可见，
+\texttt{DexFileVerifier} 优化的论文价值，在于说明“命中启动期 DEX 校验主路径时可以形成明确收益”，而不是证明
+“任何 workload 都会因为 verifier 变快而受益”。
+
+\subsection{为何将其放在第 6 章}
+
+将 \texttt{DexFileVerifier} 提前放在第 6 章，而不是放在第 7 章统一比较之后，具有明确的组织逻辑。
+首先，它不共享三项正式方案的统一对比口径，若强行放入第 7 章，将打断以 LSX SIMD 为中心的主结论递进。其次，
+它与前两节共同构成了控制流、数据流与启动期路径三类局部优化案例，使第 6 章能够在结束时总结一套更普遍的
+方法论，而不是只保留两个执行期样本。关于阶段链的详细数据表、源码位置与补充分析，详见附录第
+~\ref{app:dexverifier-details} 节。
+
+\section{三类局部案例的共同规律与方法论小结}
+
+从 JIT 进入时机、字符串热路径搬移和 \texttt{DexFileVerifier} 阶段链三个案例可以看到，LoongArch 平台 ART 的
+局部优化并不是“找热点就改”这么简单，而是需要满足一组更严格的方法论条件。
+
+\begin{enumerate}
+    \item \textbf{热点必须转化为主路径问题。} 只有当热点能够被重新表述为 workload 的主导成本时，它才具备
+    进入正文的资格。方案一抓住的是“baseline JIT 进入过晚”，方案二抓住的是“短字符串热路径复制成本”，
+    \texttt{DexFileVerifier} 抓住的是“启动期 verifier/container probing 主导链”。
+    \item \textbf{局部收益必须按阶段解释，而不是按模块堆叠。} 尤其是 \texttt{DexFileVerifier} 案例表明，
+    同样属于 verifier 优化，不同阶段命中的成本并不相同，只有将其拆解为阶段链，才能解释为什么
+    \texttt{phase12} 才是第一段 benchmark 级有效阶段。
+    \item \textbf{最小相关回归是正文证据的前置条件。} 三个案例都没有绕开正确性约束。无论是 JIT 阈值微调、
+    字符串路径展开，还是 libdexfile 阶段链，均先通过与改动路径直接相关的回归，再进入 benchmark。
+    \item \textbf{局部有效不等于适合作为统一默认配置。} 方案一波动较大，方案二受 workload 依赖强，
+    \texttt{DexFileVerifier} 只对启动期主路径有效。这些事实共同说明，局部案例更适合用于建立方法论与边界认识，
+    而不是直接组合成无条件统一配置。
+\end{enumerate}
+
+因此，第 6 章的作用并不是证明“局部优化已经足够支撑全文”，而是通过三类代表性案例给出一个更重要的认识：
+LoongArch 平台 ART 的性能改进必须首先完成问题收缩，然后在清楚的工作负载边界内验证其是否真正命中主路径。
+这一认识也为第 7 章进一步托起 LSX SIMD 主结论提供了方法论上的前提。
+
+\section{本章小结}
+
+本章围绕执行期与启动期路径，组织了三个具有代表性的局部优化案例。方案一说明，LoongArch64 \texttt{debug}
+ART 在短生命周期 workload 上确实存在第一层编译进入时机偏保守的问题；方案二说明，运行时字符串热路径的局部
+批量搬移能够构成定向微优化，但其收益高度依赖 workload 类型；\texttt{DexFileVerifier} 阶段链则进一步表明，
+启动期校验成本可以沿 container probing、字符串校验与 LEB128 解码这条主链被阶段化压缩。
+
+三类案例共同支持一个更清楚的结论：局部优化真正有研究价值的前提，不是“看到了热点”，而是能够把热点收缩为
+主路径问题、用最小相关回归约束正确性，并清楚界定其适用 workload 与失效边界。基于这一点，第 7 章将把全文
+最强结论进一步集中到 LoongArch64 最小可用 LSX 浮点 SIMD 路径上。
+%---------------------------------------------------------------------------%
