@@ -22,6 +22,28 @@
   <rect x="50" y="50" width="1100" height="250" rx="28" ry="28" fill="#dfeef2" class="panel"/>
   <text x="80" y="94" class="cn section-title">一致性构建与正确性闭环</text>
 
+  <rect x="85" y="128" width="230" height="124" rx="18" ry="18" class="card"/>
+  <text x="200" y="168" text-anchor="middle" class="cn card-title">固定源码状态与实验基线</text>
+  <text x="200" y="198" text-anchor="middle" class="cn card-sub">统一 LoongArch64 目标环境</text>
+
+  <rect x="350" y="128" width="230" height="124" rx="18" ry="18" class="card"/>
+  <text x="465" y="168" text-anchor="middle" class="cn card-title">完整构建 ART 实验产物</text>
+  <text x="465" y="198" text-anchor="middle" class="cn card-sub">保持产物与源码状态一致</text>
+
+  <rect x="615" y="128" width="230" height="124" rx="18" ry="18" class="card"/>
+  <text x="730" y="168" text-anchor="middle" class="cn card-title">一致性部署到目标设备</text>
+  <text x="730" y="198" text-anchor="middle" class="cn card-sub">统一部署顺序与运行条件</text>
+
+  <rect x="880" y="128" width="235" height="124" rx="18" ry="18" class="card"/>
+  <text x="997.5" y="164" text-anchor="middle" class="cn card-title">分层正确性验证</text>
+  <text x="997.5" y="194" text-anchor="middle" class="cn card-sub">宿主机侧测试 / 目标机 run-test</text>
+  <text x="997.5" y="218" text-anchor="middle" class="cn card-sub">/ libcore 测试</text>
+
+  <path d="M315 190 L350 190" class="connector"/>
+  <path d="M580 190 L615 190" class="connector"/>
+  <path d="M845 190 L880 190" class="connector"/>
+  <path d="M600 300 L600 322" class="connector"/>
+
   <rect x="230" y="322" width="740" height="86" rx="18" ry="18" fill="#f5d8bf" class="panel"/>
   <text x="600" y="358" text-anchor="middle" class="cn rule-main">先正确性，后性能</text>
   <text x="600" y="384" text-anchor="middle" class="cn rule-sub">仅在正确性约束成立后进入性能评测</text>
