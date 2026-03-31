@@ -33,7 +33,7 @@ LoongArch64 \texttt{debug} ART 的默认第一层阈值是否偏保守，从而�
 
 这一选择也体现了本文的写作策略。第 6 章并不追求把 JIT 相关尝试全部写入正文，而是保留最能代表控制流问题本质的
 一个案例。附录第~\ref{app:candidate-schemes} 节中进一步归档的 JIT 候选方向说明，单独调整第二层阈值、OSR
-内联或解释器热路径，并不能像方案一这样对 \texttt{pmd} 给出清楚、聚焦且可复核的因果解释。
+内联或解释器热路径，并不能像方案一这样对 \texttt{pmd} 给出清楚、聚焦且可验证的因果解释。
 
 \subsection{实现边界与正确性约束}
 
@@ -45,9 +45,26 @@ LoongArch64 \texttt{debug} ART 的默认第一层阈值是否偏保守，从而�
 \end{itemize}
 其中，\texttt{jit\_options.cc} 负责保留运行时参数解析结果，并区分默认阈值与用户显式传入阈值；
 \texttt{jit.cc} 在 \texttt{Jit::Create()} 阶段仅在
-\texttt{LoongArch64 + debug + 非 Java-debuggable} 且用户未显式指定
+\texttt{LoongArch64 + debug + 非 Java-debuggable}、未强制启用 baseline compiler 且用户未显式指定
 \texttt{JITWarmupThreshold} 时，将默认 \texttt{warmup\_threshold} 下调到 \texttt{8192}；
 \texttt{optimize\_threshold} 保持原值不变。
+
+\begin{lstlisting}[language=C++,caption={方案一的默认 warmup 阈值调整规则（伪代码）},label={lst:scheme1-warmup-rule}]
+void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
+  if (!is_debug_build || isa != LoongArch64) return;
+  if (runtime.IsJavaDebuggable()) return;
+  if (options.UseBaselineCompiler()) return;
+  if (options.HasExplicitWarmupThreshold()) return;
+
+  if (options.GetWarmupThreshold() > 8192) {
+    options.SetWarmupThreshold(8192);
+  }
+  // keep optimize_threshold unchanged
+}
+\end{lstlisting}
+
+伪代码~\ref{lst:scheme1-warmup-rule} 说明，方案一并不是“把所有 JIT 阈值都调低”，而是在非常受限的运行时条件下，
+只改写第一层进入阈值。这样做的目的，是把研究问题稳定约束在“baseline JIT 是否发生得过晚”这一点上。
 
 这样的实现边界意味着，本文改变的是 LoongArch64 平台默认第一层进入策略，而不是改写所有调用方的参数语义。
 从研究角度看，这一边界是有意为之的：若同时改动第一层与第二层阈值，就会让“究竟是谁带来了收益”变得难以解释；
@@ -139,6 +156,27 @@ LoongArch64 \texttt{debug} ART 的默认第一层阈值是否偏保守，从而�
 \texttt{624-checker-stringops}、\texttt{595-profile-saving}、\texttt{570-checker-osr}、
 \texttt{667-jit-jni-stub} 和 \texttt{708-jit-cache-churn} 等代表性回归，结果通过。
 
+\begin{lstlisting}[language=C++,caption={方案二 8 路批量搬移 helper 的核心循环（伪代码）},label={lst:scheme2-bulk-copy-helper}]
+void CopyUtf16ToBytes(dst8, src16, length) {
+  int i = 0;
+  while (i + 8 <= length) {
+    for lane in 0..7 {
+      dst8[i + lane] = static_cast<uint8_t>(src16[i + lane]);
+    }
+    i += 8;
+  }
+  while (i < length) {
+    dst8[i] = static_cast<uint8_t>(src16[i]);
+    ++i;
+  }
+}
+\end{lstlisting}
+
+伪代码~\ref{lst:scheme2-bulk-copy-helper} 概括了方案二真正保留的内核。正文关注的不是用一个更大的
+\texttt{memcpy} 替换所有复制，而是在已知字符串语义、长度通常不大且压缩判定已经完成的前提下，显式压缩循环框架
+成本。类似的 8 路 helper 同时复用于 \texttt{DoReplace()}、\texttt{DoConcat()} 与
+\texttt{AllocFromUtf16()}，因此其收益首先表现为热路径固定成本下降，而不是语义层面的变化。
+
 \subsection{正式结果与边界解释}
 
 方案二在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme2-result} 所示。
@@ -173,7 +211,7 @@ workload 类型：如果主路径不是短字符串构造、拼接与替换，�
 \subsection{问题来源与正文角色}
 
 \texttt{DexFileVerifier} 相关工作之所以没有被写成“未保留方向”，是因为它与前两节的执行期优化并不处于同一类
-证据口径。它不共享正式三方案的统一 baseline，也不适合直接与 \texttt{pmd}、\texttt{lu.small} 的单方案
+证据设置。它不共享正式三方案的统一 baseline，也不适合直接与 \texttt{pmd}、\texttt{lu.small} 的单方案
 结果放在同一张主图中比较；但在启动期 workload 上，它形成了一条具有明确热点来源、明确阶段划分和明确负对照
 的独立证据链，因此值得作为第 6 章的正交案例保留。
 
@@ -207,10 +245,50 @@ workload 类型：如果主路径不是短字符串构造、拼接与替换，�
     \end{tabular}
 \end{table}
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.96\textwidth]{optimization/dexverifier-phase-chain-mechanism.pdf}
+    \caption{\texttt{DexFileVerifier} 启动期阶段链的主热点、阶段推进顺序与收益来源对应关系}
+    \label{fig:dexverifier-phase-chain-mechanism}
+\end{figure}
+
+图~\ref{fig:dexverifier-phase-chain-mechanism} 进一步把四阶段组织方式与热点来源对应起来。其核心含义是：
+主收益并不是平均分布在所有 patch 上，而是沿 container probing、字符串校验和 LEB128 解码这条启动期主链
+逐段显现。其中，\texttt{phase12} 首次稳定压低 container 查询成本，因此成为第一个可兑现 benchmark 级
+收益的阶段；后续阶段则更多表现为在既有收益基础上的补强与收尾。
+
+\begin{lstlisting}[language=C++,caption={DexFileVerifier 阶段链中的关键钩子（伪代码）},label={lst:dexverifier-phase-chain-hooks}]
+bool VerifyDexSectionChain(map_list) {
+  Reserve(offset_to_type_map);
+  for (item : map_list) {
+    CheckPadding(item.offset, item.type);
+    DispatchCheckByType(item.type);
+  }
+}
+
+bool CheckOffsetToTypeMap(offset, expected_type) {   // phase12
+  entry = lower_bound(offset_to_type_map, offset);
+  return entry.exists() && entry.key == offset && entry.type == expected_type;
+}
+
+int CompareModifiedUtf8(a, b) {                      // phase123
+  while (same_ascii_prefix(a, b)) { advance(a, b); }
+  return DecodeUtf8SlowPath(a, b);
+}
+
+uint32_t DecodeMetadata(ptr) {                       // phase1234
+  return FastLeb128(ptr) when short_sequence else GenericLeb128(ptr);
+}
+\end{lstlisting}
+
+伪代码~\ref{lst:dexverifier-phase-chain-hooks} 把四阶段的关键钩子压缩到同一条验证主链中。其含义不是说每个阶段都重写
+整个 verifier，而是说阶段收益沿同一调用链逐段推进：\texttt{phase12} 先把类型映射查询改成顺序存储加二分查找，
+\texttt{phase123} 再压低 ASCII/UTF-8 比较路径，\texttt{phase1234} 最后把顺序元数据解码补成 fast path。
+
 上述改动主要集中在 \texttt{dex\_file\_verifier.cc} 与 \texttt{utf-inl.h} 两个文件中。
 进入 benchmark 之前，本文对每个阶段均执行 \texttt{art\_libdexfile\_tests} 的
 \texttt{DexFileVerifierTest.*} 相关回归，\texttt{49/49} 用例全部通过。这样的验证方式与前两节的“最小相关
-回归优先”相一致，也保证后续 benchmark 结果能够被解释为启动期校验链本身的变化，而不是基础语义错误。
+回归优先”相一致，也保证随后 benchmark 结果能够被解释为启动期校验链本身的变化，而不是基础语义错误。
 
 \subsection{阶段结果与机制解释}
 
@@ -240,7 +318,7 @@ hot share 仅 \texttt{0.3\%} 到 \texttt{0.4\%}，因此不应被当作该阶段
 \subsection{为何将其放在第 6 章}
 
 将 \texttt{DexFileVerifier} 提前放在第 6 章，而不是放在第 7 章统一比较之后，具有明确的组织逻辑。
-首先，它不共享三项正式方案的统一对比口径，若强行放入第 7 章，将打断以 LSX SIMD 为中心的主结论递进。其次，
+首先，它不共享三项正式方案的统一对比设置，若强行放入第 7 章，将打断以 LSX SIMD 为中心的主结论递进。其次，
 它与前两节共同构成了控制流、数据流与启动期路径三类局部优化案例，使第 6 章能够在结束时总结一套更普遍的
 方法论，而不是只保留两个执行期样本。关于阶段链的详细数据表、源码位置与补充分析，详见附录第
 ~\ref{app:dexverifier-details} 节。

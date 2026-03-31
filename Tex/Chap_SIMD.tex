@@ -32,7 +32,7 @@ LoongArch64 后端完成 lowering，那么这些循环本质上仍然停留在�
 
 表~\ref{tab:simd-kernel-features} 说明了为何本章能够把问题收缩为“最小可用 LSX 浮点 SIMD 路径”。
 \texttt{lu.small} 内层循环最关键的计算模式可以概括为“标量广播值乘以一段连续数组，再减到另一段连续数组”。
-它对向量化提出的不是无限制的 ISA 覆盖要求，而是一组相对克制但必须闭环的能力需求：广播、连续 load/store、
+它对向量化提出的不是无限制的 ISA 覆盖要求，而是一组相对克制但必须同时成立的能力需求：广播、连续 load/store、
 浮点加减乘，以及必要的类型转换。只要这组最小能力被补齐，就足以把原本停留在标量流上的热点循环改写为真正的
 LSX 向量流。
 
@@ -41,7 +41,7 @@ LSX 向量流。
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.95\textwidth]{optimization/scheme3-vectorization-boundary.pdf}
-    \caption{LoongArch64 最小可用 LSX 浮点 SIMD 路径的边界与能力范围，只保留正文真正依赖的最小闭环能力}
+    \caption{LoongArch64 最小可用 LSX 浮点 SIMD 路径的边界与能力范围，只保留正文真正依赖的最小能力集合}
     \label{fig:scheme3-vectorization-boundary}
 \end{figure}
 
@@ -54,7 +54,7 @@ LSX 向量流。
     \item 面向 \texttt{float32/float64} 的 128-bit 向量路径，其中 \texttt{float32} 为 4 lane，
     \texttt{float64} 为 2 lane；
     \item 支持 \texttt{VecReplicateScalar}、\texttt{VecLoad}、\texttt{VecStore}、
-    \texttt{VecAdd}、\texttt{VecSub}、\texttt{VecMul} 等最小闭环算子；
+    \texttt{VecAdd}、\texttt{VecSub}、\texttt{VecMul} 等最小必需算子；
     \item 对 \texttt{int32 -> float32} 与 \texttt{int64 -> float64} 提供受限的
     \texttt{VecCnv}，仅服务于正文真正需要的循环形态；
     \item 不将完整 idiom 覆盖、复杂 reduction 优化和更宽泛的整数向量路径写成正文前提。
@@ -232,7 +232,7 @@ LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接
 \texttt{S1} 与完整覆盖候选版 \texttt{S2}。图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角下的
 总体结果。
 
-结果表明，如果评价口径是“全部可运行 JIT workload 的几何平均”，则当前最优版本仍然是正文采用的
+结果表明，如果评价维度是“全部可运行 JIT workload 的几何平均”，则当前最优版本仍然是正文采用的
 \texttt{S1}：\texttt{S1/S0 = 1.0318x}，而 \texttt{S2/S0 = 1.0252x}，\texttt{S2/S1 = 0.9936x}。
 这说明完整覆盖版虽然补齐了更多 lowering 和 idiom，但在当前阶段仍存在部分 startup 或非关键 workload 的小幅
 拖累，尚不足以把整体均值推到 \texttt{S1} 之上。
@@ -258,7 +258,7 @@ LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-在完成方案三自身论证之后，正文最后还需要回答一个更高层的问题：三项正式方案在统一口径下究竟分别解决了什么，
+在完成方案三自身论证之后，正文最后还需要回答一个更高层的问题：三项正式方案在统一设置下究竟分别解决了什么，
 以及它们能否被看作同一种“默认优化项”。图~\ref{fig:final-comparison-heatmap} 汇总了正式对比快照
 （\texttt{Snapshot-A}）中五个代表性 workload 的统一结果。
 
@@ -272,7 +272,7 @@ workload 的统称。
 因此，三项正式方案的关系并不是“同一类优化项的强弱排序”，而是针对不同主路径的分工：方案一主要命中控制流与
 JIT 进入时机，方案二主要命中字符串热路径的数据搬移，方案三则直接作用于规则浮点数值内核的后端向量化缺口。
 这也是为什么 \texttt{DexFileVerifier} 没有被混入这张统一图中，因为它属于独立快照上的启动期正交案例，而非
-\texttt{Snapshot-A} 口径下的正式三方案比较对象。
+\texttt{Snapshot-A} 设置下的正式三方案比较对象。
 
 \subsection{叠加效应：局部有效并不意味着可组合}
 

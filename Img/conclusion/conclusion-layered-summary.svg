@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L12,6 L0,12 z" fill="#666666"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="920" fill="#ffffff"/>
+  <rect x="40" y="40" width="1320" height="840" rx="12" ry="12" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.6"/>
+
+  <text x="80" y="82" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="28" font-weight="700" fill="#333333">全文结论层级总结</text>
+
+  <rect x="88" y="108" width="1224" height="56" rx="10" ry="10" fill="#f3f3f3" stroke="#c2c2c2" stroke-width="1.2"/>
+  <text x="700" y="143" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="20" text-anchor="middle" fill="#555555">结论表达按“执行能力构建 - 实验设计 - 代表性案例 - 主结论凝练”逐层推进，避免让候选方向和补充材料压住正文主线</text>
+
+  <rect x="150" y="214" width="420" height="120" rx="12" ry="12" fill="#eef5fd" stroke="#6c8ebf" stroke-width="1.6"/>
+  <rect x="830" y="214" width="420" height="120" rx="12" ry="12" fill="#eef7ec" stroke="#82b366" stroke-width="1.6"/>
+
+  <text x="360" y="250" font-family="Menlo, Monaco, monospace" font-size="18" text-anchor="middle" fill="#355b88">Chapter 3</text>
+  <text x="360" y="282" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="25" font-weight="700" text-anchor="middle" fill="#333333">执行能力构建</text>
+  <text x="360" y="312" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">解释器、Nterp、JIT、JNI 与运行时入口点</text>
+
+  <text x="1040" y="250" font-family="Menlo, Monaco, monospace" font-size="18" text-anchor="middle" fill="#2e6d2e">Chapter 4</text>
+  <text x="1040" y="282" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="25" font-weight="700" text-anchor="middle" fill="#333333">实验设计建立</text>
+  <text x="1040" y="312" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">run-test、libcore、Snapshot 体系与正式对比设置</text>
+
+  <line x1="360" y1="334" x2="360" y2="388" stroke="#666666" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <line x1="1040" y1="334" x2="1040" y2="388" stroke="#666666" stroke-width="2.2" marker-end="url(#arrow)"/>
+
+  <rect x="90" y="408" width="360" height="158" rx="12" ry="12" fill="#fff8ef" stroke="#d79b00" stroke-width="1.6"/>
+  <rect x="520" y="408" width="360" height="158" rx="12" ry="12" fill="#fcefe7" stroke="#d57a2a" stroke-width="1.6"/>
+  <rect x="950" y="408" width="360" height="158" rx="12" ry="12" fill="#f1ebfb" stroke="#9673a6" stroke-width="1.6"/>
+
+  <text x="270" y="444" font-family="Menlo, Monaco, monospace" font-size="18" text-anchor="middle" fill="#7a5a00">Chapter 6.1</text>
+  <text x="270" y="476" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">控制流案例</text>
+  <text x="270" y="506" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">JIT 进入时机微调回答</text>
+  <text x="270" y="532" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">短生命周期 workload</text>
+  <text x="270" y="558" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">何时来得及脱离解释器</text>
+
+  <text x="700" y="444" font-family="Menlo, Monaco, monospace" font-size="18" text-anchor="middle" fill="#a15820">Chapter 6.2</text>
+  <text x="700" y="476" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">数据流案例</text>
+  <text x="700" y="506" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">字符串热路径批量搬移回答</text>
+  <text x="700" y="532" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">小长度、高频复制场景</text>
+  <text x="700" y="558" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">如何压低循环框架成本</text>
+
+  <text x="1130" y="444" font-family="Menlo, Monaco, monospace" font-size="18" text-anchor="middle" fill="#6e4e7e">Chapter 6.3</text>
+  <text x="1130" y="476" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">启动期案例</text>
+  <text x="1130" y="506" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">DexFileVerifier 阶段链回答</text>
+  <text x="1130" y="532" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">container probing、UTF-8 与</text>
+  <text x="1130" y="558" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">LEB128 成本如何逐段显现</text>
+
+  <line x1="270" y1="566" x2="270" y2="648" stroke="#666666" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <line x1="700" y1="566" x2="700" y2="648" stroke="#666666" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <line x1="1130" y1="566" x2="1130" y2="648" stroke="#666666" stroke-width="2.2" marker-end="url(#arrow)"/>
+
+  <rect x="248" y="666" width="904" height="132" rx="12" ry="12" fill="#d8f0d2" stroke="#82b366" stroke-width="1.8"/>
+  <text x="700" y="704" font-family="Menlo, Monaco, monospace" font-size="18" text-anchor="middle" fill="#2e6d2e">Chapter 7</text>
+  <text x="700" y="738" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" text-anchor="middle" fill="#333333">主结论：LoongArch64 最小可用 LSX 浮点 SIMD 路径</text>
+  <text x="700" y="770" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="19" text-anchor="middle" fill="#555555">只有当规则浮点循环、向量 IR 与 LSX lowering 同时成立时，局部后端补齐才会转化为稳定且显著的端到端收益</text>
+
+  <rect x="120" y="820" width="1160" height="34" rx="8" ry="8" fill="#f3f3f3" stroke="#b5b5b5" stroke-width="1.1"/>
+  <text x="700" y="843" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">适用边界同时包括：固定 LoongArch64 debug JIT 设置、明显的 workload 相关性，以及单项局部策略不天然可叠加</text>
+</svg>

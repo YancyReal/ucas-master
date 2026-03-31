@@ -2,20 +2,20 @@
 
 \subsection{与 JIT 时机和解释器路径相关的候选方向}
 
-本附录集中归档第 5 章中未进入正文主线的候选方向。它们并不被称为“失败方案”，原因在于这些方向大多拥有
-明确的实现对象和局部热点依据，只是尚未同时满足“命中正式 workload 主路径、形成 benchmark 级收益、具备稳定
-解释闭环”这三个正文准入条件。因此，本文统一将其表述为候选方向、未保留方向或对比方案。
+本附录集中归档第 5 章筛选后未进入正文主线的候选方向。这些方向大多拥有明确的实现对象和局部热点依据，
+只是尚未同时满足“命中正式 workload 主路径、形成 benchmark 级正收益、具备稳定机制解释”这三个正文准入条件。
+因此，本文统一将其表述为候选方向、未保留方向或对比方案。
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.88\textwidth]{mybenchmark/failed-schemes-heatmap.pdf}
+    \includegraphics[width=0.88\textwidth]{mybenchmark/candidate-schemes-heatmap.pdf}
     \caption{附录候选方向在固定 baseline 下的归一化对比}
-    \label{fig:failed-schemes-heatmap}
+    \label{fig:candidate-schemes-heatmap}
 \end{figure}
 
-图~\ref{fig:failed-schemes-heatmap} 给出了固定 baseline 下若干候选方向的统一比较结果。图中 \texttt{1.0}
+图~\ref{fig:candidate-schemes-heatmap} 给出了固定 baseline 下若干候选方向的统一比较结果。图中 \texttt{1.0}
 表示 baseline，低于 \texttt{1.0} 说明该候选方向未跨过 benchmark 级收益门槛。需要强调的是，这张图的作用
-并不是“展示所有负结果”，而是说明本文的正式方案来自系统性筛选，而非只挑选了几个成功样本。
+不是堆叠负面对照，而是说明正文正式方案来自系统性筛选，而非只挑选了若干正结果样本。
 
 \begin{table}[htbp]
     \centering
@@ -27,10 +27,10 @@
         \textbf{候选方向} & \textbf{典型结果} & \textbf{未进入正文主线的原因} \\
         \hline
         \texttt{optimize\_threshold} 调整 & \texttt{pmd -11.23\%} & 作用于第二层 optimizing recompilation，收益窗口过晚 \\
-        JIT OSR 热路径内联调整 & \texttt{pmd -17.78\%} & 假设更接近解释器/OSR 场景，无法解释正式 JIT 口径主瓶颈 \\
+        JIT OSR 热路径内联调整 & \texttt{pmd -17.78\%} & 假设更接近解释器/OSR 场景，无法解释正式比较中的主瓶颈 \\
         Nterp 热点循环 OSR 重检查调整 & \texttt{mpegaudio -1.84\%} & 增加固定成本，未换来稳定收益 \\
         解释器已解析类型快路径 & \texttt{pmd -18.39\%} & 命中局部解析成本，但附加判断放大主路径开销 \\
-        JIT debug-info 门控/延后 & 多数 workload 低于 baseline & 热点虽可见，但真实生效点与 benchmark 级收益缺少稳定闭环 \\
+        JIT debug-info 延后生成 & 多数 workload 低于 baseline & 热点虽可见，但真实生效点与 benchmark 级收益之间缺少稳定机制解释 \\
         \hline
     \end{tabular}
 \end{table}
@@ -71,7 +71,7 @@ UTF-8 校验与 LEB128 解码这条主链重写其叙事。
 
 \subsection{未保留方向的共性原因}
 
-综合图~\ref{fig:failed-schemes-heatmap} 与表~\ref{tab:appendix-jit-candidates}、
+综合图~\ref{fig:candidate-schemes-heatmap} 与表~\ref{tab:appendix-jit-candidates}、
 表~\ref{tab:appendix-runtime-candidates}，未保留方向主要呈现出三类共性原因。
 
 \begin{enumerate}
@@ -84,5 +84,5 @@ UTF-8 校验与 LEB128 解码这条主链重写其叙事。
 \end{enumerate}
 
 这些归档材料的意义，在于反向说明正文三项正式方案为何能够被保留下来：它们不仅命中了主路径，而且能够在固定
-证据口径下稳定解释“为何有效、对谁有效、边界在哪里”。
+证据链下稳定解释“为何有效、对谁有效、边界在哪里”。
 %---------------------------------------------------------------------------%

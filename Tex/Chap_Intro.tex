@@ -129,6 +129,18 @@ LoongArch 平台执行环境关键组件的适配探索。黄佳的工作完成�
 给出从 Loop Vectorization 到 LSX lowering 的关键链路、正式结果、重复测量验证以及与完整 SIMD
 覆盖候选版的边界比较。
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.97\textwidth]{intro/research-mainline-roadmap.pdf}
+    \caption{本文从平台缺口到主结论的研究主线与章节推进关系}
+    \label{fig:research-mainline-roadmap}
+\end{figure}
+
+图~\ref{fig:research-mainline-roadmap} 将本文的主线进一步压缩为一条清晰路径：先回答 LoongArch 平台
+ART 执行能力能否建立，再回答如何以统一实验设计证明其正确性与可比性，随后从候选方向中筛选出值得保留的
+局部案例，最后把全文最强结论集中到 LoongArch64 最小可用 LSX 浮点 SIMD 路径上。后续章节安排也据此展开，
+避免把验证细节、候选方向和主结论写成同一层级。
+
 \subsection{主要贡献}
 
 本文的主要贡献如下。
