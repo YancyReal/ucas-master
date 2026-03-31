@@ -1,111 +1,35 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="980" viewBox="0 0 1200 980">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
-      <path d="M0,0 L12,6 L0,12 z" fill="#666666"/>
+      <path d="M0,0 L12,6 L0,12 z" fill="#4a4a4a"/>
     </marker>
+    <style>
+      .cn { font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif; fill: #2c2c2c; }
+      .section-title { font-size: 28px; font-weight: 700; }
+      .card-title { font-size: 22px; font-weight: 700; }
+      .card-sub { font-size: 16px; fill: #575757; }
+      .rule-main { font-size: 24px; font-weight: 700; fill: #7a5a00; }
+      .rule-sub { font-size: 16px; fill: #7a5a00; }
+      .tag { font-size: 16px; font-weight: 700; fill: #4b4b4b; }
+      .panel { stroke: #222222; stroke-width: 1.6; }
+      .card { fill: #ffffff; stroke: #222222; stroke-width: 1.4; }
+      .connector { fill: none; stroke: #4a4a4a; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
   </defs>
-  <rect x="0" y="0" width="100%" height="100%" fill="#ffffff"/>
-  <rect x="50" y="40" width="760" height="860" rx="12" ry="12" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.6"/>
-  <rect x="850" y="330" width="300" height="360" rx="12" ry="12" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.6"/>
 
-  <text x="95" y="75" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" fill="#333333">实验主流程</text>
-  <text x="895" y="365" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="26" font-weight="700" fill="#333333">数据集组织</text>
+  <rect x="0" y="0" width="1200" height="760" fill="#ffffff"/>
 
-  <circle cx="115" cy="135" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
-  <text x="115" y="142" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">1</text>
-  <rect x="165" y="95" width="570" height="82" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
-  <text x="450" y="126" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="450" dy="0">源码状态与固定基线</tspan>
-  </text>
-  <text x="450" y="154" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">
-    <tspan x="450" dy="0">AOSP 15 ART / LoongArch64 debug JIT</tspan>
-  </text>
+  <rect x="50" y="50" width="1100" height="250" rx="28" ry="28" fill="#dfeef2" class="panel"/>
+  <text x="80" y="94" class="cn section-title">一致性构建与正确性闭环</text>
 
-  <polyline points="450,177 450,232" fill="none" stroke="#666666" stroke-width="2.0" marker-end="url(#arrow)"/>
+  <rect x="230" y="322" width="740" height="86" rx="18" ry="18" fill="#f5d8bf" class="panel"/>
+  <text x="600" y="358" text-anchor="middle" class="cn rule-main">先正确性，后性能</text>
+  <text x="600" y="384" text-anchor="middle" class="cn rule-sub">仅在正确性约束成立后进入性能评测</text>
 
-  <circle cx="115" cy="272" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
-  <text x="115" y="279" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">2</text>
-  <rect x="165" y="232" width="570" height="82" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
-  <text x="450" y="263" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="450" dy="0">完整编译 ART 产物</tspan>
-  </text>
-  <text x="450" y="291" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">
-    <tspan x="450" dy="0">buildbot-build.sh --target</tspan>
-  </text>
+  <rect x="50" y="430" width="1100" height="190" rx="28" ry="28" fill="#d9e4c2" class="panel"/>
+  <text x="80" y="474" class="cn section-title">性能评测与证据组织</text>
 
-  <polyline points="450,314 450,369" fill="none" stroke="#666666" stroke-width="2.0" marker-end="url(#arrow)"/>
-
-  <circle cx="115" cy="409" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
-  <text x="115" y="416" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">3</text>
-  <rect x="165" y="369" width="570" height="82" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
-  <text x="450" y="400" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="450" dy="0">轻量同步部署到目标机</tspan>
-  </text>
-  <text x="450" y="428" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">
-    <tspan x="450" dy="0">保证待测产物与当前源码状态一致</tspan>
-  </text>
-
-  <polyline points="450,451 450,506" fill="none" stroke="#666666" stroke-width="2.0" marker-end="url(#arrow)"/>
-
-  <circle cx="115" cy="546" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
-  <text x="115" y="553" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">4</text>
-  <rect x="165" y="506" width="570" height="110" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
-  <text x="450" y="537" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="450" dy="0">正确性验证</tspan>
-  </text>
-  <text x="450" y="567" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">
-    <tspan x="450" dy="0">宿主机测试 / 目标机 run-test / libcore</tspan>
-    <tspan x="450" dy="26">只有验证通过的数据才进入正式性能比较</tspan>
-  </text>
-
-  <rect x="250" y="640" width="400" height="44" rx="8" ry="8" fill="#fff2cc" stroke="#d6b656" stroke-width="1.6"/>
-  <text x="450" y="668" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="20" font-weight="700" text-anchor="middle" fill="#7a5a00">
-    <tspan x="450" dy="0">先正确性，后性能</tspan>
-  </text>
-
-  <polyline points="450,684 450,739" fill="none" stroke="#666666" stroke-width="2.0" marker-end="url(#arrow)"/>
-
-  <circle cx="115" cy="779" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
-  <text x="115" y="786" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">5</text>
-  <rect x="165" y="739" width="570" height="82" rx="10" ry="10" fill="#dddddd" stroke="#8a8a8a" stroke-width="1.6"/>
-  <text x="450" y="770" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="450" dy="0">基准测试评测</tspan>
-  </text>
-  <text x="450" y="798" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">
-    <tspan x="450" dy="0">DaCapo / SPECjvm2008</tspan>
-  </text>
-
-  <polyline points="735,780 850,780" fill="none" stroke="#666666" stroke-width="2.0" marker-end="url(#arrow)"/>
-  <polyline points="450,821 450,866" fill="none" stroke="#666666" stroke-width="2.0" marker-end="url(#arrow)"/>
-
-  <circle cx="115" cy="906" r="22" fill="#d9d9d9" stroke="#777777" stroke-width="1.6"/>
-  <text x="115" y="913" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#333333">6</text>
-  <rect x="165" y="866" width="570" height="82" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
-  <text x="450" y="897" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="24" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="450" dy="0">数据归档与分析产物</tspan>
-  </text>
-  <text x="450" y="925" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">
-    <tspan x="450" dy="0">run.log / perf.data / report_symbol.txt / report_callgraph.txt / flamegraph.svg</tspan>
-  </text>
-
-  <rect x="885" y="410" width="230" height="108" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
-  <text x="1000" y="440" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="23" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="1000" dy="0">正式单次对比</tspan>
-  </text>
-  <text x="1000" y="468" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">
-    <tspan x="1000" dy="0">2026-03-13</tspan>
-    <tspan x="1000" dy="24">final-comparison/</tspan>
-  </text>
-
-  <rect x="885" y="552" width="230" height="108" rx="10" ry="10" fill="#ffffff" stroke="#8a8a8a" stroke-width="1.6"/>
-  <text x="1000" y="582" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="23" font-weight="700" text-anchor="middle" fill="#333333">
-    <tspan x="1000" dy="0">同日重复测量</tspan>
-  </text>
-  <text x="1000" y="610" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="18" text-anchor="middle" fill="#555555">
-    <tspan x="1000" dy="0">2026-03-14</tspan>
-    <tspan x="1000" dy="24">statistical-validation-20260314/</tspan>
-  </text>
-
-  <polyline points="1000,780 1000,690 1000,660" fill="none" stroke="#666666" stroke-width="2.0" marker-end="url(#arrow)"/>
-  <polyline points="1000,780 1000,548 1000,518" fill="none" stroke="#666666" stroke-width="2.0" marker-end="url(#arrow)"/>
+  <rect x="210" y="650" width="780" height="76" rx="20" ry="20" fill="#ffffff" class="panel"/>
+  <text x="600" y="682" text-anchor="middle" class="cn card-title">结果归档与分析证据</text>
+  <text x="600" y="708" text-anchor="middle" class="cn card-sub">运行日志 / 性能数据 / 剖析报告 / 可视化分析结果</text>
 </svg>
