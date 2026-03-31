@@ -59,7 +59,7 @@ ART 改动统一通过 \texttt{art/tools/buildbot-build.sh --target} 完整编�
 这种分层结构的意义在于：宿主机侧测试负责前置过滤，目标机侧 run-test 负责运行时语义验收，
 libcore 测试则提供更接近 Java 应用视角的补充证据。前一层通过后，才进入下一层验证与后续性能评测。
 
-\subsection{目标机侧 run-test 整体验收}
+\subsection{\texorpdfstring{目标机侧 \texttt{run-test} 整体验收}{目标机侧 run-test 整体验收}}
 
 目标机侧 run-test 是本文验证执行引擎正确性的核心手段。整体验收使用如下命令：
 \begin{lstlisting}[language=bash,basicstyle=\ttfamily\small]
@@ -101,7 +101,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立的执行引擎能力已经具备进入正式性能
 评测阶段的语义基础。
 
-\subsection{libcore 测试结果}
+\subsection{\texorpdfstring{\texttt{libcore} 测试结果}{libcore 测试结果}}
 
 仅依赖 run-test 仍不足以证明 Java 核心类库层面的行为完全正确，因此本文进一步引入 libcore
 测试集，用于覆盖集合框架、输入输出、并发、数学运算、加解密与网络等 Java API 语义。按当前实验

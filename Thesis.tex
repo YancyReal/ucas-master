@@ -41,6 +41,11 @@
 %- [math]% enable some extra math packages
 %- [xlink]% disable link colors
 \usepackage{Style/artracom}% user defined commands
+\AtBeginDocument{%
+  \pdfstringdefDisableCommands{%
+    \def\hskip#1{}%
+  }%
+}
 %---------------------------------------------------------------------------%
 %->> Document inclusion
 %---------------------------------------------------------------------------%
@@ -84,11 +89,14 @@
 %-
 \backmatter% initialize the environment
 \intotoc*{\cleardoublepage}{\bibname}% add link to toc
+{%
+\sloppy
 \artxifstreq{\artxbib}{bibtex}{% enable bibtex
     \bibliography{Biblio/ref}% bibliography
 }{%
     \printbibliography% bibliography
 }
+}%
 \input{Tex/Backmatter}% other information
 \end{document}
 %---------------------------------------------------------------------------%

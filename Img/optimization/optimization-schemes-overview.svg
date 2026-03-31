@@ -101,5 +101,5 @@
   <text x="1180" y="894" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="22" font-weight="700" text-anchor="middle" fill="#2e6d2e">稳定主结论</text>
 
   <rect x="80" y="954" width="1240" height="28" rx="6" ry="6" fill="#f3f3f3" stroke="#b5b5b5" stroke-width="1.2"/>
-  <text x="700" y="973" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="16" text-anchor="middle" fill="#555555">正文只保留这三项正式方案；其它候选方向、补充消融与失败方案统一转入附录。</text>
+  <text x="700" y="973" font-family="Songti SC, STSong, Noto Serif CJK SC, serif" font-size="16" text-anchor="middle" fill="#555555">正文只保留这三项正式方案；其它候选方向、补充消融与候选筛选结果统一转入附录。</text>
 </svg>
