@@ -67,6 +67,22 @@ ARTist 说明了基于运行时编译链进行插桩与观测的可行性，Hubb
 是可行的\citep{Backes2017ARTist}。这些工作共同说明，既有 Android 架构上的执行引擎研究，已经从
 “如何生成代码”进一步扩展到“如何复用代码、如何观察代码、如何分析代码”。
 
+\subsubsection{2023-2025年的最新进展：编译器优化与垃圾回收}
+
+2023--2025 年间，ART 官方公开材料显示，其优化重点已从单一编译策略选择，进一步扩展到编译器自身效率
+与代码体积控制。2025 年的 Android Developers Blog 文章指出，ART 团队在不牺牲峰值内存和生成代码质量
+的前提下，将编译时间缩短了 18\%\citep{GoogleART2025}。2023 年的另一篇官方文章则总结了代码体积优化结果，
+其中写屏障消除（Write Barrier Elimination）、返回指令合并等改进合计带来了约 9.3\% 的编译代码体积缩减
+\citep{GoogleART2023}。
+
+垃圾回收（GC）方面，AOSP 文档表明 Concurrent Copying 在 Android 10 及以上版本默认以分代模式运行，
+通过更频繁地回收年轻对象来提升吞吐并推迟 full-heap GC\citep{GoogleART2024}。与此同时，ISMM 2024 的研究
+指出，ART 上垃圾回收开销在不同工作负载之间差异显著，在其评测中下界可从 2\% 到 51\% 不等，因此移动运行时
+上的 GC 评估需要配套的方法学约束与基准设计\citep{GCEvaluation2024}。
+
+这些进展表明，ART 的优化已经同时覆盖编译速度、代码体积与内存管理行为；相比早期更关注“是否编译、何时编译”，
+近年的问题意识更强调“如何更高效地编译，以及如何更可控地管理运行时开销”。
+
 本文与上述工作的关注点并不相同。ShareJIT、Hubble 与 ARTist 都建立在既有架构平台执行能力已经成立的
 前提上，研究重点分别是缓存共享、低开销观测与运行时插桩；而本文首先要回答的是，在 LoongArch 这一
 新架构平台上，ART 的解释器、Nterp、JIT、JNI 和运行时入口点能否被系统性补齐，并形成可运行、可验证、
@@ -86,6 +102,19 @@ ARTist 说明了基于运行时编译链进行插桩与观测的可行性，Hubb
 Haubl2010CompactStrings}。特别是在大量短字符串构造、拼接与替换场景中，
 热路径中的逐元素搬运和额外控制开销容易成为稳定瓶颈。因此，围绕字符串处理路径开展局部、低开销
 的微优化，仍然是运行时系统中具有现实价值的方向。
+
+\subsubsection{SIMD向量化与相关工具链现状}
+
+在 SIMD 向量化方面，Arm 官方资料将 Neon 视为固定宽度的 SIMD 扩展，将 SVE/SVE2 视为面向 AArch64 的
+可伸缩向量扩展，并强调 SVE2 既可以由编译器从 C/C++ 循环自动生成，也可以通过 intrinsics 或汇编显式使用
+\citep{ARMSIMD2023,ARMCompiler2024}。这说明近年的关注点不仅是“处理器是否提供 SIMD 指令”，还包括
+编译器自动向量化能力以及 intrinsics 级别的可用性。
+
+对 LoongArch 而言，LLVM 官方发布说明显示，17.0.1 版本的 LoongArch 后端已经加入 LSX、LASX 等 ISA
+扩展的汇编/反汇编支持，并持续改进代码生成\citep{LoongArchLLVM2023}。与此同时，社区已出现面向
+LoongArch 的运行时代码生成工具，如 xbyak\_loongarch64 项目\citep{XbyakLoongArch2024}；V8 文档
+也将 Loong64 列为独立的非官方支持移植端口\citep{V8LoongArch2024}。这些材料共同说明，LoongArch 的
+SIMD 与 JIT 相关基础设施已经形成雏形，但整体生态仍处于持续补齐和演进阶段。
 
 \subsection{LoongArch平台JVM与ART移植研究}
 
