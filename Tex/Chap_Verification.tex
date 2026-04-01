@@ -2,9 +2,8 @@
 
 \section{实验平台、实验快照与数据组织}
 
-第 3 章给出了 LoongArch 平台 ART 执行能力构建，第 5 章将说明正文优化问题如何完成
-筛选与收缩，第 6 章和第 7 章则进一步讨论正式优化方案及其综合结果。本章的任务，是说明这些结论由
-怎样的实验设计支撑，并回答两个问题：其一，适配后的
+第 3 章给出了 LoongArch 平台 ART 执行能力构建。第 5 章和第 6 章将依次展开问题筛选与代表性案例分析，以及主结论与综合讨论。
+本章位于两者之间，其任务是说明这些后续结论由怎样的实验设计支撑，并回答两个问题：其一，适配后的
 执行引擎是否具备可靠的语义正确性；其二，后续性能结果是否建立在一致、可重复的实验条件之上。
 
 围绕上述目标，本文将实验分为正确性验证和性能评测两部分。所有实验统一建立在同一 LoongArch64
@@ -29,8 +28,8 @@
 脚本细节，而重点说明支撑论文结论的实验思路、数据来源和验证结果。
 
 基于这一流程，本文对正文证据设置如下准入规则：只有共享验证链、共享正式对比设置并具备独立正确性约束
-的数据，才进入正文主结论比较；其余材料保留为补充实验或附录证据，不与正文主结果混算。换言之，
-“能够跑出分数”并不是正文证据的充分条件，“在统一验证链上被收集并且可以独立追溯”才是。
+的数据，才进入正文主结论比较；其余材料保留为补充实验或附录证据，不与正文主结果混算。“能够跑出分数”
+并不是正文证据的充分条件；只有数据在统一验证链上被收集并且可以独立追溯，才具备进入正文比较的资格。
 
 \subsection{实验环境与执行设置}
 
@@ -41,12 +40,60 @@ Linux 6.6.46。软件侧以 AOSP 15 源码中的 \texttt{art/} 子项目为研�
 
 本文的正式性能结论统一建立在 LoongArch64 64 位 \texttt{debug} ART 与 \texttt{JIT} 模式下。
 选择这一设置有两方面原因。第一，\texttt{debug} 构建更容易暴露调用约定、异常恢复和慢路径跳转等
-平台相关错误，有利于在适配尚未完全稳定时完成收敛。第二，第 6 章与第 7 章中的正式方案都在相同设置下
+平台相关错误，有利于在适配尚未完全稳定时完成收敛。第二，第 5 章与第 6 章中的正式方案都在相同设置下
 完成对比，因此能够保证前后章节的实验条件一致。
 
 ART 改动统一通过 \texttt{art/tools/buildbot-build.sh --target} 完整编译，之后采用轻量同步方式
 将相关产物部署到目标机。保留这一执行链路的目的，在于保证待测产物与当前源码状态一致，而不是将论文
 正文写成操作手册式的环境说明。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{本文关键术语、快照名称与归档标签对照}
+    \label{tab:experiment-terms}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{5.0cm}}
+        \hline
+        \textbf{中文术语} & \textbf{英文术语/归档标签} & \textbf{本文约定} \\
+        \hline
+        工作负载 & \textit{workload} & 指单个基准测试项或应用负载，如 \texttt{pmd}、\texttt{lu.small} \\
+        基线 & \textit{baseline} & 指统一对照版本与实验设置；与 ART 分层编译中的 \texttt{baseline JIT} 术语区分 \\
+        正式对比快照 & \texttt{Snapshot-A} / \texttt{final-comparison} & 用于正文主结果的单次全量对比数据集 \\
+        统计验证快照 & \texttt{Snapshot-B} / \texttt{statistical-validation} & 用于同日重复测量与结论强度判断 \\
+        启动期校验快照 & \texttt{Snapshot-C} / \texttt{dexfileverifier-phase-chain} & 用于 DEX 校验阶段链实验 \\
+        Intrinsic 补充验证快照 & \texttt{Snapshot-D} / \texttt{intrinsic-ablation} & 用于 Intrinsic 开关的机制补充验证 \\
+        完整 SIMD 候选消融快照 & \texttt{Snapshot-E} / \texttt{lsx-full-simd-ablation} & 用于最小 SIMD 方案与完整覆盖候选版的边界比较 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:experiment-terms} 给出了本文后续统一采用的术语约定。除保留快照代号与归档标签外，正文原则上统一使用
+中文术语；其中“基线”专指实验对照版本与设置，而 \texttt{baseline JIT} 仍保留为 ART 分层编译术语，以避免
+与实验对照概念混淆。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{正文实验中可以直接确认的控制措施与证据边界}
+    \label{tab:experiment-control-measures}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{3.2cm}}
+        \hline
+        \textbf{控制项} & \textbf{本文实际约束} & \textbf{对应证据} \\
+        \hline
+        设备与系统环境 & 正文结果统一来自同一 LoongArch64 目标机、同一 Android 15 系统镜像，不跨设备混算 & 本节实验平台说明 \\
+        源码与构建设置 & 正式结论统一建立在同一源码状态、LoongArch64 64 位 \texttt{debug JIT} 配置和相同构建链路下 & 本节实验设置说明 \\
+        执行顺序 & 所有正式结果都遵循“编译 $\rightarrow$ 部署 $\rightarrow$ 回归 $\rightarrow$ benchmark”顺序 & 图~\ref{fig:verification-workflow} \\
+        相关回归前置 & 每项正式方案在进入 benchmark 前都先通过与改动模块直接相关的最小回归集合 & 第 4.2.4 节 \\
+        快照分层 & 单次正式对比与同日重复测量严格分离，不把跨轮次数据直接混算为方案收益 & 表~\ref{tab:experiment-snapshots} \\
+        同日重复测量 & 仅对最关键主张补做同日 3 轮重复测量，用于判断结论强度而非替代正式主快照 & \texttt{Snapshot-B} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:experiment-control-measures} 列出的，是当前实验归档可以直接确认的控制措施。更细粒度的
+频率锁定、温度阈值和后台进程抑制策略即使在实践中具有价值，若缺少与正文快照一一对应的记录，也不应被写成
+已经量化验证的正文事实。因此，本文把实验控制重点收束为“同机、同配置、同顺序、同一回归前置与同日重复测量”
+这五类可直接追溯的约束。
 
 \section{正确性验证链路：run-test、libcore 与目标机回归}
 
@@ -162,7 +209,7 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
 
 为了避免正文叙述按日期展开，同时保留外部归档的可追溯性，本文将进入正文的实验数据统一抽象为
 五类实验快照，并仅在映射表中保留其归档标签。第 4 章主要使用 \texttt{Snapshot-A} 与
-\texttt{Snapshot-B} 说明正式对比和重复测量的证据来源；第 6 章、第 7 章及附录则分别调用
+\texttt{Snapshot-B} 说明正式对比和重复测量的证据来源；第 5 章、第 6 章及附录则分别调用
 \texttt{Snapshot-C}、\texttt{Snapshot-D} 与 \texttt{Snapshot-E} 作为正交案例、机制补充和
 边界比较材料。
 
@@ -178,7 +225,7 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
         正式对比快照（\texttt{Snapshot-A}） & 单次全量正式对比 & 主结果来源 & \texttt{final-comparison} \\
         统计验证快照（\texttt{Snapshot-B}） & 重复测量验证 & 结论强度判断 & \texttt{statistical-validation} \\
         启动期校验快照（\texttt{Snapshot-C}） & DEX 校验阶段链实验 & 正交启动期案例 & \texttt{dexfileverifier-phase-chain} \\
-        Intrinsic（\texttt{Snapshot-D}） & Intrinsic 开关补充验证 & 机制补充 & \texttt{intrinsic-ablation} \\
+        Intrinsic 补充验证快照（\texttt{Snapshot-D}） & Intrinsic 开关补充验证 & 机制补充 & \texttt{intrinsic-ablation} \\
         完整 SIMD 候选消融快照（\texttt{Snapshot-E}） & 完整 LSX SIMD 覆盖候选消融 & 边界比较 & \texttt{lsx-full-simd-ablation} \\
         \hline
     \end{tabular}
@@ -190,14 +237,20 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
 
 \begin{itemize}
     \item \textbf{正式对比快照（\texttt{Snapshot-A}）。} 该快照用于正文主表和主图，包含统一正式
-    对比设置下的 baseline、三项正式方案以及叠加状态。本文随后引用的单次正式结果若无特别说明，均指向
+    对比设置下的基线、三项正式方案以及叠加状态。本文随后引用的单次正式结果若无特别说明，均指向
     该快照。其基线结果如表~\ref{tab:formal-baseline-values} 所示。
     \item \textbf{统计验证快照（\texttt{Snapshot-B}）。} 该快照仅用于验证两条最关键的性能主张，
     即方案一在 \texttt{pmd} 上的收益方向和方案三在 \texttt{lu.small} 上的稳定收益。其结果单独
     展示，不与 \texttt{Snapshot-A} 的正式对比结果混算。
-    \item \textbf{历史 baseline 归档。} 该部分数据仅用于保留较早阶段的对照记录，不再作为三项正式
+    \item \textbf{历史基线归档。} 该部分数据仅用于保留较早阶段的对照记录，不再作为三项正式
     方案统一比较的主数据源。
 \end{itemize}
+
+本文将 3 轮重复测量作为结论强度判断的最小样本量，其目的不是进行严格的统计显著性检验，而是回答一个更直接
+的问题：某条主张在同日、同设备、同模式下究竟表现为“稳定收益”，还是仅表现为“方向上可能受益”。现有
+\texttt{Snapshot-B} 已足以把方案一与方案三区分开来：前者具有正收益样本，但波动明显；后者则形成稳定且
+显著的重复测量结果。若后续研究需要更强统计保证，则应进一步扩展到更多轮次，并引入配对检验或 bootstrap
+等方法。
 
 \begin{table}[htbp]
     \centering
@@ -218,7 +271,7 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
 \end{table}
 
 通过将 \texttt{Snapshot-A} 与 \texttt{Snapshot-B} 明确分离，本文能够避免把跨轮次、跨设备状态
-变化误写成方案收益，并使第 6 章和第 7 章对“单次结果”和“稳定结论”的区分具有明确的数据基础。
+变化误写成方案收益，并使第 5 章和第 6 章对“单次结果”和“稳定结论”的区分具有明确的数据基础。
 
 \subsection{数据采集与分析方法}
 
@@ -247,24 +300,33 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
     \texttt{Snapshot-A} 与 \texttt{Snapshot-B} 严格分离。
     \item \textbf{基准测试覆盖范围有限。} 本文正文最终保留的正式工作负载包括
     \texttt{pmd}、\texttt{mpegaudio}、\texttt{lu.small}、\texttt{sor.small} 和
-    \texttt{fft.small}。这些工作负载已经能够支撑第 6 章和第 7 章的主要结论，但对并发类工作负载、
+    \texttt{fft.small}。这些工作负载已经能够支撑第 5 章和第 6 章的主要结论，但对并发类工作负载、
     复杂服务型应用和更长生命周期应用的覆盖仍然有限。因此，正文结果应被理解为固定实验设置下的
     阶段性结论，而不是 LoongArch 平台 ART 的完整性能画像。
     \item \textbf{\texttt{debug} 构建限制。} 正式性能结论统一建立在 LoongArch64
     \texttt{debug} ART 环境下。这一设置有利于适配阶段的问题暴露，但也会放大部分 JIT 调试信息与
     运行时固定成本。因此，本文所有性能结论都被限制为固定 LoongArch64 \texttt{debug JIT}
     条件下的阶段性结果，不直接外推到 \texttt{release} 构建或其它系统配置。
-    \item \textbf{重复测量样本数有限。} 第 6 章和第 7 章仅对最关键的两条性能主张进行了 3 轮重复测量，
+    \item \textbf{重复测量样本数有限。} 第 5 章和第 6 章仅对最关键的两条性能主张进行了 3 轮重复测量，
     其目的在于区分“可稳定复现的收益”和“仍需进一步验证的收益方向”，而不是进行严格的统计显著性检验。
     因此，论文使用原始散点、均值和标准差表达结论强度，而不滥用显著性术语。
     \item \textbf{JIT 符号可观测性有限。} 部分实验归档中存在 \texttt{perf-*.map} 缺失或
     JIT Java 符号不完整的情况。这意味着火焰图和 \texttt{report\_symbol.txt} 更适合用于判断
     “热点路径是否被命中”和“固定成本是否相对变化”，而不适合支撑过于细粒度的方法级归因。
+    \item \textbf{JIT 触发窗口对短生命周期 workload 敏感。} 对 \texttt{pmd} 一类运行时间较短的
+    workload 而言，阈值微调可能改变某些热点方法是否来得及进入第一层编译态。即便实验已限定在同机、同日与
+    同模式下，少量运行时状态差异仍可能导致编译与否的边界翻转。因此，本文对方案一只写“存在受益方向”而不
+    将其升级为稳定均值收益。
 \end{enumerate}
+
+综上，本文并不宣称已经完全消除了温度、后台活动、GC 和 JIT 触发时机带来的所有扰动；更准确的说法是，
+正文已经通过快照分层和最小相关回归，把这些扰动限制在可解释范围内，并据此区分“单次正式结果”“同日重复测量”
+与“仍待进一步加强的主张强度”。
 
 \section{本章小结}
 
 本章从实验目标、验证层次、实验快照体系和有效性威胁控制等方面，给出了本文的实验设计与正确性验证
 方法。其核心作用不在于展开作者本地脚本细节，而在于说明第 3 章的适配结果如何得到语义正确性的支撑，
-以及第 6 章和第 7 章的性能结论为何能够建立在一致、可重复的实验条件之上。
+以及后续性能结论为何能够建立在一致、可重复的实验条件之上。基于这一验证框架，第 5 章将在完成问题筛选后展开代表性案例，
+第 6 章再集中讨论全文主结论。
 %---------------------------------------------------------------------------%

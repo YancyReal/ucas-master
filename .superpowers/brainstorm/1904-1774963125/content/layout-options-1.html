@@ -1,0 +1,116 @@
+<h2>experiment-validation-workflow 重画方向</h2>
+<p class="subtitle">请选择更接近您预期的一种布局语言。我推荐 A，因为它最符合当前图意，也最接近您给的模版风格。</p>
+
+<div class="cards">
+  <div class="card" data-choice="A" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 主流程竖向主轴 + 右侧数据分支</div>
+        <div class="mockup-body">
+          <div style="display:flex; gap:14px; align-items:stretch;">
+            <div style="flex:1.2; border:1px solid #222; border-radius:18px; padding:14px; background:#fcfcf8;">
+              <div style="font-size:12px; color:#555; margin-bottom:10px;">实验主流程</div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="background:#ffffff; border:1px solid #222; border-radius:14px; padding:10px;">1 基线固定</div>
+                <div style="text-align:center; color:#666;">↓</div>
+                <div style="background:#ffffff; border:1px solid #222; border-radius:14px; padding:10px;">2 编译</div>
+                <div style="text-align:center; color:#666;">↓</div>
+                <div style="background:#ffffff; border:1px solid #222; border-radius:14px; padding:10px;">3 部署</div>
+                <div style="text-align:center; color:#666;">↓</div>
+                <div style="background:#dfeef2; border:1px solid #222; border-radius:14px; padding:10px;">4 正确性验证</div>
+                <div style="background:#f5d8bf; border:1px solid #222; border-radius:12px; padding:7px 10px; text-align:center;">先正确性，后性能</div>
+                <div style="text-align:center; color:#666;">↓</div>
+                <div style="background:#d9e4c2; border:1px solid #222; border-radius:14px; padding:10px;">5 基准测试</div>
+                <div style="text-align:center; color:#666;">↓</div>
+                <div style="background:#ffffff; border:1px solid #222; border-radius:14px; padding:10px;">6 数据归档</div>
+              </div>
+            </div>
+            <div style="width:34%; border:1px solid #222; border-radius:18px; padding:14px; background:#fff;">
+              <div style="font-size:12px; color:#555; margin-bottom:10px;">正式数据集组织</div>
+              <div style="display:flex; flex-direction:column; gap:10px; margin-top:78px;">
+                <div style="background:#f9ede0; border:1px solid #222; border-radius:14px; padding:10px;">正式单次对比</div>
+                <div style="background:#ddd6e5; border:1px solid #222; border-radius:14px; padding:10px;">同日重复测量</div>
+              </div>
+              <div style="margin-top:48px; text-align:center; color:#666;">从“基准测试”横向分出</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>推荐</h3>
+      <p>保留现有阅读顺序，但把“正确性先于性能”做成阶段锚点，右侧数据集分支更独立、更规整。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="B" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 两阶段分区 + 内部步骤卡片</div>
+        <div class="mockup-body">
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="border:1px solid #222; border-radius:18px; background:#dfeef2; padding:12px;">
+              <div style="font-size:12px; color:#555; margin-bottom:8px;">阶段一：正确性闭环</div>
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">基线</div>
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">编译</div>
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">部署</div>
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">验证</div>
+              </div>
+            </div>
+            <div style="border:1px solid #222; border-radius:18px; background:#d9e4c2; padding:12px;">
+              <div style="font-size:12px; color:#555; margin-bottom:8px;">阶段二：性能与产物</div>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;">
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">性能评测</div>
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">正式单次</div>
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">重复测量</div>
+              </div>
+            </div>
+            <div style="background:#f5d8bf; border:1px solid #222; border-radius:12px; padding:9px 12px; text-align:center;">底部统一落到数据归档</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>阶段感最强</h3>
+      <p>更像论文总结图，强调“先验证、再评测”的章节结构，但会弱化逐步执行流程感。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="C" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. 泳道式布局</div>
+        <div class="mockup-body">
+          <div style="display:grid; grid-template-columns:110px 1fr; gap:10px; align-items:start;">
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="background:#f9f8ef; border:1px solid #222; border-radius:12px; padding:8px; text-align:center;">工程准备</div>
+              <div style="background:#dfeef2; border:1px solid #222; border-radius:12px; padding:8px; text-align:center;">验证链</div>
+              <div style="background:#d9e4c2; border:1px solid #222; border-radius:12px; padding:8px; text-align:center;">评测链</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;">
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">基线</div>
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">编译</div>
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">部署</div>
+              </div>
+              <div style="display:grid; grid-template-columns:1.2fr .8fr; gap:8px;">
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">run-test / libcore / 回归</div>
+                <div style="background:#f5d8bf; border:1px solid #222; border-radius:12px; padding:10px;">先正确性</div>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+                <div style="background:#fff; border:1px solid #222; border-radius:12px; padding:10px;">基准测试</div>
+                <div style="background:#f9ede0; border:1px solid #222; border-radius:12px; padding:10px;">正式单次</div>
+                <div style="background:#ddd6e5; border:1px solid #222; border-radius:12px; padding:10px;">重复测量</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>信息组织最强</h3>
+      <p>适合后续扩展更多数据集说明，但论文页内一眼阅读的“主轴感”会比 A 更弱。</p>
+    </div>
+  </div>
+</div>

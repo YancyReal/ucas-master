@@ -1,9 +1,9 @@
-\chapter{优化问题建模、方案筛选与正文路标}\label{chap:selection}
+\chapter{优化问题建模与代表性案例分析}\label{chap:selection}
 
-\section{从热点观察到研究问题收缩}
+\section{优化问题建模与筛选框架}
 
 第 4 章已经说明，能够进入正文的材料必须同时满足共享验证链、共享正式对比设置与可独立追溯三项条件。
-因此，本章的任务不是继续罗列所有曾经出现过的热点，而是回答更严格的问题：从大量局部成本线索出发，
+在这一前提下，本章的任务不是继续罗列所有曾经出现过的热点，而是回答更严格的问题：从大量局部成本线索出发，
 哪些方向最终能够收缩成具有论文价值的研究问题，哪些方向只能作为候选对比或附录材料保留。
 
 对 LoongArch 平台 ART 而言，单个热点符号并不天然对应单个研究问题。一次 flamegraph、一次
@@ -12,9 +12,9 @@
 清楚的原理解释与边界约束，那么即便它在局部样本中看起来活跃，也不适合直接写成论文主线。
 
 基于这一考虑，本文将优化问题收缩为四类成本对象，如表~\ref{tab:problem-modeling-axes} 所示。前三类
-分别对应控制流与 JIT 进入时机、运行时热路径数据搬移和规则浮点数值内核的向量化缺口，它们构成正文的三条
-正式研究主线；第四类则对应启动期 DEX 校验成本，它不参与三方案统一对比，但因具有独立 workload、
-独立快照与清楚的阶段链结构，被保留为第 6 章中的正交案例。
+分别对应控制流与 JIT 进入时机、运行时热路径数据搬移和规则浮点数值内核的向量化缺口，第四类对应启动期
+DEX 校验成本。其中，前两类将在本章后续展开为代表性局部案例；第三类在本章末尾完成边界收束后交由第 6 章集中讨论；
+第四类不参与三方案统一对比，但因具备独立工作负载、独立快照与清楚阶段链，被保留为正交案例。
 
 \begin{table}[htbp]
     \centering
@@ -23,9 +23,9 @@
     \label{tab:problem-modeling-axes}
     \begin{tabular}{>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.0cm}}
         \hline
-        \textbf{问题类别} & \textbf{代表 workload} & \textbf{主导成本线索} & \textbf{正文中的问题表述} \\
+        \textbf{问题类别} & \textbf{代表工作负载} & \textbf{主导成本线索} & \textbf{正文中的问题表述} \\
         \hline
-        控制流与 JIT 时机 & \texttt{DaCapo/pmd} & 解释执行驻留、baseline JIT 进入偏晚 & 短生命周期 workload 的第一层编译是否进入过晚 \\
+        控制流与 JIT 时机 & \texttt{DaCapo/pmd} & 解释执行驻留、baseline JIT 进入偏晚 & 短生命周期工作负载的第一层编译是否进入过晚 \\
         运行时热路径数据搬移 & \texttt{pmd}、\texttt{mpegaudio} & 字符串替换、拼接、UTF-16 构造路径反复出现 & 运行时热路径中的复制与搬移能否局部批量化 \\
         规则浮点数值内核向量化 & \texttt{scimark.lu.small} & 向量 IR 可形成但 LoongArch64 后端缺少最小 lowering & 最小可用 LSX 浮点 SIMD 路径是否已经成立 \\
         启动期 DEX 校验 & \shortstack[l]{\texttt{startup.}\\\texttt{helloworld}} & verifier、probing 与 LEB128 解码占启动时间比例较高 & 启动期校验链能否沿主热点阶段化收缩 \\
@@ -36,23 +36,21 @@
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.93\textwidth]{optimization/candidate-schemes-screening-map.pdf}
-    \caption{候选方向从热点线索到正文角色的筛选关系图}
+    \caption{候选方向示例、筛选维度与正文角色之间的筛选关系图}
     \label{fig:candidate-schemes-screening-map}
 \end{figure}
 
-图~\ref{fig:candidate-schemes-screening-map} 给出了本章的总体筛选结构。其关键信息并不在于“尝试过多少方向”，
-而在于候选方向如何被分成三种不同角色：第一类是进入正文主线的正式方案；第二类是作为正交案例保留的独立
-证据链；第三类是虽有局部意义、但不再承担正文主结论的附录材料。这样处理的目的，是把“系统性搜索”与
-“正式主张”区分开来，避免论文重新退化为工程过程记录。
-
-\section{候选方向生成原则与筛选标准}
+图~\ref{fig:candidate-schemes-screening-map} 给出了本章的总体筛选结构。图中最重要的信息不是“尝试过多少方向”，
+而是三栏之间的对应关系：左栏列出候选方向的具体示例，中栏说明进入正文前必须满足的判断标准，右栏则明确其在全文中的承载角色。
+在这一结构下，候选方向最终只有三种去向：进入正文主线的正式方案、作为正交案例保留的独立证据链，以及虽有局部意义、
+但不再承担正文主结论的附录材料。这样的区分把“系统性搜索”与“正式主张”明确分开，避免论文重新退化为工程过程记录。
 
 候选方向的生成并不是围绕源码目录展开，而是围绕“成本类型、工作负载、可观测证据”三者的交集展开。
 具体而言，本文以第 2 章的问题分析和第 4 章的证据准入规则为约束，将所有候选方向统一放在如下四个筛选维度
 之下考察。
 
 \begin{enumerate}
-    \item \textbf{主路径命中度。} 候选方向必须能够映射到正式 workload 的主导成本，而不是只压低某个
+    \item \textbf{主路径命中度。} 候选方向必须能够映射到正式工作负载的主导成本，而不是只压低某个
     占比很小的局部热点。
     \item \textbf{原理完整性。} 候选方向应能清楚回答“为何有效、对谁有效、在何处失效”，而不是只报告
     一次偶然的分数变化。
@@ -62,165 +60,11 @@
     若更适合作为边界比较、补充机制或阶段链归档，则应主动下沉到附录或正交案例。
 \end{enumerate}
 
-这四个维度共同决定了本章的写法。本文并不把“收益是否为正”作为唯一筛选标准，而是把“收益、解释力、
-验证链与章节角色”放在同一框架下同时判断。也正因此，某些方向虽然在局部实验中出现过可见热点下降，但仍然
-只被保留为附录对比方案；相反，\texttt{DexFileVerifier} 虽不参与三方案统一比较，却因其阶段链结构完整、
-工作负载边界清楚，而获得了第 6 章独立小节的正文角色。
+这四个维度共同决定了本章写法。本文不把“收益是否为正”视为唯一标准，而是同时考察收益、解释力、
+验证链与章节角色。也因此，部分方向虽在局部样本中出现热点下降，仍只保留为附录对比方案；\texttt{DexFileVerifier}
+虽不参与三方案统一比较，却因阶段链完整、工作负载边界清楚，被保留为本章正交案例。
 
-\section{JIT 时机类候选方向的比较与收缩}
-
-JIT 时机类候选方向的核心目标，是解释 \texttt{pmd} 这类短生命周期 workload 为何会长期停留在解释器或
-仅部分进入编译态。围绕这一目标，本文并未从一开始就只剩下“下调 \texttt{warmup\_threshold}”这一方案，
-而是系统比较了多种作用点不同的候选方向，如表~\ref{tab:jittiming-candidates} 所示。
-
-\begin{table}[htbp]
-    \centering
-    \small
-    \caption{JIT 时机类候选方向的比较与收缩}
-    \label{tab:jittiming-candidates}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{5.0cm}}
-        \hline
-        \textbf{候选方向} & \textbf{主要作用点} & \textbf{本文中的保留结论} \\
-        \hline
-        第一层 \texttt{warmup\_threshold} 调整 & baseline JIT 进入时机 & 保留为正式方案一；直接作用于短生命周期 workload 的首要矛盾 \\
-        \texttt{optimize\_threshold} 调整 & optimizing recompilation 进入时机 & 未保留；作用层级过晚，难以解决“第一层来不及进入”问题 \\
-        OSR 热路径内联与重检查类方向 & 解释执行向 OSR/JIT 切换边界 & 未保留；额外固定成本较大，且与正式 JIT 比较中的主瓶颈不一致 \\
-        解释器快路径扩展 & 某些局部解释器热点 & 未保留；命中点局部，难以稳定转化为 \texttt{pmd} 级总收益 \\
-        JIT debug-info 相关方向 & 调试信息生成与整理成本 & 未保留；热点可见但真实生效点与 benchmark 级收益之间缺少稳定机制解释 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-表~\ref{tab:jittiming-candidates} 反映出一个关键事实：JIT 时机类问题不能被抽象为“所有阈值都值得调”。
-如果将作用点放在第二层 optimizing recompilation，那么它只能改善已经进入编译态的方法，而无法解决
-\texttt{pmd} 这类 workload 在运行早期长期驻留解释器的问题；如果把注意力放在 OSR 热路径或局部解释器
-快路径，则容易出现“局部路径变短了，但 benchmark 级总收益并未兑现”的情况。附录第~\ref{app:candidate-schemes}
-节中的补充数据表明，这些方向即便个别轮次出现热点下降，也没有稳定跨过正式基准测试的收益门槛。
-
-与之相比，保留为正式方案一的第一层阈值微调具有更强的原理完整性。它不试图同时改写所有分层参数，而是只
-回答一个更聚焦的问题：LoongArch64 \texttt{debug} ART 的默认第一层进入策略是否过于保守，以致短生命周期
-workload 在有限热度累积窗口内无法及时获得 baseline JIT。这个问题既有明确工作负载对象，也能被目标机
-run-test 与正式快照结果直接约束，因此适合进入第 6 章作为正式案例。
-
-\section{运行时热路径类候选方向的比较与收缩}
-
-运行时热路径类候选方向的共同特征，是它们都来自用户态运行时内部看似“值得优化”的高频复制、校验或辅助逻辑。
-然而，这一类方向最容易出现“局部热点真实存在，但并非 benchmark 主导成本”的误判，因此也最需要在本章进行
-系统收缩。本文最终将其拆成两类不同正文角色：一类是共享正式对比设置的字符串热路径数据搬移机制；另一类是
-基于独立快照的 \texttt{DexFileVerifier} 启动期阶段链案例。
-
-\begin{table}[htbp]
-    \centering
-    \small
-    \caption{运行时热路径类候选方向的比较与正文角色分配}
-    \label{tab:runtime-candidates}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.8cm}}
-        \hline
-        \textbf{候选方向} & \textbf{主要命中路径} & \textbf{本文中的处理方式} \\
-        \hline
-        字符串热路径批量搬移 & \texttt{DoReplace}、\texttt{DoConcat}、\texttt{AllocFromUtf16} & 保留为正式方案二，对应第 6.2 节 \\
-        原始数组批量搬运展开 & 泛化复制路径 & 未保留；入口过宽，但对正式 workload 缺少稳定命中证据 \\
-        \texttt{memcpy} 快速入口接线 & 低层复制入口 & 未保留；目标 workload 主路径并不稳定落在该入口 \\
-        CRC32 JNI 快路径 & \shortstack[l]{\texttt{CRC32.}\\\texttt{updateBytes0()}} & 未保留；热点占比过低，无法兑现 benchmark 级收益 \\
-        \texttt{DexFileVerifier} 容器与校验链优化 & 启动期 DEX 校验与元数据访问 & 保留为第 6.3 节正交案例，但不并入三方案统一比较 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-方案二之所以能从这组候选方向中被保留下来，并不是因为“字符串复制天然更重要”，而是因为它与正式 workload
-之间的对应关系最清楚。\texttt{pmd} 的 flamegraph、profile 与运行时实现路径持续表明，字符串替换、拼接、
-UTF-16 构造以及 \texttt{StringBuilderAppend} 相关路径会稳定出现；这些路径的共同特征是长度不长、调用频繁、
-循环框架开销占比高，因此局部批量搬移能够较直接地改写主路径上的固定成本。相反，原始数组搬运、\texttt{memcpy}
-入口和 CRC32 JNI 等方向虽然也能在某些样本中看到热点，但它们与正式 workload 主导成本之间缺少同样清楚的映射。
-
-\texttt{DexFileVerifier} 则是另一种情况。它并不共享 \texttt{Snapshot-A} 的正式三方案对比设置，
-也不适合作为执行期通用优化与其他正式方案同层比较。但在启动类 workload 上，尤其是
-\texttt{startup.helloworld}，verifier、container probing、UTF-8 校验和 LEB128 解码形成了一条结构清楚、
-可阶段化拆分的启动期成本链。
-本文因此不把它写成“未保留方向”，而是将其提升为第 6 章的正交案例，并把详细数据与源码映射下沉到附录第
-~\ref{app:dexverifier-details} 节。
-
-上述处理方式也体现了本章的基本立场：正文不只区分“保留”与“不保留”，还要进一步区分“正式主线方案”和
-“独立证据充分、但不应混入统一主比较的正交案例”。如果没有这一层区分，\texttt{DexFileVerifier} 相关工作要么
-被误写成失败材料，要么被错误混入第 7 章的最终高潮，都会削弱全篇的组织逻辑。
-
-\section{LoongArch64 向量化类候选方向的比较与收缩}
-
-与前两类局部优化不同，向量化类候选方向对应的是编译器后端能力缺口，而不是某条解释器或运行时热路径的固定成本。
-因此，其筛选标准也更强调“能力链是否建立”和“收益是否具有清楚的结构性解释”。围绕 LoongArch64 数值内核，
-本文主要比较了三类候选方向。
-
-\begin{table}[htbp]
-    \centering
-    \small
-    \caption{LoongArch64 向量化类候选方向的比较与收缩}
-    \label{tab:vectorization-candidates}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.7cm}}
-        \hline
-        \textbf{候选方向} & \textbf{主要目标} & \textbf{本文中的处理方式} \\
-        \hline
-        标量循环展开增强 & 增大指令级并行度 & 未保留；增加代码体积，但没有把标量流真正改成向量流 \\
-        最小可用 LSX 浮点 SIMD 路径 & 打通 \texttt{Loop Vectorization -> LSX Lowering} & 保留为第 7 章正式主结论 \\
-        完整 SIMD 覆盖候选版 & 扩大 lowering 与 idiom 覆盖范围 & 不作为正文主结论，降为边界比较并下沉附录第~\ref{app:full-simd-ablation} 节 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-标量循环展开增强之所以被排除，是因为它虽然可能改变局部代码形态，却没有解决最关键的问题：ART 前端即使已经
-识别出可向量化循环，如果 LoongArch64 后端缺少最小可用的 LSX lowering，那么这些向量 IR 仍然无法落成真正的
-向量机器码。换言之，标量展开解决的是“标量代码是否更密集”的问题，而不是“向量代码是否真正存在”的问题。
-
-相比之下，最小可用 LSX 路径具有更好的研究封闭性。它将问题明确限定在 \texttt{float32/float64} 的规则浮点
-循环、受限的向量 IR 子集以及 128-bit LSX 指令能力范围内，不试图一次性声称 LoongArch64 完整 SIMD 后端已经
-成熟。这样做的好处在于：一方面，\texttt{scimark.lu.small} 的收益能够与“最小 lowering 缺口被补齐”之间形成
-直接因果对应；另一方面，正文可以把更复杂的完整覆盖版 \texttt{S2} 明确降级为边界比较对象，而不是提前写成新的
-通用默认方案。
-
-这一点对于全文的主张至关重要。第 7 章的目标不是证明“LoongArch64 已经拥有完备 SIMD 后端”，而是证明
-“LoongArch64 最小可用的 LSX 浮点 SIMD 路径已经足以在规则数值内核上兑现显著收益”。如果不先在本章完成
-这一收缩，后文就很容易在“最小可用路径”和“完整覆盖候选版”之间摇摆，削弱正文主结论的聚焦程度。
-
-\section{正文正式方案边界与后续章节路标}
-
-经过上述筛选，本文最终形成了一个分层清楚的正文组织结果，如表~\ref{tab:roadmap-after-selection} 所示。
-它不仅回答“哪些方向被保留”，更回答“这些方向在全文中承担什么角色”。
-
-\begin{table}[htbp]
-    \centering
-    \small
-    \caption{方案筛选后的正文角色与章节路标}
-    \label{tab:roadmap-after-selection}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{4.1cm}}
-        \hline
-        \textbf{正文角色} & \textbf{保留对象} & \textbf{主要证据快照} & \textbf{后续章节去向} \\
-        \hline
-        正式方案一 & JIT 进入时机微调 & \texttt{Snapshot-A/B} & 第 6.1 节，作为控制流与 JIT 时机案例 \\
-        正式方案二 & 字符串热路径批量搬移 & \texttt{Snapshot-A} & 第 6.2 节，作为运行时数据搬移案例 \\
-        正交案例 & \texttt{DexFileVerifier} 阶段链优化 & \texttt{Snapshot-C} & 第 6.3 节，作为启动期独立案例 \\
-        主结论 & 最小可用 LSX 浮点 SIMD 路径 & \texttt{Snapshot-A/B/E} & 第 7 章，作为全文最强结论与综合讨论中心 \\
-        附录补充 & 候选方向归档、Intrinsic 补充验证、完整 SIMD 候选消融 & \texttt{Snapshot-D/E} 等 & 附录 A 至附录 D \\
-        \hline
-    \end{tabular}
-\end{table}
-
-表~\ref{tab:roadmap-after-selection} 也给出了后续章节的明确 Roadmap。第 6 章将把 JIT 进入时机、
-字符串热路径搬移与 \texttt{DexFileVerifier} 启动期阶段链并列写成三类局部优化案例，目的是总结
-LoongArch 平台 ART 在控制流、数据流与启动期路径上的代表性局部规律；第 7 章则不再平均分配篇幅，而是集中托起
-最小可用 LSX 浮点 SIMD 路径，进一步完成 IR 到目标汇编 lowering、结果强度、边界比较和三方案统一讨论。
-
-更具体地说，经过本章筛选，本文最终圈定 \textbf{JIT 进入时机} 与 \textbf{字符串热路径数据搬移} 作为控制流
-与数据流的代表性瓶颈，它们共同导向第 6 章；同时，将 \textbf{LoongArch64 最小可用 LSX 路径} 作为计算密集型
-瓶颈的核心突破口，导向第 7 章。至于完整 SIMD 覆盖候选版、Intrinsic 补充验证以及更大范围的候选方向对比，
-则不再承担正文主线任务，而通过附录维持证据的完整性与可追溯性。
-
-\section{本章小结}
-
-本章的核心贡献，不在于简单列出“做过哪些尝试”，而在于完成了从热点观察到研究问题、从候选方向到正文角色的
-系统收缩。通过引入主路径命中度、原理完整性、验证可落实性和正文承载价值四个筛选维度，本文将众多候选方向
-区分为正式方案、正交案例与附录材料三类角色。
-
-筛选结果表明：JIT 时机类方向中，真正值得进入正文的是第一层编译进入时机微调；运行时热路径方向中，字符串热路径
-批量搬移构成正式方案，而 \texttt{DexFileVerifier} 则更适合作为独立启动期案例；向量化方向中，只有最小可用 LSX
- 浮点 SIMD 路径同时满足“原理最清楚、收益最强、边界最明确”三项要求，因而被提升为全文主结论。基于这一结果，
- 第 6 章和第 7 章可以在清楚的章节分工下展开，而不会再退回到工程日志式的材料堆叠。
+基于上述建模与筛选，本文接下来先讨论控制流上的 JIT 进入时机问题和数据流上的字符串热路径搬移问题，再讨论
+\texttt{DexFileVerifier} 启动期阶段链这一正交案例。至于 LoongArch64 向量化，它对应的是编译器后端能力缺口，
+不宜与前三者并列写成局部案例；本章仅在末尾完成边界收束，第 6 章再集中展开主结论。
 %---------------------------------------------------------------------------%

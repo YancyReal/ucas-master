@@ -19,10 +19,11 @@
 
 面向国产处理器平台完善 Android 运行时，是基础软件生态建设中的关键一环。针对 AOSP 15 官方
 主线尚未提供 LoongArch 架构 ART 执行引擎实现的问题，本文以 AOSP 15 的 Android Runtime
-（ART）为对象，围绕执行引擎适配、统一证据链构建和工作负载驱动优化展开研究。
+（ART）为对象，重点回答两个问题：其一，LoongArch 平台能否系统性建立 ART 执行能力；其二，在统一实验
+设计下，哪些平台相关优化方向能够形成可信的性能结论。
 
-本文首先完成了 LoongArch 平台 ART 执行引擎关键模块的适配，补齐了汇编器、C++解释器、
-Nterp、JIT 编译器后端、JNI 编译器、运行时快速路径以及部分 Intrinsic 支持，建立了可运行的
+本文首先完成了 LoongArch 平台 ART 执行引擎关键模块的适配，补齐了汇编器、C++ 解释器、
+Nterp 汇编解释器、JIT 编译器后端、JNI 编译器、运行时快速路径以及部分标准库热点支持，建立了可运行的
 ART 执行环境。由此，本文不仅回答了“能否在 LoongArch 上运行 ART”的问题，也为后续性能研究
 提供了必要的系统基础。
 
@@ -32,14 +33,14 @@ ART 执行环境。由此，本文不仅回答了“能否在 LoongArch 上运�
 （\texttt{Snapshot-C}）、Intrinsic 补充验证快照（\texttt{Snapshot-D}）和完整 SIMD 候选
 消融快照（\texttt{Snapshot-E}），从而在避免工程日志式叙述的同时保留结果可追溯性。
 
-在统一证据链下，本文将 JIT 进入时机与运行时数据批量搬移组织为两类代表性局部优化案例，并将
+在统一实验设计与证据组织下，本文将 JIT 进入时机与运行时数据批量搬移组织为两类代表性局部优化案例，并将
 LoongArch64 最小可用 LSX 浮点 SIMD 路径作为全文主结论。在正式对比快照
 （\texttt{Snapshot-A}）中，方案一在 \texttt{DaCapo/pmd} 上取得 \texttt{+3.30\%} 的单次收益，
 体现出更早进入基线 JIT 对短生命周期工作负载的积极方向，但统计验证快照
 （\texttt{Snapshot-B}）显示其波动仍然较大；方案二在 \texttt{pmd} 与 \texttt{mpegaudio}
 上仅表现出弱正收益，更适合作为字符串密集场景的定向微优化；方案三在
 \texttt{SPECjvm2008/scimark.lu.small} 上取得 \texttt{+44.40\%} 的正式对比收益，并在
-\texttt{Snapshot-B} 中保持 \texttt{+45.70\%} 的稳定提升，是全文最明确、证据最强的性能优化结论。
+\texttt{Snapshot-B} 中保持 \texttt{+45.70\%} 的稳定收益，是全文最明确、证据最强的性能优化结论。
 
 本文说明，AOSP 15 ART 在 LoongArch 平台上的执行引擎适配是可行的；在统一实验设计、固定基线
 和明确证据边界的约束下，围绕主导热点开展分层次优化，能够得到有据可依的性能收益。本文为国产
@@ -55,13 +56,15 @@ Improving the Android runtime environment on domestic processor platforms is an
 important part of building a complete system software ecosystem. However, AOSP
 15 does not provide an official ART execution engine implementation for the
 LoongArch architecture. This thesis therefore takes Android Runtime (ART) in
-AOSP 15 as the research target and studies execution engine adaptation, unified
-evidence construction, and workload-driven optimization for LoongArch.
+AOSP 15 as the research target and focuses on two questions: whether a complete
+ART execution engine can be established on LoongArch, and which platform-aware
+optimization directions can be supported by a unified experimental design.
 
 First, this work completes the adaptation of key ART execution engine
-components for LoongArch, including the assembler, C++ interpreter, Nterp, the
-JIT compiler backend, the JNI compiler, runtime fast paths, and selected
-intrinsics, thereby establishing a runnable ART execution environment. Second,
+components for LoongArch, including the assembler, the C++ interpreter, Nterp,
+the JIT compiler backend, the JNI compiler, runtime fast paths, and selected
+standard-library hot paths, thereby establishing a runnable ART execution
+environment. Second,
 it builds a unified experimental framework on a LoongArch64 target device,
 covering compilation, deployment, target-side regression tests, libcore tests,
 and benchmark evaluation. To keep the thesis narrative abstract while

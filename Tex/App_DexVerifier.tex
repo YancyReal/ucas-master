@@ -2,11 +2,11 @@
 
 \subsection{Flamegraph 筛选依据}
 
-本附录对应第 6.3 节中的启动期校验快照（\texttt{Snapshot-C}），用于保留 \texttt{DexFileVerifier}
+本附录对应第 5.4 节中的启动期校验快照（\texttt{Snapshot-C}），用于保留 \texttt{DexFileVerifier}
 阶段链的详细可追溯材料。正文仅保留主结论和主要图表，而将更细的 flamegraph 依据、源码位置与原始数据表
 集中放在本附录中。
 
-\texttt{startup.helloworld} 之所以被选为主目标 workload，是因为 baseline flamegraph 中 verifier、
+\texttt{startup.helloworld} 之所以被选为主目标工作负载，是因为基线 flamegraph 中 verifier、
 container probing 与字符串校验相关路径的 flat hot share 近似合计约为 \texttt{5.3\%}，已经足以支撑
 独立优化分析。相比之下，\texttt{scimark.lu.small} 上这组热点仅约 \texttt{0.3\%} 到 \texttt{0.4\%}，
 因此被保留为负对照，而不作为收益结论的依据。
@@ -32,7 +32,7 @@ container probing 与字符串校验相关路径的 flat hot share 近似合计�
 
 如表~\ref{tab:app-dexverifier-chain} 所示，这条阶段链主要集中在
 \texttt{art/libdexfile/dex/dex\_file\_verifier.cc} 与 \texttt{art/libdexfile/dex/utf-inl.h}
-两个文件中。正文将其写成阶段链，而非单点容器优化，正是因为 baseline flamegraph 显示 container probing、
+两个文件中。正文将其写成阶段链，而非单点容器优化，正是因为基线 flamegraph 显示 container probing、
 字符串校验和元数据解码是逐层衔接的主成本链。
 
 \subsection{正式数据表与补充分析}
@@ -44,7 +44,7 @@ container probing 与字符串校验相关路径的 flat hot share 近似合计�
     \label{tab:app-dexverifier-startup}
     \begin{tabular}{lcccc}
         \hline
-        \textbf{阶段} & \textbf{3 轮原始分数（\texttt{ops/m}）} & \textbf{均值} & \textbf{标准差} & \textbf{相对 baseline} \\
+        \textbf{阶段} & \textbf{3 轮原始分数（\texttt{ops/m}）} & \textbf{均值} & \textbf{标准差} & \textbf{相对基线} \\
         \hline
         \texttt{baseline} & \texttt{36.74, 36.74, 37.38} & \texttt{36.9533} & \texttt{0.3017} & \texttt{+0.00\%} \\
         \texttt{phase1} & \texttt{37.83, 36.92, 33.71} & \texttt{36.1533} & \texttt{1.7672} & \texttt{-2.16\%} \\
@@ -62,7 +62,7 @@ container probing 与字符串校验相关路径的 flat hot share 近似合计�
     \label{tab:app-dexverifier-lu}
     \begin{tabular}{lcccc}
         \hline
-        \textbf{阶段} & \textbf{3 轮原始分数（\texttt{ops/m}）} & \textbf{均值} & \textbf{标准差} & \textbf{相对 baseline} \\
+        \textbf{阶段} & \textbf{3 轮原始分数（\texttt{ops/m}）} & \textbf{均值} & \textbf{标准差} & \textbf{相对基线} \\
         \hline
         \texttt{baseline} & \texttt{82.37, 77.93, 82.90} & \texttt{81.0667} & \texttt{2.2285} & \texttt{+0.00\%} \\
         \texttt{phase1} & \texttt{82.92, 82.93, 82.68} & \texttt{82.8433} & \texttt{0.1156} & \texttt{+2.19\%} \\
@@ -73,7 +73,7 @@ container probing 与字符串校验相关路径的 flat hot share 近似合计�
     \end{tabular}
 \end{table}
 
-表~\ref{tab:app-dexverifier-startup} 与表~\ref{tab:app-dexverifier-lu} 共同支持第 6.3 节的写法：
+表~\ref{tab:app-dexverifier-startup} 与表~\ref{tab:app-dexverifier-lu} 共同支持第 5.4 节的写法：
 \texttt{phase12} 是第一段被 benchmark 明确验证的主收益阶段，而 \texttt{phase1234} 给出了最终最优点；
 \texttt{lu.small} 只承担负对照角色，不应用来支撑收益结论。
 %---------------------------------------------------------------------------%

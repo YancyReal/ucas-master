@@ -1,0 +1,903 @@
+70
+
+Computer Engineering and Applications 计算机工程与应用
+
+2012，48（22）
+
+面向龙芯平台的 Android 系统移植研究
+雷 鸣 1，靳 婷 1，
+徐晓亮 1，齐 锦 2
+LEI Ming1, JIN Ting1, XU Xiaoliang1, QI Jin2
+1.中国电子科技集团公司第十五研究所 军用中间件研发中心，北京 100083
+2.中国人民解放军总参谋部 第六十一研究所，
+北京 100141
+1.Military Middleware R&D Center, No. 15 Research Institute of China Electronics Technology Group Corporation,
+Beijing 100083, China
+2.No. 61 Research Institute, Headquarters of the General Staff of the PLA, Beijing 100141, China
+LEI Ming, JIN Ting, XU Xiaoliang, et al. Research and transplant Android OS based on Loongson2F. Computer Engineering and Applications, 2012, 48（22）：70-73.
+Abstract：Based on the analysis of architecture of android and Loongson-based platform, some key techniques of
+porting Android system are studied. The Android source code has been modified according to the architecture and
+property of Loongson, then an Android Gingerbread system for Loongson-based is implemented. The performance
+of the optimized Dalvik virtual machine of the system is tested and verified. This work is valuable to other Android
+version transplant to Loongson-based platform.
+Key words：Android; Loongson2F; transplant; virtual machine; file system
+摘
+
+要：在分析 Android 系统与龙芯平台架构的基础上，针对软硬件适配、虚拟机优化、编译器移植等关键技术
+
+进行了深入研究。在充分保持龙芯处理器性能的基础上，对 Android 系统源码进行了优化修改，实现了在龙芯
+平台完整运行 Android Gingerbread 系统，同时对移植系统中的 Dalvik 虚拟机的性能优化进行了测试验证。为
+其他版本 Android 系统在面向龙芯平台的移植方面提供了重要参考，
+具有很大应用价值。
+关键词：Android 系统；
+龙芯 2F；
+移植；虚拟机；
+文件系统
+文章编号：1002-8331（2012）22-0070-04
+
+1
+
+文献标识码：A
+
+中图分类号：TP391.4
+
+引言
+
+器在嵌入式系统领域的一个研究方向，对信息产业
+
+龙芯处理器作为一款基于 MIPS 指令集、我国自
+
+国产化发展具有重要的工程应用价值和意义。
+
+主研发具有完全自主知识产权的中央处理器，具有
+低功耗、低成本等特点，在嵌入式、工业控制等领域
+
+2 Android 系统架构
+
+有 着 非 常 广 阔 的 应 用 前 景 。 Android 是 Google 于
+
+Android 平台的系统架构主要包括 Linux 内核、
+
+2007 年 11 月 5 日发布的基于 Linux 平台的开源操作
+
+硬件抽象层（包括系统运行库与 Android 运行环境）、
+
+系统，是首个为移动终端打造的真正开放和完整的
+
+应用程序框架、应用程序组成。图 1 列出了操作系统
+
+移动操作系统。作为一个开源的系统，Android 不存
+
+的主要组成部分。
+
+在以往阻碍移动产业创新的专有权障碍，因此，向龙
+
+Android 运行于 Linux 内核之上，但不同于其他
+
+芯平台上移植 Android 操作系统将会成为龙芯处理
+
+发行版本的 Linux 系统。因为一般发行版 Linux 系统
+
+基金项目：核高基科技重大专项（No.2010ZX01041-001-001-002）。
+作者简介：雷鸣（1980—），男，工程师，主要研究领域为移动计算、系统集成；靳婷（1981—），女，工程师，主要研究领域为移动计算
+与中间件技术；徐晓亮（1985—），男，助理工程师，主要研究领域为嵌入式系统架构与应用；齐锦（1971—），女，高级工
+程师，主要研究领域为计算机网络设计、网络多媒体技术。
+收稿日期：2012-03-16
+
+修回日期：2012-04-27
+
+DOI：10.3778/j.issn.1002-8331.2012.22.015
+
+雷
+
+鸣，靳 婷，徐晓亮，等：面向龙芯平台的 Android 系统移植研究
+
+2012，48（22）
+
+71
+
+APPLICATIONS
+HOME
+
+Contacts
+
+PHONE
+
+BROWSER
+
+……
+
+APPLICATION FRAMEWORK
+Active Manager
+
+Window Manager
+
+Content Providers
+
+View System
+
+Notification
+Manager
+
+Package Manager
+
+Telephony
+Manager
+
+Resource Manager
+
+Location Manager
+
+XMPP Service
+
+LIBRARIES
+
+ANDROID RUNTIME
+
+Surface Manager
+
+Media Framework
+
+SQLite
+
+Core Libraries
+
+OpenGL|ES
+
+FreeType
+
+WebKit
+
+Dalvik Virtual
+Machine
+
+SGL
+
+SSL
+
+Libc
+
+LINUX KERNEL
+Display Driver
+
+Camera Driver
+
+Bluetooth Driver
+
+Flash Memory
+Driver
+
+Binder（IPC）
+Driver
+
+USB Driver
+
+Keypad Driver
+
+WiFi Driver
+
+Audio Drivers
+
+Power
+Management
+
+图 1 Android 系统框架图
+
+所包含的功能，
+Android大都没有提供支持，
+例如Cairo、
+
+程序，包括 Email 客户端，浏览器，日历，地图等，程序
+
+X11、Alsa、FFmpeg、GTK、Pango 及 Glibc 等在 Android
+
+可通过 JNI 调用硬件抽象层来实现对硬件的操作。
+
+系统中都被移除掉了。Android又以bionic取代Glibc、
+以 Skia 取代 Cairo、再以 opencore 取代 FFmpeg 等等。
+Android 的 Linux 内核实现了包括安全、存储器管理、
+[1]
+
+程序管理、网络堆栈、驱动程序模型等模块 。
+
+3
+
+龙芯平台
+龙芯 2F 处理器是一款 64 位 MIPS III 指令集的
+
+通用 RISC 处理器。龙芯 2F 的指令流水线每个时钟
+
+Android 系统架构采用了分层的设计方法，在
+
+周期取四条指令进行译码，并且动态地发射到五个
+
+Linux 内核之上包括硬件抽象层、应用程序框架和应
+
+全流水的功能部件中。虽然指令在保证依赖关系的
+
+用层，每一层为上层提供统一服务，以屏蔽各层之间
+
+前提下进行乱序执行，但是指令的提交还是按照程
+
+的差异，保证本层及以下层发生了变化不会影响到
+
+序原来的顺序，以保证中断和访存顺序执行[3]。
+
+上层[2]。各层所包含的内容及具体职责如下：
+（1）硬件抽象层是为了将应用层与内核分开，降
+低对 Linux 内核的依赖。其中，Google 开发一个支持
+
+四发射的超标量结构使得指令流水线中指令和
+数据相关问题十分突出，龙芯 2F 采用乱序执行技术
+和激进的存储系统设计来提高流水线的效率[4]。
+
+Java 语法的虚拟机：Dalvik，其特点是基于寄存器结
+
+龙梦逸珑 8089B 笔记本采用龙芯 2F 处理器，运
+
+构，而 Sun Java 虚拟机是基于堆栈结构，因此 Dalvik
+
+行 Linux 发行版操作系统，具有完全的国产自主化产
+
+虚拟机可以针对特定平台做最优化处理，这也是针
+
+权。本文是在龙梦逸珑笔记本上移植 Android2.3 代
+
+对嵌入式系统所做的设计。
+
+号 Gingerbread。表 1 为龙梦逸珑笔记本配置情况。
+
+（2）应用程序框架提供了调用系统内部核心程
+序的管理程序。
+（3）应用层由 Java 实现，包括了一系列核心应用
+
+MIPS 公司目前已经移植 Android 到部分 MIPS
+平台和 QEMU 上面，并且免费提供源码。这些源码
+对移植工作有非常好的参考意义。
+
+72
+
+表1
+
+4
+4.1
+
+Computer Engineering and Applications 计算机工程与应用
+
+2012，48（22）
+
+龙梦逸珑 8089B 配置
+
+4.3 Android 文件系统移植
+
+名称
+
+型号
+
+处理器
+
+Loongson2F（900 MHz/512 KB 二级缓存）
+
+芯片组
+
+AMD CS5536 南桥（CPU 集成内存控制器）
+
+内存
+
+1 GB（1 GBX1/DDR2-667 MHz）
+
+硬盘
+
+160 GB（2.5 英寸/5 400 r/min）
+
+遇到大量的非法指令。因此，移植 Android 到龙芯平
+台，需要对文件系统源代码进行修改以适配 MIPS III
+
+显卡
+
+Silicon Motion SM712
+
+显示屏
+
+8.9 英寸（LED 背光/1 024×600）
+
+网络
+
+100 MHz Ethernet（RJ45）
+
+USB
+
+USB2.0X3
+
+重量
+
+1.23 kg
+
+体积尺寸
+
+（255×188×250）mm
+
+电池
+
+11.1 V/2 200 mAh
+
+系统移植
+
+文件系统源码是针对 MIPS32R2 架构进行设计，
+其中含有 MIPS IV 和 MIPS V 中的 32 位指令，对于
+只支持到 MIPS III 的龙芯，使用原始的文件系统会
+
+指令集。
+Android 文件系统代码目录主要包括三个部分：
+系统库与 Dalvik 虚拟机（硬件抽象层），应用程序框
+架、应用程序。文件系统目录结构如下所示：
+Makefile（全局的编译脚本）；bionic（基础库代
+码）；bootable（引导与恢复程序）；build（编译和配置
+脚本）；Dalvik（JAVA 虚拟机）；development（程序开发
+
+建立交叉编译环境
+
+所需要的模拟器和工具）；external（系统外部库）；
+
+编译工作是在 Ubuntu10.04（32 位）下进行，使用
+
+frameworks（应用程序框架）；hardware（与硬件平台
+
+jdk1.6。
+
+相关的库）；packages（应用程序）；prebuilt（Android 编
+
+MIPS 提供的代码中自带了编译的工具链，但其
+
+译工具链）；system（Android 系统库）。其中应用程序
+
+中 gcc 自带的 libgcc.a 是针对 MIPS32R2 架构 CPU 编
+
+使用 java 语言进行设计，不需要进行修改，对 Android
+
+译的，
+当gcc配置编译选项为-march=mips3或者-march=
+
+文件系统的移植主要就是对系统库与 Dalvik 虚拟机、
+
+loongson2f时，
+会发生链接错误，
+因为龙芯与MIPS32R2
+
+应用程序框架的移植。
+
+是互不兼容的架构。Android 的工具链是针对 bionic
+
+（1）因 Dalvik 是基于寄存器的虚拟机，可以针对
+
+libc 定制的，MIPS 放出了 Android 的源码，但其中交
+
+平台进行优化，实现方式包括优化的基于汇编码方
+
+叉编译工具链是被封装过的，无法进行修改，因此无
+
+式以及通用的基于 C 语言方式。为了不损失性能，移
+
+法针对龙芯平台重建这个工具链。
+
+植选择基于平台优化的汇编码方式实现方式。Dalvik
+
+工具链制作脚本 crosstool-ng 可以较为简化地制
+作龙芯可用的通用标准工具链。用制作好的 libgcc.a
+与 libgcc_eh.a 替换掉 Android 工具链里面的相应库文
+件，
+组合出一个可用的龙芯Android交叉编译工具链。
+
+4.2
+
+Linux 内核移植
+Android 的内核位于 android.git.kernel.org 上，目
+
+前较稳定版本是 2.6.35.7[5]。Linux 内核版本已经包含
+了龙芯相关的支持代码，进而自动地被 Google 收纳
+进了 Android 内核中。这意味着 Android 内核默认支
+持龙芯，只需适当配置即可。但特别需要说明的是，
+虽然龙芯支持 64 位内核版本，并且在 32 位下最多只
+
+虚拟机的解释器实现代码中出现了多处 MIPS IV 和
+MIPS V 的汇编指令。主要包括：movn、movz、mul、
+pref，
+需要将它们替换为龙芯平台（MIPS III）兼容指令。
+movn：表示如果第三个寄存器的内容为负，那么
+复制一个寄存器的内容到另外一个寄存器。替换为
+beqz 判零条件转移指令与 move 移动指令。
+movz：表示如果第三个寄存器的内容为 0，那么
+复制一个寄存器的内容到另外一个寄存器。替换为
+bnez 非零条件转移指令与 move 移动指令。
+mul：表示第 1 个寄存器获得另外两个寄存器相
+乘的结果。替换为 mult 乘法指令与 mflo 移动指令。
+pref：
+数据预存缓存指令。去掉数据预存缓存指令。
+
+能访问 512M 内存，但是由于 Google 给 Android 增加
+
+（2）修改页表大小为 16K，与内核中设置的一致。
+
+的驱动都从未在 64 位模式下调试过，为了避免不必
+
+Android 代码默认为 4K，共有两处。一处为 bionic（基
+
+要的兼容性问题，内核编译选择 32 位版本。龙芯的
+
+础库代码）中定义，
+修改公式为：
+页表大小=2PAGE_SHIFT。一
+
+CPU 核心只支持 16K 的页表大小，跟通常系统 4K 不
+
+处 为 Dalvik 虚 拟 机 代 码 中 定 义 ，SYSTEM_PAGE_
+
+符，因此编译内核选项应设置页表大小为 16K。在
+
+SIZE 修改为 16 384（16K）。
+
+General Setup 里 面 ，勾 选 Enable the Anonymous
+
+（3）应用程序框架中的 libAGL 里面的汇编代码
+
+Shared Memory Subsystem，否则 Android 在启动时
+
+用到了大量龙芯平台不支持的乘加指令。修改其判
+
+会使 zygote 进程无法启动导致启动失败。
+
+断指令，使只在非龙芯 CPU 编译时才使用汇编，强制
+
+雷
+
+鸣，靳 婷，徐晓亮，等：面向龙芯平台的 Android 系统移植研究
+
+在对龙芯平台编译时使用 C 代码来实现。
+
+2012，48（22）
+
+73
+
+classloader（测试Java类加载器性能），
+verification-error
+
+（4）修改架构与位宽为 32 位 MIPSIII。龙芯作为
+
+（异常捕获处理）。分别测试 C 语言版本解释器和汇
+
+MIPS III 架构处理器，兼容 64 位与 32 位，由于编译环
+
+编语言版本解释器的 Dalvik 在龙芯 2F 上执行测试程
+
+境是全 32 位的。按照这个逻辑，若位宽设置为 64
+
+序所需要的时间，并对比测量结果。测试环境为：龙
+
+位，
+则在运行时会出现位对齐错误。
+
+梦逸珑笔记本（处理器：龙芯 2F；主频：800 MHz）；系
+
+（5）新建编译脚本 loongson2F.mk，用以配置 GCC
+
+统：Android2.3.3；内核版本：2.6.35.7。测试用例来自
+
+编译的选项，包括指定架构为 MIPS III，设置编译使
+
+Android 文件系统中提供的 Dalvik 虚拟机测试程序。
+
+用硬浮点，
+小端编译等。
+
+测试数据如图 3~图 6 所示。表 2 为测试用例运行时
+
+（6）Android Gingerbread 系统默认要求需在 64
+
+间统计。
+
+位环境下进行交叉编译，由于编译环境是全 32 位，并
+
+表 2 两种版本 Dalvik 虚拟机执行情况
+
+且 Linux 内核编译为 32 位版本，因此修改 Android 源
+
+实现方式
+
+码编译环境要求为 32 位。
+至此，对于 Android 文件系统的修改已经完成，
+
+用例名称
+
+C 语言
+
+使用前文制作的龙芯 Android 交叉编译工具链进行
+
+最小值
+
+最大值
+
+ms
+平均值
+
+omnibus-opcodes
+
+48
+
+50
+
+49
+
+many-interfaces
+
+1 085
+
+1 087
+
+1 086.2
+
+classloader
+
+70
+
+74
+
+71.9
+
+编译，生成 Android Gingerbread 龙芯可用的文件系
+
+verification-error
+
+1
+
+2
+
+1.9
+
+统。Android Gingerbread 在龙梦逸珑上运行的效果
+
+omnibus-opcodes
+
+28
+
+30
+
+29.3
+
+many-interfaces
+
+555
+
+579
+
+561.7
+
+classloader
+
+70
+
+72
+
+70.9
+
+verification-error
+
+1
+
+2
+
+1.1
+
+如图 2 所示。
+
+汇编语言
+
+从结果可以得出，使用针对龙芯平台优化的汇
+编语言版本 Dalvik 虚拟机在性能方面要优于使用 C
+语言版本的虚拟机。但系统整体的运行效果相比于
+图 2 Android 运行效果
+
+目前市场中主流的产品芯片还存在着比较大的差
+距。例如相比主频为 1 GHz 的 ARM Cortex-A8 处理
+
+5
+
+虚拟机性能验证测试
+
+器，龙芯 2F 主频只能稳定运行于 500 MHz 左右，并且
+
+针对 Android 系统在龙芯平台的移植，主要是在
+
+由于采用Jazelle-RCT Java加速技术，
+ARM Cortex-A8
+
+Dalvik 虚拟机方面根据龙芯平台做了优化。为了验
+
+对实时（JIT）和动态调适编译（DAC）提供最优化 [6]，
+
+证移植 Android 到龙芯平台的实际应用效果，实验对
+
+而龙芯平台 Dalvik 虚拟机调用 C/C++方法的模块是
+
+Dalvik 虚拟机进行测试分析，说明移植的性能。
+
+依靠 FFI 库实现的。所以龙芯平台 Dalvik 虚拟机还
+
+测试选择四种较典型的测试用例omnibus-opcodes
+（测试优化性能），many-interfaces（测试 CPU 负载），
+
+有着较大的性能提升空间，这也是后续阶段面临解
+决的问题。
+
+50
+
+C 语言实现
+汇编语言实现
+
+40
+30
+20
+
+0
+
+5
+执行次序
+
+运行时间/ms
+
+图3
+75
+74
+73
+72
+71
+70
+69
+
+运行时间/ms
+
+1 200
+1 000
+C 语言实现
+汇编语言实现
+
+800
+600
+400
+
+10
+
+0
+
+omnibus-opcodes 运行时间对比
+
+图4
+
+5
+执行次序
+
+10
+
+many-interfaces 运行时间对比
+
+2.5
+C 语言实现
+汇编语言实现
+
+0
+
+5
+执行次序
+
+图5
+
+10
+
+classloader 运行时间对比
+
+运行时间/ms
+
+运行时间/ms
+
+60
+
+2.0
+C 语言实现
+汇编语言实现
+
+1.5
+1.0
+0.5
+0
+
+5
+执行次序
+
+10
+
+图 6 verification-error 运行时间对比
+
+（下转 87 页）
+
+张学智，齐 记，林 平：拉普拉斯生长的 GPU 实现与硬件加速
+
+2012，48（22）
+
+×104
+3.5
+
+×104
+1.8
+
+3.0
+
+1.4
+
+2.5
+计算用时/s
+
+2.0
+
+计算用时/s
+
+87
+
+1.5
+1.0
+0.5
+
+1.0
+0.6
+0.2
+
+0
+－0.5
+
+0
+
+1
+
+2
+
+3
+4
+计算点数/个
+
+5
+
+6
+×105
+
+（a）计算点数为环境 1/8 时计算用时（圆点为 GPU）
+图4
+
+－0.2
+
+0
+
+1
+
+2
+
+3
+4
+5
+计算点数/个
+
+6
+
+7
+
+8
+×104
+
+（b）计算点数为环境 1/32 时计算用时（圆点为 GPU）
+
+不同环境尺寸时点数与运算时间的关系
+
+并行化的程序很好地模拟拉普拉斯生长的情况，模
+
+1905，
+72.
+
+拟的结果逐渐趋近于理论预测给出的分形维数，如
+
+[2] Witten T A，Sander L M.Diffusion-limited aggregation，a
+
+何并行化程序解决并行冲突的问题是 GPU 模拟随机
+
+kinetic critical phenomenon[J].Physical Review Letters，
+
+生长中需要优化的核心问题。其次，GPU 对拉普拉
+
+1981，
+47（19）.
+
+斯生长的模拟由于并行化机制对于模型的计算进行
+了非常有效的加速，在模型很小时 GPU 运算中的通
+讯延迟会导致 GPU 的计算用时大于 CPU 的用时，但
+是随着尺寸的增大，GPU 的程序优势逐渐显现，随着
+运算时间对于计算模型尺寸的三次方以上的增长关
+系，
+在大尺度时 GPU 程序的优势将非常明显。
+研究得到中国科学院近代物理研究所超算中心
+的大力支持，
+在此表示感谢。
+
+[3] Witten T A，Sander L M.Diffusion-limited aggregation[J].
+Physical Review B，
+1983，
+27（9）.
+[4] 科克，胡文美.大规模并行处理器编程实战[M].陈曙辉，熊
+淑华，
+译.北京：
+清华大学出版社，
+2010.
+[5] 白洪涛.基于 GPU 的高性能并行算法研究[D].长春：吉林
+大学，
+2010.
+[6] 吴小霞.GPU 高性能计算技术在晶格玻尔兹曼方法模拟中
+的应用[D].南宁：
+广西师范大学，
+2011.
+[7] 张庆丹.基于 GPU 的串匹配算法的实现[D].北京：中国科
+学院研究生院（计算技术研究所），2006.
+
+参考文献：
+[1] Pearson K.The problem of the random walk[J].Nature，
+
+（上接 73 页）
+
+6
+
+结束语
+
+[8] Lavenda B H.Brownian motion[J].Scientific American，
+1985，
+252（2）.
+
+参考文献：
+[1] Google Inc.Android Anatomy and Physiology[EB/OL].（2010）.
+http：
+//code.google.com/android/Documentation.html.
+
+本文的主要工作旨在基于龙芯 2F 平台，根据
+
+[2] Google Inc.A beginner’s guide to android[EB/OL].
+
+处理器的架构特点，在充分利用龙芯平台架构的基
+
+（2010-05）.http：
+//code.google.com/android/Documentation.html.
+
+础上，对 Android 源码进行了优化修改，实现嵌入式
+
+[3] 中国科学院计算技术研究所.龙芯 2F 用户手册[R].中国科
+
+操 作 系 统 Android Gingerbread 的 移 植 。 本 文 的 创
+新点就是在于填补了龙芯处理器平台对嵌入式操
+作系统 Android 支持的空白，并对其他版本 Android
+操作系统在面向龙芯平台的移植方面提供了参考
+与应用。
+虽然目前 Android Gingerbread 在龙芯平台上运
+行的效果在速度方面还未达到应用产品的水平，但
+相信随着龙芯后续高性能处理器的推出，Android 在
+龙芯上的产业化指日可待。
+
+学院计算技术研究所，
+2006.
+[4] 丰大强.基于龙芯平台的 Windows CE 的移植与优化[D].
+北京：
+中国石油大学，
+2009.
+[5] Berndl M，Vitale B，Zaleski M，et al.Context threading：
+a flexible and efficient dispatch technique for virtual
+machine interpreters[C]//Proceedings of the international
+symposium on Code generation and optimization，2005，
+3：
+15-26.
+[6] 吴少刚，邹国民.Dalvik 虚拟机在龙芯平台上的研究与移
+植[J].计算机工程，
+2011，
+37（16）：1-4.
+
+

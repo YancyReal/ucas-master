@@ -1,0 +1,3813 @@
+硕士学位论文
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+作者姓名：
+
+杜泽旭
+
+指导教师：
+
+肖俊华 高级工程师
+中国科学院计算技术研究所
+
+学位类别：
+
+工程硕士
+
+学科专业：
+
+计算机技术
+
+培养单位：
+
+中国科学院计算技术研究所
+
+2020 年 6 月
+
+Migration and Optimization
+of
+Android System Based on Loongson 2K Platform
+
+A thesis submitted to the
+University of Chinese Academy of Sciences
+in partial fulﬁllment of the requirement
+for the degree of
+Master of Engineering
+in Computer Technology
+By
+Du Zexu
+Supervisor: Senior engineer Xiao Junhua
+
+Institute of Computing Technology, Chinese Academy of Sciences
+
+June, 2020
+
+中国科学院大学
+学位论文原创性声明
+本人郑重声明：所呈交的学位论文是本人在导师的指导下独立进行研究工
+作所取得的成果。尽我所知，除文中已经注明引用的内容外，本论文不包含任何
+其他个人或集体已经发表或撰写过的研究成果。对论文所涉及的研究工作做出
+贡献的其他个人和集体，均已在文中以明确方式标明或致谢。本人完全意识到本
+声明的法律结果由本人承担。
+作者签名：
+日
+
+期：
+
+中国科学院大学
+学位论文授权使用声明
+本人完全了解并同意遵守中国科学院大学有关保存和使用学位论文的规定，
+即中国科学院大学有权保留送交学位论文的副本，允许该论文被查阅，可以按照
+学术研究公开原则和保护知识产权的原则公布该论文的全部或部分内容，可以
+采用影印、缩印或其他复制手段保存、汇编本学位论文。
+涉密及延迟公开的学位论文在解密或延迟期后适用本声明。
+作者签名：
+
+导师签名：
+
+日
+
+日
+
+期：
+
+期：
+
+摘 要
+
+摘 要
+实现通用处理器和操作系统自主可控是信息系统建设的基本要求和重要发
+展方向。龙芯 2K1000 是具有完全自主知识产权的国产商用 MIPS 架构处理器，
+可应用于移动智能终端、高端嵌入式应用、物联网等领域。Android 操作系统目
+前被广泛应用于以手持移动智能终端为代表的各类终端硬件平台，其市场占有
+率高达 73.3%，将 Android 操作系统移植到龙芯 2K 平台上，对于国产处理器平台
+借助 Android 操作系统进一步拓展市场具有极其重要的意义。本文基于龙芯 2K
+平台实现了 Android 5.1.1 操作系统的移植，并在此基础上进行了性能优化方法
+研究。然后采用相关性能测试工具进行了全面的性能测试和分析，论证 Android
+5.1.1 操作系统在龙芯 2K 平台上的可用性。
+本文主要工作如下：
+1. 基于龙芯 2K 平台的 Android 5.1.1 操作系统移植。本文以 Android 5.1.1 操
+作系统能够在龙芯 2K 平台上正常运行与交互为目标，研究 Android 5.1.1 系统中
+Linux 内核适配、Android 操作系统开发与编译环境搭建、Android 运行时（ART）
+和 Android 图形子系统重构与移植等核心难点，使 Android 5.1.1 操作系统成功运
+行在龙芯 2K 平台上。
+2. 基于龙芯 2K 平台 Android 5.1.1 操作系统优化与性能分析。针对 Android
+5.1.1 操作系统在龙芯 2K 平台下运行卡顿、界面不流畅的问题，本文利用性能分
+析工具对影响系统使用的关键功能进行测试，定位并分析性能瓶颈，针对性能问
+题进行优化。除此之外，本文实现龙芯 2K 平台图形硬件加速优化，使 Android
+5.1.1 操作系统的 2D、3D 图形渲染能力相比于软件渲染模式有很大的提升。通
+过上述优化，Android 5.1.1 操作系统可流畅运行于龙芯 2K 平台上。
+本文使用谷歌官方提供的 Android 系统性能测试工具对运行在龙芯 2K 平台
+下的 Android 5.1.1 操作系统性能进行了全面的测试及分析。通过与真实手机下
+的测试结果对比，基于龙芯 2K 平台的 Android 5.1.1 操作系统已具备流畅运行的
+能力，为龙芯 2K 平台开拓市场提供了有力的技术支持。
+
+关键词：龙芯，安卓，系统移植，系统优化，性能分析
+I
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+II
+
+Abstract
+
+Abstract
+Realizing the independently controllable of general-purpose processors and operating systems is the basic requirement and important development direction of information
+system construction. Loongson 2K1000 is a domestic commercial MIPS architecture
+processor with completely independent intellectual property rights, which can be used
+in mobile intelligent terminals, high-end embedded applications, Internet of Things and
+other ﬁelds. The Android operating system is currently widely used in various terminal hardware platforms represented by smartphones, and its market share is as high as
+73.3%. Porting the Android operating system to the Loongson 2K platform is extremely
+important for the domestic processor platform to further expand the market with the help
+of the Android operating system. This paper implements the transplantation of the Android 5.1.1 operating system based on the Loongson 2K platform, and on this basis, the
+performance optimization method is studied. Then use the relevant performance testing tools to conduct a comprehensive performance test and analysis to demonstrate the
+availability of the Android 5.1.1 operating system on the Loongson 2K platform.
+The main work of this article is as follows:
+1. Android 5.1.1 operating system transplantation based on the Loongson 2K platform. This article aims at the normal operation and interaction of the Android 5.1.1
+operating system on the Loongson 2K platform. It studies the Linux kernel adaptation
+in the Android 5.1.1 system, building the Android system development and compilation
+environment, Android runtime (ART) and Android graphics subsystem reconstruction
+and transplantation, and other core issues. The purpose is to make the Android 5.1.1
+operating system successfully run on the Loongson 2K platform.
+2. Based on Loongson 2K platform Android 5.1.1 operating system optimization
+and performance analysis. In response to the problem of the Android 5.1.1 operating
+system based on the Loongson 2K platform running stuck and the interface not smooth,
+this article uses performance analysis tools to test the key functions that aﬀect the use of
+the system, locate and analyze performance bottlenecks, and optimize for performance
+
+III
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+problems. Besides, this paper realizes the optimization of graphics hardware acceleration of the Loongson 2K platform, so that the rendering capability of 2D and 3D graphics
+in Android 5.1.1 operating system is greatly improved compared to the software rendering mode. Through the above optimization, the Android 5.1.1 operating system can run
+smoothly on the Loongson 2K platform.
+This article uses the Android system performance test tool oﬃcially provided by
+Google to conduct a comprehensive test and analysis of the performance of the Android
+5.1.1 operating system running on the Loongson 2K platform. By comparing with the
+test results under real mobile phones, the Android 5.1.1 operating system based on the
+Loongson 2K platform already has the ability to run smoothly, providing strong technical support for the Loongson 2K platform to develop the market.
+
+Keywords: Loongson, Android, system porting, system optimization, performance
+analysis
+
+IV
+
+目 录
+
+目 录
+第 1 章 引言 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+1
+
+1.1 研究背景与意义 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+1
+
+1.1.1 研究背景 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+1
+
+1.1.2 研究意义 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+2
+
+1.2 国内外研究现状 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+3
+
+1.3 研究目标及主要工作 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+6
+
+1.4 本文组织结构 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+6
+
+第 2 章 Android 系统框架及相关技术研究 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+9
+
+2.1 Android 系统框架 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+9
+
+2.2 Android 定制 Linux 内核关键驱动分析 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+11
+
+2.2.1 Binder 驱动 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+11
+
+2.2.2 Ashmem 驱动 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+13
+
+2.2.3 Logger 日志系统驱动 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+14
+
+2.2.4 Low Memory Killer 驱动 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+14
+
+2.3 Android 本地共享函数库 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+15
+
+2.3.1 Bionic libc ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+15
+
+2.3.2 Surface Manager ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+15
+
+2.3.3 OpenGL ES ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+16
+
+2.3.4 Media Framework ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+16
+
+2.3.5 Hardware Abstraction Layer ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+16
+
+2.4 Android 运行时（ART） ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+17
+
+2.4.1 Dalvik 虚拟机与 ART 虚拟机 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+17
+
+2.4.2 运行时内存管理 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+22
+
+2.5 Android Java 核心库与应用程序框架层 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+23
+
+2.6 本章小结 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+23
+
+第 3 章 基于龙芯 2K 平台的 Android 5.1.1 系统移植 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+25
+
+3.1 龙芯 2K 平台介绍 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+25
+
+3.2 Android 5.1.1 定制 Linux 内核适配 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+25
+
+3.2.1 Android 5.1.1 定制 Linux 内核驱动移植 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+25
+
+3.2.2 Android 定制驱动 64/32 位接口兼容技术研究 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+27
+
+3.3 基于龙芯 2K 平台的 Android 5.1.1 开发与编译环境构建 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+29
+
+V
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+3.3.1 Android 开发与编译环境构建 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+29
+
+3.3.2 向 Android 5.1.1 系统添加龙芯 2K 设备平台 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+30
+
+3.4 Android 5.1.1 运行时移植 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+31
+
+3.4.1 Android 5.1.1 运行时架构 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+31
+
+3.4.2 Android 5.1.1 运行时 MIPS64 架构寄存器分配支持 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+34
+
+3.4.3 Android 5.1.1 运行时 MIPS64 编译器后端支持 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+36
+
+3.5 Android 5.1.1 图形子系统重构 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+40
+
+3.6 本章小结 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+42
+
+第 4 章 基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+43
+
+4.1 Android 系统性能分析与优化概要 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+43
+
+4.2 性能调优工具 perf ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+44
+
+4.2.1 perf 工具介绍 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+45
+
+4.2.2 perf 工具使用 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+45
+
+4.3 基于龙芯 2K 平台的 Android 5.1.1 系统性能分析 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+45
+
+4.3.1 主界面操作流畅度分析 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+45
+
+4.3.2 2D 图形绘制流畅度分析 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+47
+
+4.3.3 Android 系统内存操作函数优化正向分析 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+47
+
+4.4 memset 函数优化 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+49
+
+4.4.1 Android 源码中的 memset 函数 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+49
+
+4.4.2 memset 函数优化实现 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+50
+
+4.5 memcpy 函数优化 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+54
+
+4.6 基于龙芯 2K 平台的 Android 5.1.1 系统移植优化效果与性能评估 ⋅ ⋅ ⋅ ⋅
+
+56
+
+4.6.1 性能测评工具介绍 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+56
+
+4.6.2 0xbenchmark 工具介绍⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+56
+
+4.6.3 基于龙芯 2K 平台的 Android 5.1.1 系统移植效果 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+58
+
+4.6.4 基于龙芯 2K 平台的 Android 5.1.1 系统性能评估 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+58
+
+4.7 本章小结 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+63
+
+第 5 章 总结与展望 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+65
+
+5.1 本文工作总结 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+65
+
+5.2 未来研究方向 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+66
+
+附录 A Android 相关源码 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+67
+
+A.1 libcutils 库 memset 函数 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+67
+
+A.2 skia 库 memset 函数 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+67
+
+参考文献 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+71
+
+VI
+
+目 录
+
+作者简历及攻读学位期间发表的学术论文与研究成果 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+75
+
+致谢 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+77
+
+VII
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+VIII
+
+图形列表
+
+图形列表
+
+1.1 龙芯 2K1000 处理器结构图。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+2
+
+1.2 MIPS 架构指令集兼容关系。⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+5
+
+2.1 Android 操作系统架构。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+10
+
+2.2 Android 操作系统各层次依赖关系。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+10
+
+2.3 Binder 机制中各组件与 Binder 驱动间的关系。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+12
+
+2.4 Ashmem 匿名共享内存子系统架构。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+13
+
+2.5 Dalvik、ART 与 Java 虚拟机的关系。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+18
+
+2.6 Dalvik 虚拟机与 ART 虚拟机架构比较。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+19
+
+2.7 jar 文件与 dex 文件的结构对比。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+19
+
+2.8 ELF 格式的 oat 文件。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+21
+
+3.1 Alarm-dev 驱动程序加载和调用流程。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+27
+
+3.2 ART 运行时架构。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+32
+
+3.3 ART 运行时查找类和方法的本地机器指令的过程。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+33
+
+3.4 三段式编译器架构。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+34
+
+3.5 三段式编译器的可拓展性。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+35
+
+3.6 ART 运行时中 dex 字节码的编译框架。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+36
+
+3.7 CodeGenerator 相关类图。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+37
+
+3.8 MIPS64 R2 指令集 ADD 指令编码格式。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+38
+
+3.9 Android 图形子系统。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+41
+
+3.10 重构后 Android 图形子系统。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+42
+
+4.1 DrawCanvas 调用流程。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+48
+
+4.2 sk_memset16_portable 函数流程图。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+51
+
+4.3 mips32_memset16 函数流程图。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+53
+
+4.4 memcpy 函数流程图。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+54
+
+4.5 汇编优化后 memcpy 函数流程图。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+55
+
+4.6 龙芯 2K 平台 Android 5.1.1 系统界面。(a) 系统 home 界面，(b) 系统主
+界面，(c) 系统信息界面，(d) 日历界面。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ 58
+4.7 memset 函数优化前后执行时间对比。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+59
+
+4.8 memcpy 函数优化前后执行时间对比。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+60
+
+4.9 访存操作函数优化前后 2D 图形渲染性能对比。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+60
+
+IX
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+4.10 龙芯 2K 平台 Android 系统软件渲染与硬件加速模式下 2D、3D 图形
+性能对比。(a) 2D 图形渲染测试，(b) 3D 图形渲染测试。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+61
+
+4.11 龙芯 2K 平台 Android 系统软件渲染与硬件加速模式下 2D、3D 图形
+性能对比。(a) 2D 图形渲染测试，(b) 3D 图形渲染测试。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+63
+
+X
+
+表格列表
+
+表格列表
+
+1.1 Android 操作系统历史版本。⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+4
+
+3.1 龙芯 2K 平台配置表。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+25
+
+3.2 MIPS N64 接口寄存器约定。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+37
+
+4.1 主界面操作的 perf 分析数据。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+46
+
+4.2 2D 图形测试的 perf 分析数据。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+47
+
+4.3 魅蓝 E2 智能手机配置表。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+62
+
+4.4 数学运算性能对比。 ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅ ⋅
+
+63
+
+XI
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+XII
+
+符号列表
+
+符号列表
+中英文名词对照
+Android
+
+安卓：不做一般说明时指安卓操作系统，有时亦指安卓公司。
+
+Google
+
+谷歌：Google Inc.，指谷歌公司。
+
+缩写
+RISC
+
+Reduced Instruction Set Computing
+
+MIPS
+
+Microprocessor without Interlocked Pipelined Stages
+
+OHA
+
+Open Handset Alliance
+
+AOSP
+
+Android Open Source Project
+
+ART
+
+Android Runtime
+
+CPU
+
+Central Processing Unit
+
+JIT
+
+Just-In-Time complication
+
+AOT
+
+Ahead-Of-Time complication
+
+GC
+
+Garbage Collection
+
+ARM
+
+Advanced RISC Machine
+
+SDK
+
+Software Development Kit
+
+API
+
+Application Programming Interface
+
+NDK
+
+Native Development Kit
+
+JNI
+
+Java Native Interface
+
+IPC
+
+Inter-Process Communication
+
+RPC
+
+Remote Procedure Call
+
+Ashmem
+
+Anonymous Shared Memory
+
+OOM
+
+Out Of Memory killer
+
+GPU
+
+Grapihcs Processing Unit
+
+HAL
+
+Hardware Abstraction Layer
+XIII
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+Paas
+
+Platform as a service
+
+LOS
+
+Large Object Space
+
+ELF
+
+Executable and Linkable Format
+
+IR
+
+Intermediate Representation
+
+SIMD
+
+Single Instruction Muliple Data
+
+FPS
+
+Frames Per Second
+
+XIV
+
+第 1 章 引言
+
+第 1 章 引言
+研究背景与意义
+
+1.1
+
+研究背景
+
+1.1.1
+
+目前，全球出售的智能手机中 Android 操作系统占比达到 73.3% [1] 。Android
+操作系统，最初是由 Android 公司（2005 年被 Google 公司收购）在基于 Linux 内
+核的修改版以及其他开源软件的基础上构建的移动操作系统 [2] 。其早期版本由
+以 Google 公司为首的数家软件开发商、手机制造商，以及电信运营商组成的开
+[3]
+放手持联盟（OHA）
+发布。当前 Android 操作系统最新的稳定版本是 2019 年 9
+
+月 3 日发布的 Android 10。Google 公司采取 Apache 免费开源许可证的授权方式
+公开 Android 操作系统的核心源代码，并在此基础上通过创建 Android 开放源代
+码项目（AOSP）来主导 Android 操作系统的持续开发与改进 [4] 。Android 操作系
+统因其开源的特性获得了大量软硬件企业持续的资源投入，形成了一个良性循
+环的软硬件生态圈。
+Android 操作系统采用先进的层次化结构设计理念，大大简化了系统中不同
+层级之间的耦合性。在此基础上，Android 操作系统选用具有平台无关特性的 Java
+语言作为其应用程序开发语言，并且通过系统中的 Android 运行时（ART）环境、
+Java 核心库，为每一个上层应用程序提供了独立的运行时环境，使得 Android 应
+用程序具备了良好的安全性、跨平台性。
+Linux 发行版操作系统运行于 x86、ARM 等硬件平台，Windows 操作系统运
+行于 x86 平台，而 Android 作为一款基于 Linux 内核的移动操作系统，同样也需
+要硬件平台来承载。目前市面上绝大多数使用 Android 操作系统的终端设备采用
+ARM 处理器硬件方案。这是因为 ARM 架构作为 RISC 处理器的代表，其架构设
+计与实现更加符合现代移动智能终端设备对于处理器高性能、低功耗的要求。众
+多 ARM 硬件厂商对 Android 操作系统中的核心模块进行了持续深入的优化，这
+也进一步促使适配 Android 操作系统的 ARM 消费类终端设备领域保持了极高的
+市场占有率。
+Android 操作系统并非只能运行在 ARM 平台上，上述 RISC 处理器中除
+ARM 架构外，我国科研工作者研发的，具有完全自主知识产权的 MIPS 架构
+1
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+龙芯 2K1000 处理器亦符合现代移动智能终端设备硬件对于处理器高性能、低功
+耗的设计要求。
+龙芯 2K1000 处理器采用 40nm 工艺，片内集成两个兼容 MIPS64 R2 指令集
+的 GS264 处理器核，其工作主频 1GHz，功耗 1 至 5w，片内集成 GPU、两路 PCIE
+2.0、一路 STAT 2.0、四路 USB 2.0 等多种功能模块，如图 1.1所示 [5] 。
+
+图 1.1 龙芯 2K1000 处理器结构图。
+Figure 1.1 Loongson 2K1000 CPU structure.
+
+根据龙芯 2K1000 处理器的技术特性及市场定位，龙芯 2K 平台同样适用于
+适配 Android 操作系统的移动智能终端领域。
+研究意义
+
+1.1.2
+
+本文选择基于龙芯 2K 平台的 Android 5.1.1 系统移植与优化作为研究工作的
+方向，因为此研究内容无论在技术应用层面还是在行业发展层面均有重要的意
+义。
+2
+
+第 1 章 引言
+
+在技术应用层面，AOSP 官方选择持续针对 ARM 架构处理器对 Android 操
+作系统进行开发及演进。这也意味着 Android 操作系统在 MIPS 架构处理器上需
+要做大量的移植与优化工作。将 Android 操作系统成功适配到国产龙芯处理器平
+台，并形成具有实用价值的软硬件生态体系，能够在一定意义上促进国产处理器
+技术与操作系统技术共同发展进步。
+在行业发展层面，我国正面临着异常严峻的国际环境，处理器与操作系统作
+为核心技术的代表、互联网时代的基石，对于国家安全具有至关重要的意义。在
+此背景下，我国科技工作者研发出了以龙芯系列处理器为代表的具有完全自主
+知识产权的国产通用处理器。目前市场上除了高新技术的竞争之外，还面临着以
+技术生态为壁垒的商业竞争。以传统个人计算机行业为例，以英特尔和微软为代
+表的多家企业创立并主导了 Windows & Intel 体系封闭生态圈，并迅速占领全球
+市场，该生态圈的核心资源不会对其他企业开放，形成商业壁垒。在此种行业背
+景下，新兴企业要么游离于已被这种封闭生态圈占领的广袤的市场之外，难有参
+与商业合作的机会；要么试图从零开始，打造一套由自己主导的生态壁垒，但是
+由于基础差、起点低、创新不够等问题，难以真正发展自有生态。
+相比之下，消费类终端行业所呈现的发展模式与个人计算机行业有较大不
+同。因 Android 操作系统免费、开放的商业策略，Android 平台的硬件设备和应
+用程序都保持迅猛的增长态势。使得 Android 系统吸引了整个产业链上下游的众
+多合作者来共同创造和分享 Android 生态圈的巨大市场蛋糕。
+龙芯 2K 平台面向消费者智能移动终端，积极融入 Android 生态圈，将 Android 操作系统移植到自身平台，进而推出相应的系统级方案，有利于龙芯利用
+Android 生态圈的各种资源及用户群体来拓展目标市场，提升自身产品的竞争力。
+因此，本文研究系统类移植的关键技术，实现了基于龙芯 2K 平台的 Android
+5.1.1 操作系统的移植，并针对系统性能问题进行优化，为拓展龙芯生态圈提供
+了支持，有着重要的研究意义。
+1.2
+
+国内外研究现状
+Android 操作系统自发布之日起，在 Android 开源项目（AOSP）的引领下，
+
+已经发布数十个 Android 系统版本，目前最新 Android 系统版本为 Android 10 [6] ，
+Android 操作系统的历史版本如表 1.1所示。
+3
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+而推出相应的系统级方案，有利于龙芯利用 Android 生态圈的各种资源及用
+户群体来拓展目标市场，提升自身产品的竞争力。
+表 1.1 Android 操作系统历史版本。
+Table 1.1 Historical version of the Android operating system.
+版本号
+
+版本名称
+
+发布时间
+
+运行时环境
+
+10
+
+10
+
+2019 年 9 月
+
+ART
+
+9
+
+pie
+
+2018 年 8 月
+
+ART
+
+8.1
+
+Oreo
+
+2017 年 12 月
+
+ART
+
+8.0
+
+Oreo
+
+2017 年 8 月
+
+ART
+
+7.1
+
+Nougat
+
+2016 年 10 月
+
+ART
+
+7.0
+
+Nougat
+
+2016 年 8 月
+
+ART
+
+6.0
+
+Marshmallow
+
+2015 年 10 月
+
+ART
+
+5.1
+
+Lollipop
+
+2015 年 3 月
+
+ART
+
+5.0
+
+Lollipop
+
+2014 年 11 月
+
+ART
+
+4.4
+
+Kitkat
+
+2013 年 10 月 Dalvik & ART 1.6.0
+
+4.3
+
+Jelly Bean
+
+2013 年 7 月
+
+Dalvik
+
+4.2
+
+Jelly Bean
+
+2012 年 11 月
+
+Dalvik
+
+4.1
+
+Jelly Bean
+
+2012 年 7 月
+
+Dalvik
+
+Ice Cream Sandwich 2011 年 10 月
+
+Dalvik
+
+2011 年 2 月
+
+Dalvik
+
+4.0
+2.3
+
+Gingerbread
+
+在各个版本的 Android 源码中，Android 系统开发的基准分支一直基于 ARM，
+与系统功能升级相关的任何源码修改都会首先发布在该分支上。
+Android-x86 项目 [7] 从 Android 1.6 版本开始开发 x86 平台下的 Android 系统
+分支，该项目会定期将 ARM 基准分支的更新移植到 x86 平台，目前 x86 平台上
+已经完成移植并发布的最新版本为 Android-x86 8.1。
+MIPS 官方 [8] 从 Android 2.2 版本开始开发 MIPS 平台的分支，目前 MIPS 平
+台上已经完成移植并发布的最新版本是 Android Nougat MR2-7.1.2。
+上述 Android 开源项目尤其是 AOSP 项目对 Android 操作系统的发展做出了
+巨大的贡献。使得许多研究者对基于龙芯平台的 Android 操作系统也做了一定的
+研究工作。在龙芯平台上的 Android 操作系统研究中，有研究者针对早期的龙芯
+4
+
+第 1 章 引言
+
+产品——龙芯 2F 处理器为目标平台开展过 Android 2.3 操作系统移植工作。在该
+项研究中，研究者指出了龙芯 2F 处理器只兼容 MIPS III 指令集，不兼容 Android
+操作系统 MIPS 分支中使用的 MIPS32 指令。对此，需要对该类型的指令作等价
+替换 [9] ，MIPS 架构指令集兼容关系如图 1.2所示 [10] 。
+
+图 1.2 MIPS 架构指令集兼容关系。
+Figure 1.2 MIPS architecture instruction set compatibility.
+
+上述研究者还指出了将 Android libAGL 本地图形库移植至龙芯 2F 平台时，
+由于龙芯 2F 不支持该库中大量使用的乘加指令，因此采用 c 语言重构的方法避
+免上述指令兼容性问题 [9] 。
+本文选择龙芯 2K 平台作为 Android 操作系统移植的目标平台，该平台采用
+的 GS264 处理器核已实现对 MIPS32、MIPS64 指令集 Release 5 及之前版本指令
+集的兼容，根据图 1.2所示的 MIPS 架构指令集间的兼容关系可知，本文的研究
+内容不会涉及到 MIPS 指令集兼容性问题。
+此外，亦有研究者针对龙芯 3A 平台进行过 Android 4.0 32 位操作系统的移
+植与 Dalvik 虚拟机移植与优化相关的研究。该研究实现了 Android 4.0.4 32 位操
+作系统在龙芯 3A 平台上的源码重构与二次开发，保证系统稳定运行于龙芯 3A
+平台的基础上完成了 Dalvik JIT 编译器的移植与优化 [11] 。
+虽然上述工作中针对龙芯 2K 平台的 Android 操作系统移植工作具有一些
+参考意义。但是 Android 操作系统自 Android 4.4 版本开始引入 Android 运行时
+（ART）并在 Android 5.0 版本中完全抛弃 Dalvik 虚拟机，此后基于龙芯平台的
+Android 64 位操作系统、Android 运行时（ART）的移植优化及性能分析方面的
+研究工作尚属空白。
+5
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+此外，上述相关研究中，有的研究中迫于早期平台的硬件设备性能限制，未
+对 Android 系统移植至龙芯平台后的实际性能进行评估，有的研究者只是进行了
+相对粗糙的定性分析，未能对系统流畅度、图像显示帧率等基本系统性能指标进
+行量化分析。因此，针对系统移植后的系统可用性、稳定性以及兼容性方面的工
+作仍有较大的研究空间。
+1.3
+
+研究目标及主要工作
+本文的研究内容及其具体目标有以下三个方面组成。
+1）基于龙芯 2K 平台的 Android 5.1.1 操作系统移植
+本文首先以龙芯 2K 平台作为目标平台，深刻研究 Android 5.1.1 系统中 Linux
+
+内核适配、Android 运行时（ART）、Android 图形子系统重构与移植以及其他子
+系统移植等核心难题的解决方案。具体目标是能够在龙芯 2K 平台上成功运行
+Android 5.1.1 64、32 位操作系统，并且系统能够正常进行交互使用。
+2）基于龙芯 2K 平台的 Android 系统性能优化
+对龙芯 2K 平台及 Android 操作系统架构及源码进行深入研究的基础上，实
+现龙芯 2K 平台的 Android 5.1.1 操作系统的性能优化。具体做法是应用 perf 性能
+分析工具对影响系统使用的关键功能进行测试，分析并定位出性能瓶颈，给出优
+化方案，通过比较优化前后的系统性能给出优化效果。
+3）龙芯 2K 平台的 Android 系统性能测试与分析
+本文将在深入研究 Android 操作系统特性的基础上，采用谷歌官方提供的
+0xbenchmark Android 系统性能测试工具对龙芯 2K 平台的 Android 5.1.1 系统进
+行性能测试及分析。
+1.4
+
+本文组织结构
+本文围绕 Android 系统移植、优化及性能分析三个方面展开，具体组织结构
+
+如下：
+第一章介绍了龙芯系列处理器以及 Android 操作系统等相关的研究背景及
+研究意义，介绍了现有基于龙芯系列处理器移植 Android 操作系统的研究现状，
+为本论文基于龙芯 2K 平台移植 Android 5.1.1 操作系统提供依据，最后介绍了本
+论文的相关工作和组织结构。
+6
+
+第 1 章 引言
+
+第二章针对 Android 系统的层次化设计架构进行深入分析，着重分析 Android Linux 内核、Android 系统本地共享函数库、Android 运行时等与系统移植
+相关的关键系统组件。
+第三章具体分析针对龙芯 2K 平台进行的 Android 5.1.1 64、32 位系统的移植
+开发工作，主要包括 Android Linux 内核移植、针对龙芯 2K 平台的 Android 5.1.1
+系统 64_32 multilib 编译开发环境构建、Android 运行时移植、Android 图形子系
+统重构等工作。
+第四章首先介绍了龙芯 2K 平台 Android 系统性能分析和优化的必要性，接
+着通过介绍 perf 性能调优工具对龙芯 2K 平台的 Android 系统进行分析，找出热
+点函数，对其进行分析优化。然后使用 0xbenchmark 性能测试工具测试龙芯 2K
+平台 Android 5.1.1 Lollipop 系统的整体性能，进一步深入分析测试结果，给出分
+析结论。
+第五章对本文的工作进行了总结，回顾了本文的工作和贡献，并展望进一步
+的研究工作。
+
+7
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+8
+
+第2章
+
+第2章
+
+Android 系统框架及相关技术研究
+
+Android 系统框架及相关技术研究
+
+本章将对 Android 5.1.1 的系统架构、关键子模块，以及与目标平台相关的模
+块进行深入地分析研究，为后续的 Android 系统移植优化工作提供理论准备。
+2.1
+
+Android 系统框架
+Android 操作系统专为消费类智能终端打造，这类设备普遍具有处理器性能
+
+不高，内存较小，使用电池供电，需要低功耗运行的特点。针对这类硬件平台的特
+点，Android 操作系统采用了精妙的层次化架构设计，将系统底层至顶层功能解
+耦。Android 操作系统最底层采用定制化的 Linux 内核，通过硬件抽象层（HAL，
+Hardware Abstraction Layer）向上提供各种设备驱动的接口，屏蔽了底层设备的实
+现细节。Android 运行时环境及本地函数库向使用 Java 语言开发的 Android 应用
+程序提供了统一的运行平台，同时经过应用框架层的支持，大大简化了 Android
+应用程序的开发难度。综上，这种架构设计模式中每一层在对其上层提供统一服
+务的同时，可以屏蔽更低层次的实现细节，使得层与层之间的耦合度降到最低，
+既方便了各个系统模块独立开发、移植与调试，又保证了 Android 应用程序具有
+易开发、跨平台的特点 [12] 。Android 系统的整体架构如图 2.1 所示 [2] 。
+图 2.2 展示了 Android 系统中各层次之间的依赖关系，Android 应用程序采用
+Java 作为开发语言，借助 Android 官方提供的 Android SDK，基于 Android 系统
+中的应用程序框架层提供各种 Java API 以及系统服务进行应用逻辑的开发。应
+用层与应用程序框架层的 Java 程序基于 Android 运行时（ART）环境来运行，同
+时 Android 系统还支持通过使用 Android 官方提供的 NDK 工具使用 Native 方法
+开发应用程序，即通过 Android 运行时提供的 JNI 机制实现对本地代码的调用。
+最终，使用 c/c++ 语言实现的 Android 运行时以及本地共享库都运行在底层的
+Linux 环境之上。
+通过上文对 Android 操作系统框架的解耦分析，可知普通 Android 应用程序
+开发者只需关注应用层本身以及应用程序框架层即可完成 Android 应用程序的
+开发。Android 操作系统适配者需要进一步关注 Android Linux 内核、本地共享
+库、Android 运行时环境等模块来完成系统移植适配工作。
+9
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+图 2.1 Android 操作系统架构。
+Figure 2.1 The architecture of Android operating system.
+
+图 2.2 Android 操作系统各层次依赖关系。
+Figure 2.2 All levels of dependencies of the Android operating system.
+
+10
+
+第2章
+
+Android 系统框架及相关技术研究
+
+Android 定制 Linux 内核关键驱动分析
+
+2.2
+
+Android 操作系统通过定制 Linux 内核，对上层系统提供了进程管理、内存
+管理、底层硬件驱动模型以及基于用户权限的安全性管理等关键服务，同时屏
+蔽了大部分底层硬件实现的具体差异，从而使得 Linux 内核在底层硬件与上层
+Android 系统核心库之间构建了第一层次的硬件抽象。
+与其他 Linux 发行版操作系统不同，Android 操作系统摒弃了主流桌面 Linux
+操作系统中使用的 glibc 本地共享库以及图形窗口系统，这使得传统桌面 Linux
+系统中使用的应用程序不与 Android 系统兼容 [13] 。
+Android 除了对 Linux 内核做大量剪裁定制外，还在 Linux 内核中添加了若
+干新模块，以期通过优化 Linux 某方面的性能，使其能够适应基于移动处理器的
+Android 操作系统应用场景。通过分析 Android 系统定制 Linux 内核，下文中总
+结出了一些向 Android 上层系统提供关键功能的模块。
+Binder 驱动
+
+2.2.1
+
+Linux 内核继承和兼容了丰富的 Unix 系统进程间通信（IPC）机制，传统的
+进程间通信机制有管道（Pipe）、信号（Signal）和跟踪（Trace），这三项通信
+手段只能用于父进程与子进程之间或者兄弟进程之间，后来又增加了命令管道
+（Named Pipe），使得进程间通信不再局限于父子进程或者兄弟进程之间 [14] 。为
+了更好地支持商业应用中的事务处理，在 AT&T 的 Unix 系统 V 中，又增加了三
+种称为“System V IPC”的进程间通信机制，分别是报文队列（Message）
+、共享内
+存（Share Memory）和信号量（Semaphore）
+，后来 BSD Unix 对“System V IPC”
+机制进行了重要的扩充，提供了一种称为插口（Socket）的进程间通信机制 [15] 。
+但是，在 Android 操作系统中并未采用以上进程间通信机制，而是另辟蹊径
+采用了 Binder 进程间通信机制，该机制为运行在单机系统上的不同进程提供了
+类似于分布式系统中远程过程调用（RPC）的功能 [16] 。
+因为在 Android 系统中，Server 服务程序专门负责多媒体播放、视频音频信
+息获取以及各种传感器信号捕捉等功能，Android 应用开发者只需要按照相应的
+协议实现 Client，并与 Server 进行进程通信就可以获取这些服务即可。目前 Linux
+内核所支持的进程间通信机制并不适用于在系统资源量较紧张的消费类移动设
+备上构建高效的 C/S（Client-Server）通信架构。因此，Android 操作系统使用了
+11
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+基于 OpenBinder 来实现的 Binder 进程间通信机制。
+Binder 其字面意思为“黏合剂”，那么 Binder 在 Android 系统中需要将什么
+东西黏合在一起呢？原来，完整的 Binder 进程间通信机制需要由 Client、Server、
+Service Manager 和 Binder 驱动程序这四个组件联合实现，其中 Client、Server、
+Service Manager 这三个组件都为用户态程序，在 Android 应用层和应用程序框架
+中实现；而 Binder 驱动程序则作为 Linux 内核模块，实现进程间通信的底层核
+心功能，即 Client 和 Server 可以依靠 Binder 驱动和 Service Manager 提供的基础
+架构，进行彼此间的通信。
+Android 系统 Binder 机制中的四个组件 Client、Server、Service Manager 和
+Binder 驱动程序的关系如图 2.3 所示 [16] ：
+
+图 2.3 Binder 机制中各组件与 Binder 驱动间的关系。
+Figure 2.3 The relationship between the components in the Binder mechanism and it’s driver.
+
+1）Client、Server 和 Service Manager 实现在用户空间中，Binder 驱动程序实
+现在内核空间中；
+2）Binder 驱动程序和 Service Manager 在 Android 操作系统中已经实现，开
+发者只需要在用户空间实现自己的 Client 和 Server；
+3）Binder 驱动程序提供设备文件/dev/binder 与用户空间交互，Client、Server
+和 Service Manager 通过 open 和 ioctl 文件操作函数与 Binder 驱动程序进行通信；
+4）Client 和 Server 之间的进程间通信通过 Binder 驱动程序间接实现；
+5）Service Manager 是一个守护进程，用来管理 Server，并向 Client 提供查
+询 Server 接口的能力。
+12
+
+第2章
+
+Android 系统框架及相关技术研究
+
+除此之外，Binder 驱动也是连接相关的接收数据缓冲区的实际管理者。在通
+信时，Binder 驱动会从发送进程的发送缓冲中将数据拷贝至由自己维护的接收
+缓冲区，并通过 mmap 只读映射的方式将接收缓冲映射至接收进程的进程空间。
+由此，只需通过 1 次内存拷贝即可实现发送进程与接收进程的数据传递。
+Ashmem 驱动
+
+2.2.2
+
+Android 操作系统以提供 Linux 内核驱动模块 Ashmem 为基础实现了一个匿
+名共享内存子系统 (Ashmem)，用来在应用程序之间进行数据共享。此驱动主要
+辅助 Linux 内核中原有的内存管理模块和共享内存机制，具备了进程间内存共享
+及有效内存管理功能。
+系统中的所有匿名共享内存系统都由 Ashmem 驱动程序负责分配和管理，
+为了方便应用程序使用匿名共享内存，Android 系统在运行时库 libcutils 中提供
+了 C 接口来访问 Ashmem 驱动程序。同时，在应用程序框架层中提供了更高级
+的 C++ 和 Java 接口来访问运行时库 lincutils 中的匿名共享内存 C 接口。上述
+Ashmem 匿名共享内存系统的架构如图 2.4所示。
+
+图 2.4 Ashmem 匿名共享内存子系统架构。
+Figure 2.4 Anonymous shared memory subsystem architecture.
+
+Linux 内核加载 Ashmem 驱动时会创建“/dev/ashmem”虚拟设备文件，该设
+备文件对外提供了 open、ioctl、mmap 及 release 四个文件操作接口。在 Android
+
+13
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+系统的 C/C++ 层和 JAVA 层中都会对以上接口进行进一步封装，用户态程序可
+以通过这四个接口创建匿名共享内存、把共享内存映射至自身的进程空间并将
+其锁定；在共享内存使用完毕后将其解锁并再度交由 Ashmem 驱动进行内存块
+的管理与回收工作 [16] 。
+Logger 日志系统驱动
+
+2.2.3
+
+Android 操作系统实现了一个轻量级的日志记录系统，该日志系统的核心是
+Android 定制 Linux 内核中的 Logger 驱动。Android 操作系统上层则为用户空间
+提供了调用日志系统的 Java 接口和 C/C++ 接口，以及一个名为 logcat 的可执行
+程序。因此无论是工作在 Java 层的应用开发者，还是工作在 C/C++ 层的 Android
+系统组件开发者，都可以利用这套系统定义并记录程序的运行信息，为开发调试
+提供支持 [16] 。
+Linux 内核加载 Logger 日志系统驱动后会创建三个名为“/dev/log/main”
+“
+、/dev/log/events”以及“/dev/log/radio”的虚拟设备文件，提供相应的文件操作接口。
+Logger 日志系统驱动内部使用等待队列的结构来串行化发起日志读取的进程，
+并使用环形缓冲区来暂存日志数据，由于环形缓冲区中的节点是以单条日志为
+单位配备相关信息的存储结构，所以开发者在读写日志时都是以条为单位进行
+操作，这大大提高了该套日志系统的易用性。
+2.2.4
+
+Low Memory Killer 驱动
+Android 操作系统中进程的生命周期完全由系统进行管理，即使用户手动去
+
+关闭一个应用，这个应用的进程上下文仍会在内存中存在一段时间。之所以这样
+设计，主要是为了更好的交互体验考虑，但是这一机制也会导致随着系统运行
+时间的推移，打开的应用增多，系统内存被快速消耗殆尽。Android 操作系统在
+Linux 内核原有的内存耗尽释放机制的基础上，增加定时检测、杀死冷进程、及
+时释放内存的 Low Memory Killer 机制。
+Linux 原有的 OOM 机制会在监测到系统可用内存不足时启动，通过一系列
+较为复杂的评分算法对所有存在的进程进行打分，得分高者将被判定为 bad 进
+程，进而被杀死以释放内存。而 Low memory killer 机制的启动机制为定时启动，
+启动后 Low memory killer 会根据系统当前的剩余内存空间计算出一个警戒级数。
+根据 Linux 内核已有的进程管理机制，内核会在每个进程启动后为其设置了一个
+14
+
+第2章
+
+Android 系统框架及相关技术研究
+
+oom_adj 值，可以简单认为该值与进程的重要性反相关，即 oom_adj 数值越高表
+示进程的重要程度越低，当警戒级数达到预设阈值后，Low Memory Killer 将检
+查所有 oom_adj 值大于警戒级数的进程，并把其中重要程度最低者或消耗内存
+最多者杀死。这套机制相比于原有的 OOM 机制更为简单高效，适于频繁定时地
+执行 [17] 。
+综上分析，要进行 Android 操作系统移植，首先要完成 Android 操作系统定
+制 Linux 内核的移植。
+Android 本地共享函数库
+
+2.3
+
+Android 操作系统在定制的 Linux 内核之上使用 C/C++ 语言构建了系统中
+的本地共享函数库层，共享函数库为 Android 运行时以及上层 Java 应用层提供
+最基础的本地运行环境以及本地函数调用。
+Android 本地共享函数库以.so 动态库文件的形式存储在系统 lib 目录下。运
+行在目标平台上的 Android 操作系统中的系统进程或应用在运行时动态链接共
+享库中的函数。上层 Java 层则通过 JNI 机制调用本地共享函数库，下面将介绍
+几个在 Android 操作系统中较为重要的本地共享函数库。
+2.3.1
+
+Bionic libc
+Bionic 是 Android 操作系统为使用 C/C++ 进行原生应用程序开发所提供的
+
+POSIX 标准 C 库。它是 Google 为 Android 操作系统提供的 BSD 标准 C 库的衍生
+库。同时 Bionic 是专门为移动计算而精心设计的，针对移动设备上有限的 CPU
+算力和可用内存进行了裁剪以提高工作效率。
+相比于 glibc 标准库，Bionic 比 glibc 库体积缩减近一半，其函数实现较 glibc
+简洁，因此运行效率更高。同时，Bionic 实现了一个更加轻量，更适于移动设备
+处理器主频较低的应用场景的 pthread 库。另外，Bionic 提供了 glibc 库没有的
+Android 操作系统专有的一些特殊函数，如程序执行日志输出函数等。
+2.3.2
+
+Surface Manager
+Android 操作系统中负责管理应用程序的图形绘制操作、合成 2D/3D 绘图流
+
+以及管理绘图缓冲区的库。基于该库中实现的管理结构及管理机制，图形显示缓
+冲区被抽象为多个逻辑 surface 供上层应用使用，应用程序只需要负责在自己分
+15
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+配的 surface 上进行绘图操作，多个 surface 之间的切换以及合成等功能则在该库
+中实现。
+2.3.3
+
+OpenGL ES
+Android 操作系统中的图形窗口系统由 Java 应用层、本地共享库层、以及硬
+
+件驱动层中的多个组件共同组成，其中后端的图形引擎是基于 OpenGL ES 接口
+以及 EGL 接口来构建的。本地共享库中的图形库即负责封装实现标准的 OpenGL
+ES 和 EGL 接口，但从本地图形库以下至最底层的图形处理硬件之间的软件框架
+目前尚无法统一，因此在进行 Android 图形系统的开发和移植时，往往需要根据
+目标平台图形硬件的驱动支持情况来定制解决方案。
+2.3.4
+
+Media Framework
+早期的 Android 操作系统采用 OpenCore 多媒体框架来构建系统的多媒体核
+
+心库，从 2.3 版本之后开始改用 StageFright 框架，并逐步废止了 OpenCore 的使
+用。以上两种框架虽然在实现上有所差异，但对外均主要提供两方面的功能：第
+一是多媒体播放功能，即各种格式的音视频流的解码与回放；第二是媒体流记录
+功能，即音视频流以及图像的捕获与编码。
+2.3.5
+
+Hardware Abstraction Layer
+在 Android 系统中，硬件抽象层（HAL）运行在用户空间中。硬件抽象层能
+
+够向下屏蔽硬件驱动模块的实现细节，向上提供硬件访问服务。通过硬件抽象
+层，Android 系统通过在内核空间中实现硬件底层驱动然后在用户空间实现硬件
+抽象层驱动的方式来支持硬件设备。
+HAL 层隐藏了特定平台的硬件接口细节，为操作系统提供虚拟硬件平台，使
+其具有硬件无关性，这样就可以方便在多种平台移植。从软硬件测试角度看，软
+硬件测试工作都可以分别基于硬件抽象层来完成，从而使得软硬件测试并行进
+[18]
+行称为可能。
+
+除上文介绍的几个共享函数库之外，Android 操作系统还提供了数十个面向
+各种功能的共享函数库，其中大部分库函数具有平台无关性，因此在移植时只需
+要针对目标平台重新进行编译和部署即可。但对于上述 Bionic libc 库、图形库、
+多媒体编解码库等与硬件驱动以及硬件设备耦合较为紧密的本地库，则需要从
+库函数源码甚至整个本地函数库架构入手，针对目标平台的具体情况进行修改。
+16
+
+第2章
+
+Android 系统框架及相关技术研究
+
+Android 运行时（ART）
+
+2.4
+
+Android 操作系统采用 Java 语言作为应用层和应用程序框架层的开发语言。
+Java 源代码经 Java 编译器编译后，生成由字节码（Bytecode）组成的 class 文件。
+Java 应用程序在目标平台上运行时，类加载器会将 class 文件加载到 Java 虚拟机
+相应内存中，由虚拟机解释执行。由于单纯解释执行的运行方式效率较低，所以
+目前主流的 Java 虚拟机，如 Hotspot、IBM JVM，除了含有最原始的解释执行模
+块，还包含有支持在运行时将 Java 字节码编译为目标平台本地机器码的即时编
+译模块（JIT）
+，虚拟机在实际运行时会根据某些条件自行选择解释执行或编译执
+行模式，采用 JIT 技术的 Java 编译器可较大幅度地提高 Java 应用程序整体的运
+行效率。
+Android 操作系统自始至终均未采用已有的 Java 虚拟机方案，Android 4.4
+KitKat 及以前的 Android 版本针对手持移动设备 CPU 频率低、内存容量小以及
+电池容量有限等特性专门开发了运用 JIT 技术的 Dalvik 虚拟机。随着各种复杂
+Android 应用程序的推出，Dalvik 虚拟机 JIT 编译方式以及垃圾收集器的性能已
+无法满足这些应用程序流畅运行的要求。另外，市场上高主频、多核心、支持 64
+位应用移动处理器的出现，硬件算力得到大幅提升。面对这些现实情形，Android
+操作系统于 Android 4.4 KitKat 版本引入 Android 运行时（ART）
+，2014 年底发布
+Android 5.0 Lollipop 版本后彻底抛弃 Dalvik 虚拟机。
+使用 Dalvik 虚拟机的 Android 系统中，应用程序每次运行时都要通过即时编
+译器将字节码转换为机器指令。而使用 ART 虚拟机的 Android 系统中，第一次
+安装应用程序时就会使用提前编译技术（AOT）预先将字节码编译为机器指令，
+使 Java 应用成为真正的本地应用。这样应用程序在安装时虽然会比 Dalvik 虚拟
+机多花点时间，但是应用程序安装成功后，其启动和运行速度都会比使用 Dalvik
+虚拟机的 Android 系统中的应用程序快。
+Dalvik 虚拟机与 ART 虚拟机
+
+2.4.1
+
+Dalvik 虚拟机和 ART 运行时都实现了如图 2.5所示的 3 个用来抽象的 Java
+虚拟机接口。
+1. JNI_GetDefaultJavaVMInitArgs：获取虚拟机的默认初始化参数。
+2. JNI_CreateJavaVM：在进程中创建虚拟机实例。
+17
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+图 2.5 Dalvik、ART 与 Java 虚拟机的关系。
+Figure 2.5 The relationship between Dalvik, ART and the Java virtual machine.
+
+3. JNI_GetCreateJavaVMs：获取进程中创建的虚拟机实例。
+此外，Android 系统提供了系统属性 persist.sys.dalvik.vm.lib，其值等于 libdvm.so 或者 libart.so。
+• 当这个属性的值为 libdvm.so 时，表示当前使用的是 Dalvik 虚拟机。
+• 这个属性的值为 libart.so 时，表示当前使用的是 ART 运行时环境。
+以上介绍了 Dalvik 虚拟机与 ART 运行时环境的共同之处，接下来通过
+图 2.6展示了 Dalvik 虚拟机与 ART 运行时环境架构上的区别 [19] 。
+Android 应用程序中的 Java 源文件经过编译生成 class 或 jar 文件，class 文件
+和 jar 文件可以直接输入到传统 JVM 中运行，但由于 Dalvik 与 ART 的输入文件
+格式为 Android 特有的 dex 格式，所以需要使用 dx 二进制工具，将 class 文件转
+换为 dex 格式。
+dx 工具首先将输入文件中的标准 Java 字节码指令翻译为 Android 字节码指
+令，然后按照 dex 格式规范对输入文件的各字段重新进行组织和布局，经转换后
+得到的 dex 文件体积相比输入的 class 文件将显著缩小 [20] 。图 2.7是经转换后的
+dex 文件与原始 jar 文件的布局对比。
+然后 dex 文件将与 Android 应用中的资源文件、本地库等文件一起打包成
+apk 文件。此文件即为开发完毕后发布的 Android 应用安装包，在安装 Android
+18
+
+第2章
+
+Android 系统框架及相关技术研究
+
+图 2.6 Dalvik 虚拟机与 ART 虚拟机架构比较。
+Figure 2.6 A comparison of Dalvik and ART architectures.
+
+图 2.7 jar 文件与 dex 文件的结构对比。
+Figure 2.7 A comparison of jar and dex ﬁle structure.
+
+19
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+应用时将 apk 文件解压后便可得到上述 dex 文件及相关资源文件和本地库文件。
+执行 Android 应用时，Dalvik 虚拟机在输入 dex 文件运行之前会使用 dexopt
+工具进行文件校验，目的是预先检查输入程序中的非法指令序列；检验通过后还
+会对输入程序进行虚方法索引替换、简单方法自动内联等进一步优化，最后生成
+odex 文件交由 Dalvik 虚拟机采用 JIT 技术编译执行。
+ART 虽然与 Dalvik 虚拟机一样使用 dex 字节码文件，但是由于 ART 采用
+AOT 技术，Android 应用程序在安装时使用 dex2oat 工具将 dex 字节码文件编译
+成 ELF 格式的本地指令。完成应用安装后，以后每次执行该应用时无需再将 dex
+字节码编译为本地机器码，只需执行本地指令即可。
+通过上述分析可以看出，虽然 Dalvik 虚拟机与 ART 虚拟机架构看起来比较
+相似，实则其背后机理迥然不同。使用 Dalvik 虚拟机的 Android 系统在安装应用
+程序后使用 Java 语言开发的应用程序是以 dex 字节码的形式存在，应用程序在
+每次执行时都需要将 dex 字节码解释为本地指令执行，只不过 Dalvik 虚拟采用
+了 JIT 技术，程序运行后，随着时间的推移，越来越多的字节码被 JIT 编译器编
+译成本地代码，从而获得一些执行效率。然而，当该应用结束本次运行，下次再
+重新运行时又要重头开始，无法利用上次编译的本地代码。
+使用 ART 虚拟机的 Android 系统由于采用的 AOT 技术，系统在安装 Android
+应用程序时便通过得 dex2oat 工具将使用 Java 语言开发的 dex 字节码文件编译成
+ELF 格式的 oat 本地代码文件，oat 文件格式如图 2.8所示。
+应用程序安装完毕后，以后每次运行应用程序都无需解释执行 dex 字节码指
+令，直接运行本地代码即可。虽然这种方式增加了应用程序的安装时间，但是会
+大大提升应用程序的运行效率。ART 虚拟机的优势便在于此。
+总结 ART 运行时的运行原理如下。
+1. Android 系统启动过程中创建 Zygote 进程利用 ART 运行时导出的虚拟机
+接口创建 ART 虚拟机。
+2. APK 安装时，将打包在 APK 中的 class.dex 文件使用 dex2oat 工具翻译成
+本地机器指令，最终得到 ELF 格式的 oat 文件。
+3. APK 运行时，将上述生成的 oat 文件加载到内存中，并且 ART 运行时通
+过.oat 文件中的 oatdata 段和 oatexec 段，找到任意一个类方法对应的本地机器指
+令执行。
+20
+
+第2章
+
+Android 系统框架及相关技术研究
+
+图 2.8 ELF 格式的 oat 文件。
+Figure 2.8 The oat ﬁle in ELF format.
+
+21
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+运行时内存管理
+
+2.4.2
+
+ART 运行时相比于 Dalvik 虚拟机采取了更为高效和细粒度的内存管理，体
+现在如下方面 [21] ：
+2.4.2.1
+
+内存分配器
+
+Dalvik 虚拟机直接使用 Android 系统 C 语言库 bionic 中的 DlMalloc 开源内
+存分配器，而 ART 运行时创建了一种名叫 Runs-of-Slots-Allocator（RosAlloc）的
+内存分配器。此分配器分配内存时采用了更细粒度的锁控制，使用不同的锁保
+护不同的分配对象。据 Google 介绍，这一内存分配器将带来接近 10 倍的速度提
+升 [22] 。
+2.4.2.2
+
+垃圾回收算法优化
+
+Dalvik 虚拟机的垃圾回收分为两个阶段：
+• Dalvik 暂停所有线程来分析堆使用情况，标记垃圾对象。
+• Dalvik 暂停所有线程清理堆，这就是导致应用出现“卡顿”的原因之一。
+ART 运行时改进了垃圾回收算法，做到了只暂停一次，且暂停时间也有较
+大幅度的缩短。
+2.4.2.3
+
+超大对象存储空间支持
+
+ART 运行时引用了超大对象存储空间（LOS），这个空间与堆分开存在，但
+仍驻留在应用程序内存空间中，添加 LOS 支持是为了更好的管理较大的对象，
+因为堆空间碎片化较为严重时，会对较大的对象带来问题，从而增加垃圾收集器
+的启动次数，若较大的对象与其他对象分开进行内存管理，则会大大减轻垃圾收
+集器的工作压力。
+2.4.2.4
+
+Moving GC 策略
+
+ART 运行时为了解决堆空间内存碎片化问题，专门引入了“Moving GC”方
+法。其目的是减少内存碎片。但是这个工作会导致应用程序出现长时间的中断，
+所以这个工作只能在应用程序退到后台时进行，其核心思想就是当应用程序在
+后台时，将此程序的堆空间中的段做合并操作。
+
+22
+
+第2章
+
+2.4.2.5
+
+Android 系统框架及相关技术研究
+
+GC 调度策略多样
+
+• GC 触发方式更加细致多样。
+• GC 种类有所丰富
+• 垃圾回收算法增多。
+2.5
+
+Android Java 核心库与应用程序框架层
+Android Java 核心库与 Android 运行时一起构成了 Android 平台特有的 Java
+
+运行时环境，其中 Android Java 核心库实现了传统 Java 运行时环境核心库的大
+部分功能，这使得其他系统平台的 Java 应用开发方法和技巧能够平滑地迁移至
+Android 平台。
+Android 的一大特色是在 Java 运行时环境之上提供了一套强大的应用开发框
+架 (Application Framework)，该框架在内部实现了活动管理器、通知管理器、UI
+构件等一系列丰富的系统服务和常用组件，并以 Java API 形式将这些组件提供
+给应用开发者使用，与此同时还要求开发者遵循一定的应用开发模型 [23] 。通过
+这种方式，既使常用组件实现了高效重用，简化了开发者的工作；同时又规范了
+应用程序的行为，保障了系统的安全性和可恢复性。Android 系统在版本升级时
+会对 API 进行升级，以向应用开发者提供系统实现的最新功能，一般而言新版
+本的 API 会尽可能保持向旧有版本的兼容性。
+Android 平台上的应用均使用 Java 作为开发语言，开发者需要使用 Google 提
+供的可在 Windows/Mac OS/Linux 平台下使用的跨平台开发工具包 Android SDK
+来进行开发，SDK 可以实现对框架层 API 功能的模拟，并提供了完善的应用调
+试、发布工具。由于 Java 核心库、应用程序框架以及具体的 Android 应用都使用
+Java 语言开发，所以一般也将这三层统称为 Java 层。上文已经介绍，虽然在 Java
+层中的程序会通过虚拟机的 JNI 机制调用在 C/C++ 层中实现的本地方法，其中
+某些本地方法具有平台相关性；但由于 Java 语言本身具有完全的跨平台性，因
+此在移植时只需要重新编译部署即可，无需对使用 Java 实现的源码进行修改。
+2.6
+
+本章小结
+本章对 Android 操作系统的层次化设计思想以及整体架构进行了深入剖析，
+
+其中重点阐述了 Android Linux 内核定制驱动与 Android 系统本地共享函数库的
+23
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+功能作用，同时详细分析了 Davlik 虚拟机的执行流程以及内部架构特点，最后
+对 Android 应用框架及应用开发特点进行了介绍。
+
+24
+
+第3章
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+第 3 章 基于龙芯 2K 平台的 Android 5.1.1 系统移植
+本章将以上文对 Android 系统架构详细分析的基础上，详细介绍基于龙芯
+2K 平台的 Android 5.1.1 系统开发与编译环境构建，Linux 定制内核、ART 运行
+时等关键系统子模块的移植工作。
+龙芯 2K 平台介绍
+
+3.1
+
+本文主要研究向龙芯 2K 平台移植 Android 系统时遇到的平台相关问题及其
+解决方案，主要任务并不在于完成产品原型开发及设备驱动适配，目标平台不
+必要支持 Android 系统的全部特性。因此，本课题选用了能够支持运行 Android
+5.1.1 操作系统系统所需的龙芯 2K 最小系统，该系统具体配置信息如表 3.1所示：
+表 3.1 龙芯 2K 平台配置表。
+Table 3.1 The conﬁguration table of the Loongson 2K platform.
+名称
+
+特性
+
+处理器
+
+Loongson 2K1000(GS264 x2、1GHz、1MB 二级缓存)
+
+GPU
+
+支持 OpenGL ES 2.0、OpenGL ES 1.1
+
+内存
+
+8GB(DDR3-1600MHz)
+
+硬盘
+
+128GB(SSD)
+
+USB
+
+USB 2.0 x4
+
+串口
+
+RS-232
+
+JTAG 接口
+
+EJTAG
+
+Android 5.1.1 定制 Linux 内核适配
+
+3.2
+
+Android 5.1.1 定制 Linux 内核驱动移植
+
+3.2.1
+
+根据上文中对 Android 系统框架的介绍，Android 操作系统是一款基于 Linux
+内核的移动操作系统，在 Linux 内核中有若干 Android 定制的内核模块，因此本
+文首先需要向龙芯 2K 平台移植 Android 操作系统定制的 Linux 内核。
+向新硬件平台上移植 Linux 内核的传统技术路线，是以某个稳定版本的
+Linux 内核源代码为基础，针对目标平台重新编写其中体系结构相关部分的代
+25
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+码。这部分代码主要位于 Linux 内核源码树中的“arch/”目录与“include/asmARCH/”目录下，代码编写完成后还需要修改编译相关的 Kconﬁg 文件和 Makeﬁle
+文件，再经编译链接之后即可生成在目标平台上运行的 Linux 内核 [24] 。
+因 Android 操作系统对 Linux 内核的定制部分以独立内核驱动模块的形式实
+现，大部分新增代码具有体系结构无关性，所以理论上依照上述技术路线完全
+可以将 Android Linux 内核移植至新的硬件平台。具体在本文中，可以首先通过
+对比龙芯 2K 平台自用 Linux 内核相对于标准 Linux 内核的源码修改，检出龙芯
+2K 平台的体系结构相关代码，再将其整合到选定的 Android Linux 内核源码中。
+当然对于已经可以成功运行某版本 Linux 内核的目标平台，考虑到 Android
+定制 Linux 内核以独立内核驱动模块的形式实现，还可以选择类似 Linux 设备
+驱动移植的技术路线，即将 Android 系统定制的驱动模块整合至目标平台现有
+Linux 内核。这部分定制驱动的源代码主要位于 Android Linux 内核源码树中的
+“drivers/staging/android”目录下，根据本课题的需要，依照该路线的主要工作就
+是将“drivers/staging/android”目录下的 Android 核心驱动及其依赖的相关源文件
+整合至龙芯 2K 平台的 Linux 源码中。
+综上可知，第一条技术路线的代码调试工作需要在”arch/mips/loongson“目录
+下实现体系结构相关内容。第二条技术路线则只需要在“driver/staging/android”
+目录下实现 Android 定制的相关内核驱动模块即可。然而在 Linux 内核中体系
+结构相关的内容在最底层，这部分代码的可调试性较差，具有一定的调试难度。
+Android 定制内核驱动模块与内核其他模块耦合度较低，具有较好的可调式性。
+前者的优点在于体系结构相关代码只依赖于硬件实现，因此对上层模块的开发
+演变不敏感，版本稳定性较好，而驱动模块则依赖底层提供的各类接口，所以如
+果想在基线 Linux 版本更新时保持与基线的同步性，则需要反复进行迭代开发。
+根据上述分析，结合本课题进行系统原型研究的移植目标，最终采用第二条
+技术路线进行 Android Linux 内核的移植，具体步骤如下：
+1. 对比 Android Linux 分支与 Linux 基准分支的源码差异，根据龙芯 2K 平
+台的实际配置，将“drivers/staging/android”
+、
+“drivers/base/”
+、
+“drivers/switch/”
+、
+“include/linux/”
+、
+“kernel/power/”等目录下的 Android 核心驱动整合至龙芯 2K 平台
+的 Linux 源码的对应目录下。
+2. 修改龙芯 2K Linux 源码中与以上目录及代码相关的 Kconﬁg 文件和 Make26
+
+第3章
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+ﬁle 文件，将新增加的源码文件添加到内核编译系统的依赖目标中。
+3. 在 Ashmem、Binder、Alarm-dev 等 misc 设备驱动程序中实现 compat_ioctl
+方法，并将函数指针添加至设备结构的操作接口表中，从而实现 64 位内核驱动
+对 64 位及 32 位用户空间程序的兼容，具体原理与实现方法将在后文介绍。
+4. 编辑 Linux 内核编译配置文件即.conﬁg 文件，开启 CONFIG_ANDROID、
+CONFIG_COMPAT 等与 Android 驱动编译相关的配置选项。
+5. 使用针对龙芯平台的交叉编译工具链进行 Linux 内核编译，生成 vmlinuz
+内核镜像文件。
+Android 定制驱动 64/32 位接口兼容技术研究
+
+3.2.2
+
+Android 5.1.1 操作系统支持 64 位及 32 位文件系统，且龙芯 2K1000 处理器
+兼容 MIPS32R2 及 MIPS64R2 指令集。目前龙芯 2K 平台使用 64 位内核，因此
+Android 定制的驱动模块在整合至龙芯 2K 平台适配的 Linux 内核后，亦会被编
+译为 64 位位宽。因此本课题需要特别考虑 64 位 Linux 内核中的 Android 定制驱
+动对于 32 位用户空间程序的兼容性问题。
+通过阅读 Android 定制 Linux 内核驱动模块源码发现，Ashmem、Binder、
+Alarm-dev 等驱动均使用 Linux 内核 Misc 杂项设备驱动框架编写。根据 Misc
+杂项设备驱动框架的机制，只需将相关驱动中的 ioctl 接口设计成 64 位、32 位
+文件系统兼容即可实现 64 位的驱动对于 32 位用户空间程序的兼容。下文将以
+Alarm-dev 驱动程序为例，详细介绍 Misc 设备驱动程序加载及 ioctl 接口调用流
+程。
+
+图 3.1 Alarm-dev 驱动程序加载和调用流程。
+Figure 3.1 Alarm-dev driver loading and calling process.
+
+27
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+如图 3.1所示，Alarm-dev 驱动程序被加载，此时驱动程序将首先执行 static int
+__init alarm_dev_init(void) 驱动初始化函数，在驱动初始化函数中，misc_register
+设备注册函数被调用，驱动程序向内核注册 Alarm-dev 设备的数据结构，该数据
+结构定义如下代码所示。
+1
+
+static
+
+s t r u c t miscdevice alarm_device = {
+
+. m i n o r = MISC_DYNAMIC_MINOR,
+. name = ” a l a r m ” ,
+
+3
+
+. f o p s = &a l a r m _ f o p s ,
+5 };
+
+在 Alarm-dev 设备驱动的数据结构中，alarm_device.fops 域指向一个函数表，
+即 ﬁle_operations 类型的数据结构 alarm_fops。此表中记录了 Alarm-dev 驱动所有
+操作接口的函数指针，alarm_fops 中各域的定义如下代码所示。
+1
+
+s t a t i c const s t r u c t f i l e _ o p e r a t i o n s alarm_fops = {
+. owner = THIS_MODULE ,
+. unlocked_ioctl = alarm_ioctl ,
+
+3
+
+. open = a l a r m _ o p e n ,
+. release = alarm_release ,
+
+5
+
+};
+
+用户空间程序通过 ioctl 系统调用来调用 Alarm-dev 驱动提供的 ioctl 接口。
+首先程序执行流将陷入内核中的 ioctl 系统调用处理函数，该函数通过查询已注
+册设备的链表，获得 alarm_device 这一数据结构。最终根据该数据结构中的方法
+表入口也即 fops 指针，实现对驱动程序中 alarm_ioctl 接口的实际调用。
+由目前 linux 内核现有的用户空间位宽兼容机制，当用户空间程序的位宽与
+内核位宽一致时，ioctl 调用最终将调用驱动程序中的 unlocked_ioctl 接口，而当
+用户空间程序的位宽与内核位宽不一致、也即 32 位用户空间程序调用 64 位内
+核的 ioctl 系统调用时，最终将调用驱动程序中的 compat_ioctl 接口 [25] 。
+通过以上分析，可以知道接下来的工作就是要在 Binder、Ashmem 和 Alarmdev 驱动程序中实现 compat_ioctl 接口，从而确保 64 位的 Android 驱动程序对于
+32 位用户空间程序兼容。
+事实上，Linux 内核在编译为 32 位二进制和 64 位二进制时只有指针、long、
+unsinged long 三种数据类型表示的数据位宽不同。
+28
+
+第3章
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+因此，要实现 compat_ioctl 接口，只需将接口中对应使用指针、long、unsinged
+long 三种数据类型的变量全部改声明为对编译位宽不敏感的数据类型即可。compat_ioctl 接口的逻辑功能则与 unlocked_ioctl 接口完全等价。完成 compat_ioctl 接
+口的实现后，将接口的函数指针保存到设备 ﬁle_operations 核心数据结构的接口
+表中。
+这样，采用 64 位编译的 compat_ioctl 接口，与采用 32 位编译的 unlocked_ioctl
+接口在逻辑功能上完全等价，进而实现了 64 位内核中的 Android 驱动对 32 位用
+户空间程序的兼容。
+基于龙芯 2K 平台的 Android 5.1.1 开发与编译环境构建
+
+3.3
+
+Android 开发与编译环境构建
+
+3.3.1
+
+AOSP 官网对获取 Android 操作系统源码、搭建 Android 操作系统源码开发
+与编译环境的方法以及相关代码开发工具已有非常详尽的文档说明 [26] 。但是，
+AOSP 官方介绍的开发方式灵活性较差，参与项目开发的每位开发人员均需要根
+据自己的开发机器来配置相应的 Android 操作系统源码开发与编译环境。此种情
+况下，不仅在配置过程中容易出错，还会拖慢项目开展进度。
+因此，本课题通过 Docker 容器构建 Android 操作系统源码开发编译环境。
+Docker 是一组平台即服务（PaaS）产品，它们使用操作系统级虚拟化以称为容器
+的程序包交付软件 [27] 。不同的容器间彼此隔离，并将它们自己的软件，库和配
+置文件捆绑在一起。他们之间可以通过定义明确的渠道相互交流 [28] 。所有容器
+都由单个操作系统内核运行，因此比虚拟机更轻量 [29] 。
+具体做法是根据 AOSP 官网搭建 Android 操作系统源码开发编译环境的要
+求在 Dockerﬁle 文件中进行对应的配置。这样每位开发者只需在自己开发机上安
+装 Docker 环境，获取 Dockerﬁle 及相关脚本后通过“docekr build”命令就可以实
+现一键构建 Android 操作系统源码的开发与编译环境。并且，通过辅以自定义的
+bash 脚本，可以完成 Android 操作系统源码开发环境构建、从指定仓库拉去相应
+版本的 Android 操作系统源码的任务。这种方法很好的解决了 Android 开发环境
+构建难度大、不灵活的问题，有效加快了课题推进速度。
+
+29
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+向 Android 5.1.1 系统添加龙芯 2K 设备平台
+
+3.3.2
+
+AOSP 通过多级目录树的形式组织 Android 操作系统的源代码文件，一份
+完整的 Android 操作系统源码由数百个开源子项目组成，每个子项目的源码文
+件都被放置在源码目录树的某一子目录下。Android 操作系统的源码目录结构
+主要由以下几个部分构成：Makeﬁle(全局编译脚本)、art(Android 运行时环境)、
+bionic(Bionic libc 项目)、bootable(引导和恢复程序)、build(编译和配置文件)、development(程序开发模拟器及工具)、device(平台相关配置文件)、external(系统外
+部库)、frameworks(应用程序框架)、hardware(硬件平台相关)、packages(应用程序)、
+prebuilt(Android 交叉编译工具链)、system(Android 系统库)。
+分析 Android 操作系统源码目录结构可知，Android 操作系统使用 GNU make
+工具作为其源码编译系统。AOSP 官方对于 Android 操作系统源码的编译指南中
+首先使用使用 envsetup.sh 脚本初始化环境，这一步的作用主要是编译系统配置
+工具以及 lunch 命令进行编译环境的自动化配置；然后在 Android 操作系统源码
+根目录下使用 lunch 选择要编译的目标，执行 make 命令进行自动化编译 [30] 。
+上述 Android 操作系统源码编译步骤中的第二步中需要选择编译目标，这就
+需要 Android 系统移植者预先向编译系统提供目标平台的体系结构描述文件、外
+设模块列表以及交叉编译工具链等多项配置文件及工具。因此，本课题分以下几
+个步骤进行了编译环境的搭建工作。
+1. 建立”device/loongson/2k1000/” 目录，在该目录下创建 vendorsetup.sh 文件，
+在该文件中使用“add_lunch_combo product_name”的格式添加编译设备，在后
+续使用 lunch 命令时，会根据该脚本中的 TARGET_CPU_ABI、TARGET_ARCH
+等变量，加载目标平台体系结构的详细描述文件。
+2. 创建 full_2k1000.mk 文件，该文件由 AndroidProducts.mk 文件包含，此文
+件主要描述了产品名、设备名、制造商名等信息。
+3. 创建 BoardConﬁg.mk、device.mk 等编译配置文件，这些文件主要描述了
+目标平台的模块级信息。当编译工具进行设备相关模块编译时，会根据以上配置
+文件中描述的参数，寻找对应的源文件并对源码中的预编译信息进行处理。文件
+中关键信息摘录如下所示。
+TARGET_ARCH := mips64
+TARGET_ARCH_VARIANT := m i p s 6 4 r 2
+
+2
+
+TARGET_CPU_ABI := mips64
+
+30
+
+第3章
+
+4
+
+TARGET_CPU_SMP := t r u e
+
+6
+
+TARGET_2ND_ARCH := mips
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+TARGET_2ND_ARCH_VARIANT := l o o n g s o n 3 2 −f p
+TARGET_2ND_CPU_ABI := mips
+
+8
+
+这里将 Android 操作系统源码的编译方式设置为 64_32 位 mulilib 编译方式，这
+样在 Android 源码编译时编译系统会根据上述信息自动编译 64 位、32 位位宽的
+Android 文件系统。
+4. 在”build/core/combo/arch/mips/”、
+“build/core/combo/arch/mips64/“目录下
+创建龙芯 2K 平台的体系结构描述文件，当执行 lunch 命令时，会自动进入“build/core/combo/arch/mips/”及”build/core/combo/arch/mips64/“目录下加载龙芯 2K 平
+台的体系结构描述文件，并根据文件中描述的龙芯 2K1000 处理器含有硬件浮点
+部件、SMP 多核、小尾端以及使用 4KB 内存页等特性，对交叉编译工具链进行
+配置。
+5. 加载 build/envsetup.sh 脚本文件，并执行“lunch loongson_2k1000-eng”命
+令，在该命令执行成功之后，针对龙芯 2K 平台的编译环境搭建工作业已完成。
+接下来在完成本课题针对龙芯 2K 平台进行的 Android 5.1.1 操作系统源码修
+改与重构工作的基础上，只需执行 make 命令即可完成龙芯 2K 平台的 Android
+操作系统源码编译。
+Android 5.1.1 运行时移植
+
+3.4
+
+Android 5.1.1 运行时架构
+
+3.4.1
+
+根据上一章对 ART 运行时的分析可知，ART 运行时在替代 Dalvik 虚拟机
+后，便成为了 Android 系统中支持上层应用程序框架层和应用程序运行的核心模
+块，ART 运行时的架构如图 3.2所示，包括 dex2oat 工具、类加载器、运行时数据
+区、垃圾回收器和本地方法接口等模块。本文重点关注的是这些模块中跟体系结
+构紧密相关的那一部分，又因为 Android 5.1.1 系统官方只支持 MIPS 架构 32 位
+平台，本课题将在 ART 运行时移植部分重点进行 ART 运行时 MIPS 架构 64 位
+的支持工作。
+第二章介绍了 ART 运行时的核心是 oat 文件，而实际上 oat 文件是一个可连
+31
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+图 3.2 ART 运行时架构。
+Figure 3.2 The Android Runtime Architecture.
+
+接可执行格式（ELF）的文件，通过图 2.8可以了解到 oat 文件不仅仅包含了 dex
+文件翻译过来的本地机器指令，还包括了 dex 文件中原来的内容，这使得我们无
+需重新编译原来的 APK 就可以让它正常在 ART 运行时环境执行。
+oat 文件作为 ART 运行时的私有 ELF 文件，除了一般 ELF 文件所具有的文
+件结构外，它还包含了两个特殊的段 oatdata 段和 oatexec 段，其中前者包含有用
+来生成本地机器指令的 dex 文件内容，后者包含了生成的机器指令，它们之间的
+关系是通过存储在 oatdata 段前面的 oat 头描述。另外，在 oat 文件的动态段中导
+出了 oatdata、oatexec 和 oatlastword 三个符号，它们的值就是用来界定 oatdata 段
+和 oatexec 段的起止位置的。其中，[oatdata, oatexec-1] 描述的是 oatdata 段的起止
+位置，而 [oatexec,oatlastword+3] 描述的是 oatexec 段的起止位置 [31] 。
+dex 文件中的类和方法分别称为 Dex 类（DexClass）和 Dex 方法（DexMethod）
+，
+oat 文件中的类和方法分别称为 Oat 类（OatClass）和 Oat 方法（OatMethod）
+，ART
+运行时执行类和方法的本地机器指令的过程如图 3.3所示 [31] 。
+在上图中，为了找到一个类方法的本地机器指令，我们需要执行以下的操
+作：
+1. 在 dex 文件中找到目标 dex 类的编号，并且以这个编号为索引，在 oat 文
+件中找到对应的 oat 类。
+2. 在 dex 文件中找到目标 dex 方法的编号，并且以这个编号为索引，在上一
+步找到的 oat 类中找到对应的 oat 方法。
+3. 使用上一步找到的 oat 方法的成员变量 begin_ 和 code_oﬀset_，计算出该
+32
+
+第3章
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+图 3.3 ART 运行时查找类和方法的本地机器指令的过程。
+Figure 3.3 The process of ﬁnding native machine instructions for classes and methods at Android Runtime.
+
+33
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+方法对应的本地机器指令。
+透过 ART 运行时的架构原理，ART 运行时兼容 MIPS 架构 64 位平台需要
+首先在安装 APK 时需要将打包好的 dex 文件通过 dex2oat 工具编译成本地机器
+指令并与原来 dex 文件中的字节码一起组织成 ELF 格式的 oat 文件，因此需要在
+ART 运行时中加入 MIPS 平台 64 位编译器后端支持。其次需要在 ART 运行时
+源代码中所有需要做体系结构支持的地方加入 MIPS 架构 64 位平台支持。
+Android 5.1.1 运行时 MIPS64 架构寄存器分配支持
+
+3.4.2
+
+编译模块是 ART 运行时中的一个重要组成。编译是计算机科学中一门非常
+基础、重要的专业技术领域，几乎从编程语言诞生起，编译技术就随之出现。经
+过多年的探索和发展，业界普遍认为编译器在功能划分上最好是三段式 [32] 的，
+如图 3.4所示。
+
+图 3.4 三段式编译器架构。
+Figure 3.4 Three-stage compiler architecture.
+
+第一段叫前端（Frontend）
+：其输入为源代码，输出中间表示（IR）
+。IR 没有
+标准语法，各个编译器都可以自定义 IR。比如 LLVM 就有 LLVM IR，而 Java 字
+34
+
+第3章
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+节码也是一种 IR。前端的工作主要是分析输入的源代码，并对其进行词法分析、
+语法分析、语义分析、生成对应的 IR 等。
+第二段叫做优化器（Optimizer）
+：优化器输入的是未优化的 IR，输出的是优
+化后的 IR。常用的优化手段有循环优化、常量传播和折叠、无用代码消除、方法
+内联优化等。另外，优化器在优化阶段的最后需要执行物理寄存器分配的任务。
+最后一段叫后端（Backend）：其输入为优化后的 IR，输出为目标机器的机
+器码。后端的主要功能是将 IR 翻译成目标机器码。
+正因为三段式编译器的架构设计会得到业界的普遍认可，是因为这种编译
+器架构具有很强的拓展性，如图 3.5。
+
+图 3.5 三段式编译器的可拓展性。
+Figure 3.5 Extensibility of the three-stage compiler.
+
+对 ART 运行时而言，其编译模块与上述编译器架构又有所不同，ART 运行
+时编译模块中并没有包含编译器前端，因为 Java 源代码到 dex 字节码的前端工
+作是在 APP 开发过程中由 Java 编译器、dex 工具完成的。图 3.6为 ART 运行时
+中编译模块的情况。
+ART 运行时中的编译器只包括优化器和后端，优化器输入的是 dex 字节码，
+其输出是 ART 定义的 HInstruction。Android 5.1.1 系统中 ART 运行时的后端支
+持 x86、ARM 架构的 32 位和 64 位平台，但对于 MIPS 架构只支持 32 位平台。
+因此，我们需要在 ART 运行时的编译器模块中的优化器寄存器分配模块中加入
+MIPS 架构 64 位平台的物理寄存器支持并且加入 MIPS 架构 64 位平台的后端即
+可实现 ART 运行时对 MIPS64 平台的支持。
+ART 运行时在其优化器的寄存器分配模块中将物理寄存器大致分为了三类：
+• 核心寄存器：代码中名为 Core Register，也即除浮点寄存器等特殊寄存器
+之外的寄存器。MIPS64 位平台上的 32 个通用寄存器属于这一类。
+35
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+图 3.6 ART 运行时中 dex 字节码的编译框架。
+Figure 3.6 Compilation framework of dex bytecode in ART runtime.
+
+• 浮点寄存器：专用于浮点计算的寄存器，MIPS64 位平台上的 32 个浮点
+寄存器属于这一类。
+• 寄存器对：寄存器对是指两个寄存器合起来构成一个能支持更多比特位
+操作数的寄存器。比如两个 32 位的寄存器合起来可存储一个 64 位操作数。一
+般是两个核心寄存器合起来构成一个寄存器对，MIPS64 位平台不需对此作出定
+义。
+代码中，需要在“art/runtime/arch/mips64”目录下定义“register_mips64.h”头
+文件，在这个头文件中定义上述核心寄存器和浮点寄存器。另外，在 MIPS 架构
+64 位平台下根据 MIPS N64 ABI 的约定，32 个通用寄存器有其各自的约定用途，
+如表 3.2所示。不能将所有通用寄存器都拿来做寄存器分配，因此根据 ART 运行
+时代码架构，需要定义“CodeGeneratorMIPS64::SetupBlockedRegisters”函数，根
+据表 3.2中各个通用寄存器的功能约定，将 ZERO、K0、K1、GP、SP、RA 等寄
+存器设置为不能分配。这样，在 ART 运行时优化器进行物理寄存器分配时就会
+自动将上述不能用于寄存器分配的寄存器排除。
+3.4.3
+
+Android 5.1.1 运行时 MIPS64 编译器后端支持
+ART 运行时编译器模块中的代码生成是通过调用代码生成器的 Compile 函
+
+数来完成的。这个函数在基类 CodeGenerator 中定义，其内部类会调用实际子
+类（以 MIPS 平台为例，其实际子类为 CodeGeneratorMIPS）实现的虚函数，如
+
+36
+
+第3章
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+表 3.2 MIPS N64 接口寄存器约定。
+Table 3.2 MIPS Native 64-Bit Interface Register Conventions.
+寄存器名称 约定名称
+
+用途
+
+保存者
+
+$0
+
+zero
+
+常量 0
+
+$1 or $at
+
+at
+
+保留给汇编器
+
+调用者保存
+
+$2...$3
+
+v0...v1
+
+函数返回值
+
+调用者保存
+
+$4...$11
+
+a0...a7
+
+函数调用参数
+
+调用者保存
+
+$12...$15
+
+t4...t7
+
+暂时的
+
+调用者保存
+
+$16...$23
+
+s0...s7
+
+保存的
+
+被调用者保存
+
+$24
+
+t8
+
+暂时的
+
+调用者保存
+
+$25
+
+t9
+
+暂时的
+
+调用者保存
+
+$26...$27
+
+k0...k1
+
+保留给内核
+
+$28 or $gp
+
+gp
+
+全局指针
+
+被调用者保存
+
+$29 or $sp
+
+sp
+
+栈指针
+
+被调用这保存
+
+$30
+
+s8
+
+栈指针
+
+被调用者保存
+
+$31
+
+ra
+
+函数返回地址
+
+调用者保存
+
+图 3.7所示。
+
+图 3.7 CodeGenerator 相关类图。
+Figure 3.7 The diagram of CodeGenerator and related class.
+
+CodeGenerator 是一个抽象类，不同 CPU 平台上分别有对应的子类，本课题
+
+37
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+完成了对应的 CodeGeneratorMIPS64 子类的实现。CodeGenerator 封装了和机器码
+生成相关的所有功能，使用者只需调用它的 Compile 函数即可生成机器码。根据
+CodeGenerator 抽象类的定义，其中有三个虚函数 GetLocationBuilder、GetInstructionVisitor 和 GetAssember。它们分别返回 LocationBuilder（用于遍历 CFG 中的
+IR 并为它们生成合适的 LocationSummary 对象，类型为 HGraphVisitor）
+、InstructionVisitor（用于遍历 CFG 中的 IR 并调用 Assembler 的相关函数生成机器码，类
+型为 HGraphVisitor）以及 Assembler （虚基类，设置了一些各平台都需要的虚函
+数，比如 Copy、Move、Call 等）。
+本课题实现了 LocationBuilder 的真实子类 LocationBuildersMIPS64、InstructionVisitor 的真实子类 InstructionCodeGeneratorMIPS64、Assembler 的真实子类
+MIPS64Assembler。
+MIPS64Assembler 子类中实现了 MIPS64 Release 2 指令集中的所有指令。以
+ADD 指令为例，其指令格式为：ADD rd, rs, rt，该指令的功能为将通用寄存器 rs
+与 rt 中的 32 位整型数相加，存入通用寄存器 rd 中，如果产生溢出则报整数溢出
+例外。其指令编码格式如下图 3.8所示。
+
+图 3.8 MIPS64 R2 指令集 ADD 指令编码格式。
+Figure 3.8 ADD instruction encoding format of MIPS64 R2 instruction set.
+
+根据上图指令编码，在 MIPS64Assembler 子类中实现的 ADD 指令如下，该
+代码实现非常简洁，这里不再赘述。
+v o i d M i p s 6 4 A s s e m b l e r : : Add ( G p u R e g i s t e r rd , G p u R e g i s t e r r s , G p u R e g i s t e r r t ) {
+EmitR ( 0 , r s , r t , rd , 0 , 0 x20 ) ;
+
+2
+
+}
+4
+
+v o i d M i p s 6 4 A s s e m b l e r : : EmitR ( i n t opcode , G p u R e g i s t e r r s , G p u R e g i s t e r r t , G p u R e g i s t e r rd ,
+i n t shamt , i n t f u n c t ) {
+
+6
+
+CHECK_NE( r s , k N o G p u R e g i s t e r ) ;
+8
+
+CHECK_NE( r t , k N o G p u R e g i s t e r ) ;
+CHECK_NE( rd , k N o G p u R e g i s t e r ) ;
+u i n t 3 2 _ t e n c o d i n g = s t a t i c _ c a s t < u i n t 3 2 _ t >( o p c o d e ) << k O p c o d e S h i f t |
+
+10
+
+s t a t i c _ c a s t < u i n t 3 2 _ t >( r s ) << k R s S h i f t |
+s t a t i c _ c a s t < u i n t 3 2 _ t >( r t ) << k R t S h i f t |
+
+12
+
+38
+
+第3章
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+s t a t i c _ c a s t < u i n t 3 2 _ t >( r d ) << k R d S h i f t |
+s h a m t << k S h a m t S h i f t |
+
+14
+
+funct ;
+Emit ( e n c o d i n g ) ;
+
+16
+
+}
+18
+
+v o i d M i p s 6 4 A s s e m b l e r : : Emit ( u i n t 3 2 _ t v a l u e ) {
+A s s e m b l e r B u f f e r : : E n s u r e C a p a c i t y e n s u r e d (& b u f f e r _ ) ;
+
+20
+
+b u f f e r _ . Emit < u i n t 3 2 _ t >( v a l u e ) ;
+22 }
+
+另外，需要注意 Java 字节码编译成机器码后并不能像 C/C++ 源码编译成机
+器码一样直接在 OS 上运行，Java 字节码编译为目标平台机器码的过程中，虚拟
+机会添加一些必要和特殊的指令。这样，Java 机器码通过目标平台编译器后端编
+译得到的机器码在运行过程中会时刻在虚拟机的管控之中。
+举例来说，Java 虚拟机的垃圾回收器做对象标记前，一般会设置一个标志，
+标识自己准备做对象标记。其他线程运行过程中会经常去检查这个标志，如果
+发现此标志位 True 时，这些线程就得等待垃圾回收器做对象标记。否则，在垃
+圾回收器做对象标记的过程中其他线程又去创建对象或更改对象间的引用关系，
+这将会导致对象标记不准确，影响垃圾回收。
+这个过程中，应用程序开发人员显然不会主动添加这个检查标记的操作。因
+此，这个操作将由编译器后端完成。它会在 Entry 块和 loop header 基本块中添加
+标记检查指令。
+因此，在 InstructionCodeGeneratorMIPS64 中进行了相关处理，如以下代码
+所示。
+v o i d I n s t r u c t i o n C o d e G e n e r a t o r M I P S 6 4 : : V i s i t G o t o ( HGoto∗ g o t ) {
+2
+
+H B a s i c B l o c k ∗ s u c c e s s o r = g o t −>G e t S u c c e s s o r ( ) ;
+DCHECK ( ! s u c c e s s o r −> I s E x i t B l o c k ( ) ) ;
+
+4
+
+H B a s i c B l o c k ∗ b l o c k = g o t −>G e t B l o c k ( ) ;
+H I n s t r u c t i o n ∗ p r e v i o u s = g o t −>G e t P r e v i o u s ( ) ;
+
+6
+
+H L o o p I n f o r m a t i o n ∗ i n f o = b l o c k −>G e t L o o p I n f o r m a t i o n ( ) ;
+
+8
+
+i f ( i n f o != n u l l p t r && i n f o −>I s B a c k E d g e ( ∗ b l o c k ) && i n f o −>HasSuspendCheck ( ) ) {
+codegen_ −>C l e a r S p i l l S l o t s F r o m L o o p P h i s I n S t a c k M a p ( i n f o −>G et S u sp e n dC h e ck ( ) ) ;
+G e n e r a t e S u s p e n d C h e c k ( i n f o −>G et S u sp e n dC h e c k ( ) , s u c c e s s o r ) ;
+
+10
+
+return ;
+12
+
+}
+
+39
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+i f ( b l o c k −> I s E n t r y B l o c k ( ) && ( p r e v i o u s != n u l l p t r ) && p r e v i o u s −>I s S u s p e n d C h e c k ( ) ) {
+G e n e r a t e S u s p e n d C h e c k ( p r e v i o u s −>AsSuspendCheck ( ) , n u l l p t r ) ;
+
+14
+
+}
+16
+
+i f ( ! codegen_ −>GoesToNextBlock ( b l o c k , s u c c e s s o r ) ) {
+
+18
+
+}
+
+__ B( codegen_ −>G e t L a b e l O f ( s u c c e s s o r ) ) ;
+
+}
+
+上述代码中 GenerateSuspendCheck 内部将创建一个 SuspendCheckSlowPathMIPS64 对象，它将生成检查 suspend check 标志的代码。
+完成上述工作后，即可实现 Android 5.1.1 操作系统 ART 运行时在龙芯 2K
+平台上 MIPS 64 架构支持。
+3.5
+
+Android 5.1.1 图形子系统重构
+Android 系统如果单纯使用通用处理器负责系统全部 2D/3D 图形的计算、渲
+
+染、绘制工作，其流畅度已经远远无法满足正常使用的要求。因此，几乎所有
+Android 设备均配置了硬件图形处理单元（GPU）来处理操作系统中图形子系统
+的计算任务。龙芯 2K1000 也集成了 GPU，支持 OpenGL ES 2.0、OpenGL ES 1.1
+图形程序接口。
+Android 图形子系统中，Surfaceﬂinger 服务向应用程序提供绘图流的合成、图
+形渲染、缓存管理等服务，而这些服务的实现则需要调用 Android 本地共享库中
+提供的 OpenGL 接口和 EGL 接口 [33] 。Android 图形子系统架构如图 3.9所示 [34] 。
+该子系统可由纯软件模拟实现，进行适当配置后编译出 libGLES_android.so 动态
+库，该库使用 C++ 语言编写，不依赖任何图形处理硬件模块，具有各目标平台
+通用性。但是，经测试发现将 Android 系统成功移植至龙芯 2K 平台后，使用纯
+软件渲染的图形子系统虽然可以使系统正常工作，但其性能无法满足系统流畅
+运行的要求，图形界面会频繁出现用户无法忍受的卡顿感。
+Android 系统原有图形子系统中，硬件加速图形库包含的图形硬件驱动程序
+一般为图形硬件厂商以闭源形式提供，因此龙芯 2K 平台无法在原有的 Android
+图形子系统下启用图形硬件加速。但是，Mesa 3D 图形库 [35] 已经移植到龙芯
+各平台的 Linux 操作系统上，从而实现了图形处理的硬件加速。同时，Android
+x86 项目也使用了 Mesa 3D 库实现 x86 平台下的 Android 系统图形硬件加速。因
+40
+
+第3章
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植
+
+图 3.9 Android 图形子系统。
+Figure 3.9 The Android graphics sub-system.
+
+此，使用 Mesa 3D 库同样可以可实现龙芯 2K 平台的 Android 图形硬件加速，重
+构后的图形子系统由 libGLES_mesa.so、libdrm.so、libdrm_radeon.so 等几个库组
+成。其中 libGLES_mesa.so 库为 OpenGL 接口与 EGL 接口的适配层，为应用层
+提供 OpenGL 接口的调用；libdrm.so 库为直接渲染管理器的实现，为上层接口
+适配层提供图形处理硬件的硬件抽象层，该库依赖用户态的图形硬件驱动，对
+应 libdrm_radeon.so 驱动。以上模块构成了 Android 图形子系统的用户空间部分，
+此外还需要内核空间中的 DRM 驱动以及 GPU 驱动与之配合，即可实现龙芯 2K
+平台的 Android 图形子系统。重构后的图形子系统如图 3.10所示。
+
+41
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+图 3.10 重构后 Android 图形子系统。
+Figure 3.10 The Android graphics subsystem after refactoring.
+
+3.6
+
+本章小结
+本章首先介绍了龙芯 2K 平台。然后阐述了 Android 操作系统源码的重构与
+
+二次开发工作，其中 Android Linux 定制驱动的移植及其 ioctl 接口的二次开发，
+实现了龙芯平台上的 64 位 Linux 内核对 32 位 Android 文件系统的支持。通过
+新增相关配置文件实现了 Android 编译系统对龙芯 2K 平台的支持。接着介绍了
+ART 运行时移植开发工作，主要是向 ART 运行时优化器寄存器分配模块添加了
+MIPS 架构 64 位平台寄存器支持以及向 ART 运行时编译器模块添加了 MIPS 架
+构 64 位平台的编译器后端支持，从而实现了 ART 运行时对 MIPS 架构 64 位平
+台的支持。最后基于 Mesa 3D 图形库的 Android 图形子系统重构实现了龙芯 2K
+平台 Android 系统的图形硬件加速。
+
+42
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+第 4 章 基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+本章首先根据 AOSP 针对主流处理器架构对 Android 操作系统的优化工作展
+开分析，尤其是对相关系统库的优化分析揭示了龙芯 2K 平台移植完成 Android
+5.1.1 系统后继续针对龙芯处理器架构对 Android 操作系统进行深层次优化的必
+要性。然后借助性能调优工具 perf 具体分析龙芯 2K 平台 Android 5.1.1 系统软件
+渲染模式下的性能瓶颈，并给出优化方案，最后，使用谷歌官方 0xbenchmark 系
+统性能测试工具对龙芯 2K 平台 Android 5.1.1 系统进行性能测试，给出测试结果
+及分析结论。
+Android 系统性能分析与优化概要
+
+4.1
+
+Android 操作系统非常重视用户体验，正因为如此，全世界用户被 Android
+操作系统流畅的系统 UI、及时的应用响应所折服。上述优势离不开 AOSP 官方
+针对 ARM 架构做了大量的图形引擎优化、单指令多数据流（SIMD）优化、图
+形硬件加速等工作，使得 Android 操作系统能够快速高效的完成复杂的多媒体应
+用。
+然而，AOSP 官方并未专门针对 MIPS 架构对 Android 操作系统进行以上类
+似 ARM 架构的体系结构级别的深度优化。因此，基于龙芯 2K 平台的 Android
+5.1.1 操作系统在软件渲染模式下的系统流畅度在同等处理器性能条件下是低于
+运行在 ARM 架构上的 Android 5.1.1 操作系统的。本文完成 Android 5.1.1 操作系
+统移植之后，在软件渲染模式下实际进行屏幕划动、打开/ 关闭应用程序、打开
+抽屉等操作都会有一定的卡顿感，这也印证了以上分析的结论。
+进一步分析，因为操作系统涉及 UI 界面的操作均需大量图像、像素的处理，
+像素点数目与访存量又成正比。尤其是随着屏幕分辨率不断提升，UI 性能更是
+严重受制于访存带宽。在通用处理器中，使用高速缓存 Cache 来避免大部分外部
+访存，以延缓存储墙问题 [36] 。另外，在系统软件层面，人们往往也会针对具体
+的微处理器架构进行体系结构级的优化方法。从 Android 3.0 版本开始，就通过
+硬件加速技术来优化图形系统，提升 Android 图形渲染的整体性能。从 ARMv7
+[37]
+架构开始，ARM 提供了高级单指令多数据流（SIMD）
+扩展，ARM 将其称之
+
+43
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+为 NEON 技术 [38] ，可用来提升多媒体和信号处理应用程序的性能。在 ARM 提
+供 NEON 技术之前，Android 一直采用普通汇编优化，通过尽量使用通用寄存器
+的方式来进行代码块的优化加速。自 ARM 提供 NEON 技术之后，AOSP 官方
+Android 版本不仅利用 NEON 寄存器 128 位位宽的优势结合普通汇编优化进行
+代码块的优化加速，还对 Skia 2D 图形库 [39] 中的相关热点函数进行了指令级的
+优化。另外，AOSP 官方为了降低内存延迟对性能的影响，采用软件数据预取优
+化对 ARM 架构下的内存操作进行的加速 [40] 。通过这种软硬件的优化方法来提
+升访存性能，从而最大程度上解决应用程序因访存而出现的性能瓶颈。
+本课题研究了一套 Android 系统的性能分析、测试与优化方法。首先，本课
+题在谷歌官方 0xbenchmark 基准测试套件的基础上进行了二次开发与代码重构，
+并更新了老旧的 benchmark 版本，使之能够适应高版本 Android 系统及各目标平
+台的性能测试需求，开发人员只需在 Android 系统中安装此套件就可测试出包括
+数学运算，2D、3D 图形渲染在内的各种系统性能测试项。然后，据此针对某项
+不满意的系统模块，使用 perf 工具进行热点函数分析，找到相应热点函数后通
+过源代码正向验证。接着，从体系结构及该模块底层原理入手提出并实现优化方
+案。优化结束后使用 0xbenchmark 测试套件进行优化前后以及本测试平台与对标
+平台的性能分析，通过对比即可得出 Android 系统对应系统模块的优化效果。
+该方法的优点有一下几点，一是 0xbenchmark 采用的测试基准均为业界公
+认，且测试基准为最新版本，具有权威性。其次，通过全面的性能分析可以快
+速定位出某一方面的性能问题，然后通过 Perf 工具以及源码级别的正反向定位，
+可准确、快速地定位出性能瓶颈。最后，完成对性能瓶颈的优化工作后，可准确
+给出优化效果和结论。
+下文将按照这种方法进行 Android 5.1.1 操作系统在龙芯 2K 平台上的性能分
+析、优化工作。
+4.2
+
+性能调优工具 perf
+系统级性能优化通常包括两个阶段：性能剖析（performance proﬁling）和代
+
+码优化。性能剖析的目标是寻找性能瓶颈，查找引发性能问题的原因及热点代
+码。代码优化的目标是针对具体性能问题而优化代码或编译选项，以改善软件性
+能。在性能剖析阶段，需要借助于现有的 proﬁling 工具，如 perf 等。在代码优化
+44
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+阶段往往需要借助开发者的经验，编写简洁高效的代码，甚至在汇编级别合理使
+用各种指令，合理安排各种指令的执行顺序。
+perf 工具介绍
+
+4.2.1
+
+perf 是内置于 Linux 内核源码树中的性能剖析（proﬁling）工具。它基于事
+件采样原理，以性能事件为基础，支持针对处理器相关性能指标与操作系统相关
+性能指标的性能剖析。可用于性能瓶颈的查找与热点代码的定位。Linux2.6 及后
+续版本都自带该工具，放在“tools/perf”目录下，它几乎能够处理所有与性能相
+关的事件。perf 工具可用来对软件进行优化，包括算法优化（空间复杂度、时间
+复杂度）和代码优化（提高执行速度、减少内存占用）。还可以评估程序对硬件
+资源的使用情况，例如各级 cache 的访问次数，各级 cache 的丢失次数、流水线
+停顿周期、前端总线访问次数等。也可以评估程序对操作系统资源的使用情况，
+系统调用次数、上下文切换次数、任务迁移次数等 [41] 。Android 5.1.1 Lollipop 操
+作系统源码包含 perf 工具，在“external/linux-tools-perf”目录下，因此本文可以
+方便的使用 perf 工具分析相关热点函数，完成相关优化工作。
+perf 工具使用
+
+4.2.2
+
+执行“perf –help”之后可以看到 perf 工具的二级命令。其中最为常用的包
+括，
+1.“perf top”命令用于实时查看当前系统进程函数占用率情况；
+2.“perf record”命令可以记录信息到 perf.data 文件，可以系统全局，也可以
+具体到某个进程，甚至于可以具体到某一进程的某一事件；
+3.“perf report”用于读取 perf record 创建的数据文件，并给出热点分析结果。
+基于龙芯 2K 平台的 Android 5.1.1 系统性能分析
+
+4.3
+
+本文将针对龙芯 2K 平台上的 Android 5.1.1 系统在软件渲染模式下的主界面
+流划动操作以及 2D 图形绘制操作入手，利用 perf 工具抓取热点函数进行分析，
+为下文优化工作提供方向和依据。
+主界面操作流畅度分析
+
+4.3.1
+
+滑动主界面操作前，运行如命令如下所示，其中 pid 就是 Android 主界面
+Launcher 的进程号。
+45
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+1 perf
+
+r e c o r d −e t a s k −c l o c k −p p i d
+
+待操作结束后，中断上述命令，使用如下命令报告分析数据。
+1 perf
+
+report
+
+表 4.1为滑动主界面操作中 perf 工具的分析数据的前 11 项，其中表格中百
+分比表示某一具体函数所占 CPU 时钟数的百分比。
+表 4.1 主界面操作的 perf 分析数据。
+Table 4.1 Perf analysis data for main interface operation.
+百分比
+
+应用程序名称
+
+链接库
+
+符号名
+
+13.90% droid.launcher3
+
+libc.so
+
+memset
+
+11.82% droid.launcher3
+
+libskia.so
+
+0x000e0f18
+
+8.15%
+
+droid.launcher3
+
+libart.so
+
+art::JValue art::interpreter::ExecuteGotoImpl<false,false>
+
+4.79%
+
+droid.launcher3 [kernel.kallsyms]
+
+4.15%
+
+droid.launcher3
+
+libart.so
+
+artInterpreterToCompiledCodeBridge
+
+3.72%
+
+droid.launcher3
+
+libart.so
+
+art::JValue art::interpreter::ExecuteGotoImpl<true,false>
+
+3.33%
+
+droid.launcher3
+
+libart.so
+
+art::ClassLinker::ResolveField
+
+2.99%
+
+droid.launcher3
+
+libart.so
+
+artQuickToInterpreterBridge
+
+2.35%
+
+droid.launcher3
+
+libart.so
+
+bool art::interpreter::DoInvoke
+
+1.99%
+
+droid.launcher3
+
+libart.so
+
+bool art::interpreter::DoCall
+
+1.94%
+
+droid.launcher3
+
+libart.so
+
+art::mirror::ArtField::IsPrimitiveType
+
+0x67ﬀﬀﬀ80fbfc4c
+
+由表 4.1可见，Android 操作系统在软件渲染模式下执行系统主界面进程时，
+libc 系统库的 memset 函数占据了 13.90% 的 CPU 执行时间，排列第一位。在执
+行系统主界面进程时，访存操作会影响主界面的性能，进而影响系统流畅度，因
+此，针对系统库访存操作函数进行优化，尽量降低访存操作的 CPU 执行时间，对
+提升系统性能有一定的帮助作用。
+
+46
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+2D 图形绘制流畅度分析
+
+4.3.2
+
+Android 系统软件渲染模式下运行 0xbenchmark（下文将会详细介绍）中 2D
+图形测试，运行命令及操作同上一小节。
+表 4.2为 2D 图形测试中 perf 工具的前 10 项分析数据，其中表格中百分比表
+示某一具体函数所占 CPU 时钟数的百分比。
+表 4.2 2D 图形测试的 perf 分析数据。
+Table 4.2 Perf analysis data for 2D test.
+百分比
+
+应用程序名称
+
+链接库
+
+符号名
+
+9.71%
+
+oxlab.benchmark
+
+libart.so
+
+art::JValue art::interpreter::ExecuteGotoImpl<false, false>
+
+6.18%
+
+oxlab.benchmark [kernel.kallsyms]
+
+6.10%
+
+oxlab.benchmark
+
+libc.so
+
+memset
+
+4.43%
+
+oxlab.benchmark
+
+libart.so
+
+artInterpreterToCompiledCodeBridge
+
+4.21%
+
+oxlab.benchmark
+
+libart.so
+
+art::JValue art::interpreter::ExecuteGotoImpl<false, false>
+
+4.14%
+
+droid.launcher3
+
+libart.so
+
+art::ClassLinker::ResolveField
+
+3.11%
+
+oxlab.benchmark
+
+libart.so
+
+artQuickToInterpreterBridge
+
+3.83%
+
+oxlab.benchmark
+
+libart.so
+
+bool art::interpreter::DoInvoke
+
+2.63%
+
+oxlab.benchmark
+
+libart.so
+
+bool art::interpreter::DoCall
+
+2.15%
+
+droid.launcher3
+
+libart.so
+
+art::mirror::ArtField::IsPrimitiveType
+
+0x67ﬀﬀﬀ80fbfc4c
+
+通过表 4.2中的数据可知，0xbenchmark 在执行 2D 图形测试时，libc 系统库
+memset 函数仍然占据了 6.10% 的 CPU 执行时间，表中 memset 函数占用 CPU 时
+间排列第三位，因此结合上一小节对主界面进程的分析，下文将从 memset 内存
+操作函数优化入手，希望能够显著降低系统在软件渲染模式下的内存操作对 2D
+图形绘制流畅度的影响。
+Android 系统内存操作函数优化正向分析
+
+4.3.3
+
+如果仅通过 perf 分析数据说明主界面、2D 图形绘制和字体渲染性能与系统
+访存操作相关可能还不足以令人信服，接下来从源码出发正向验证我们的测试
+数据正确性。
+从 0xbenchmark 源码入手分析，以 Canvas 操作为例，0xbenchmark 在进行
+Canvas 图形绘制时会调用 android.graphics.Canvas 类中的方法进行绘制。而 Can47
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+vas 类的中方法通过 JNI 机制调用 2D 图形引擎 Skia 中的相关函数。图 4.1表明了
+DrawCanvas 接口的调用关系。
+
+图 4.1 DrawCanvas 调用流程。
+Figure 4.1 DrawCanvas call process.
+
+由 DrawCanvas 函数调用流程，绘制图形的最终实现函数是在 SkDraw 类中，
+此类中的 drawPaint 方法会调用 ChooseBitmapXferProc 函数根据参数类型选择对
+应的绘制函数来完成图形绘制操作。根据使用位图位数不同，会选择不同的静态
+方法。比如，如果是 16 位位图则会选择 D16_src_BitmapXferProc 绘制位图，如
+果是 32 位位图则会选择 D32_src_BitmapXferProc 绘制位图。
+1
+
+s t a t i c void D32_Src_BitmapXferProc ( void ∗ p i x e l s , s i z e _ t bytes , u i n t 3 2 _ t d a t a ) {
+sk_memset32 ( ( u i n t 3 2 _ t ∗ ) p i x e l s , d a t a , S k T o I n t ( b y t e s >> 2 ) ) ;
+
+3 }
+
+5
+
+s t a t i c void D16_Src_BitmapXferProc ( void ∗ p i x e l s , s i z e _ t bytes , u i n t 3 2 _ t d a t a ) {
+sk_memset16 ( ( u i n t 1 6 _ t ∗ ) p i x e l s , d a t a , S k T o I n t ( b y t e s >> 1 ) ) ;
+
+7 }
+
+9
+
+s t a t i c v o i d D A8 _ Sr c_ Bi tm ap Xf er Pr o c ( v o i d ∗ p i x e l s , s i z e _ t b y t e s , u i n t 3 2 _ t d a t a ) {
+memset ( p i x e l s , d a t a , b y t e s ) ;
+
+11 }
+
+48
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+可以看到图形绘制的过程中实际上是操作 memset 函数，在 Skia 库中有以下
+memset 函数定义。
+1 v o i d sk_memset16 ( u i n t 1 6 _ t
+
+d s t [ ] , u i n t 1 6 _ t value , i n t count ) {
+
+SK_DECLARE_STATIC_LAZY_FN_PTR ( SkMemset16Proc , p r o c , ch o o se _ m em s e t1 6 ) ;
+proc . get ( ) ( dst , value , count ) ;
+
+3
+
+}
+5
+
+v o i d sk_memset32 ( u i n t 3 2 _ t d s t [ ] , u i n t 3 2 _ t v a l u e , i n t c o u n t ) {
+SK_DECLARE_STATIC_LAZY_FN_PTR ( SkMemset32Proc , p r o c , ch o o se _ m em s e t3 2 ) ;
+
+7
+
+proc . get ( ) ( dst , value , count ) ;
+9 }
+
+上述 memset 函数中的 SK_DECLARE_STATIC_LAZY_FN_PTR 宏将通过
+SkMemsetXXProc 类型的 choose_memsetXX 函数指针去选择需要执行的 memset
+函数，该函数指针定义如下：
+1 SkMemset16Proc ch o o s e _ m em s e t1 6 ( ) {
+
+SkMemset16Proc p r o c = S k M e m s e t 1 6 G e t P l a t f o r m P r o c ( ) ;
+r e t u r n proc ? proc : sk_memset16_portable ;
+
+3
+
+}
+5
+
+SkMemset32Proc ch o o s e _ m em s e t3 2 ( ) {
+SkMemset32Proc p r o c = S k M e m s e t 3 2 G e t P l a t f o r m P r o c ( ) ;
+
+7
+
+r e t u r n proc ? proc : sk_memset32_portable ;
+9 }
+
+这里 SkMemsetXXGetPlatformProc 函数将会获取到针对特定体系结构优化
+过的 memset 函数，而 sk_memsetXX_portable 则是各体系结构通用的未优化的 C
+语言实现的 memset 函数。
+通过以上源码分析发现，我们通过 perf 工具分析的结果与源码分析结果相
+对应，因此下文将专门针对此内存操作函数进行优化。
+4.4
+4.4.1
+
+memset 函数优化
+Android 源码中的 memset 函数
+Android 操作系统源码中，针对 MIPS 架构的 memset 函数只有 C 语言实现，
+
+并未对 MIPS 架构进行体系结构级的优化。
+49
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+第二章中已对 Bionic libc 库做了详细的介绍，在 Bionic libc 库中的原始 memset 函数使用 C 语言实现，如下代码所示。
+1 void ∗
+
+memset ( v o i d ∗
+
+dst , i n t c , s i z e _ t n )
+
+{
+3
+
+char∗
+
+q
+
+char∗
+
+end = q + n ;
+
+= dst ;
+
+5
+
+for ( ; ; ) {
+i f ( q >= end ) b r e a k ; ∗q++ = ( c h a r ) c ;
+
+7
+
+i f ( q >= end ) b r e a k ; ∗q++ = ( c h a r ) c ;
+i f ( q >= end ) b r e a k ; ∗q++ = ( c h a r ) c ;
+
+9
+
+i f ( q >= end ) b r e a k ; ∗q++ = ( c h a r ) c ;
+}
+
+11
+
+return dst ;
+
+13
+
+}
+
+该函数实现非常简单，它的功能就是对从 dst 地址开始的 n 个字节大小的内
+存，按字节进行赋值。
+另外，在“system/core/libcutils”目录下分别定义了 C 语言实现的 android_memset16
+及 android_memset32 函数，具体实现见附录 A。这两个函数的实现也非常的简
+单，它们分别是从 dst 地址开始按照两字节或四字节进行 size 字节大小的内存填
+充。
+除了以上两处对 memset 的实现之外，
+“external/skia/src/core/”目录下也实现
+了适用于 Skia 2D 图形库的 memset 函数，具体实现见附录 A。在 skia 2D 图形库
+中 memset 函数的实现采用了分块的思想，其代码流程如图 4.2所示。这种分块
+相当于对循环进行了一定的展开操作，这种方式能够增加指令调度空间，减少循
+环分支指令开销。
+memset 函数优化实现
+
+4.4.2
+
+本文对 libc 库 memset 函数使用“-O2”优化选项进行编译，然后利用反汇编
+工具对其进行反汇编，对比 c 语言源程序与汇编程序。
+C 源程序在一个 for 循环中对一个字大小的值拆分成四个字节，如果当前操
+作的内存地址没有超出起始内存地址加 n 字节，则将一个字节拷贝进目的内存
+地址中，不断进行循环，直至拷贝完 n 个字节大小的内存，然后函数返回目的内
+50
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+图 4.2 sk_memset16_portable 函数流程图。
+Figure 4.2 sk_memset16_portable function ﬂowchart.
+
+51
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+存的起始地址。而编译器编译后的汇编程序中，编译器并未对原 C 程序中的函
+数逻辑做更改，只是利用编译器优化技术，对此函数做了适当的循环展开等优化
+策略，使得编译后的程序比源程序效率更高。
+但是，编译器对 memset 函数所做的优化仍然有限，因为编译器只是按照预
+定的通用优化策略针对程序进行优化，如去除冗余代码，减少循环分支开销等。
+编译器并不能重新调整程序的算法逻辑和结构，因此通过编译器优化难以从本
+质上提升整个函数的运行效率。
+如果直接采用手写汇编代码的方式去实现 memset 函数，因汇编编码与具体
+的处理器体系结构强相关，可以在充分考虑龙芯 2K 平台体系结构及 memset 函
+数本身功能特点的基础上，设计适当的算法通过汇编指令去实现 memset 函数，
+从而达到提升 memset 函数性能的目的。下文将详细介绍该函数在龙芯 2K 平台
+上的优化过程。
+龙芯 2K 平台的 Android 5.1.1 操作系统源码中 memset 函数的指令级优化分
+MIPS32 系统和 MIPS64 系统分别进行。在 32 位系统中对于 memset 函数的优化
+思想与上一节中介绍的 skia 2D 图形库中 memset 函数的分块实现思想基本相同，
+但是 skia 2D 图形库中是对 memset16 函数和 memset32 函数分别进行了 C 语言实
+现，分块粒度不精细，根据下文将要介绍到的测试结果看，优化效果并不明显。
+由于龙芯没有批量 load 和 store 指令，一次只能操作一个寄存器大小的数据，
+对于 size 大于一个寄存器宽度的数据，就需要使用多个 load、store 指令处理。因
+此，可以看到想要提升数据处理的效率可以从两个方面入手去考虑：一是使用能
+够批量操作数据的 load、store 指令；二是使用更大位宽的寄存器。
+对于 MIPS32 系统来说，上述两种提升数据处理效率的措施均无法实施，因
+此 memset 函数优化方案只能采用细粒度分块，相当于一定程度上进行了合理的
+循环展开，以期增加指令调度空间，减少循环分支指令的开销 [42] 。本课题将要
+填充的内存分为大于 64 字节、64 字节到 32 字节、32 字节到 4 字节、4 字节以下
+等几个块进行填充。memset16、memset32 及 memset 的实现没有本质区别，只是
+分块大小有所区别，因此这里以函数流程最复杂的 memset16 为例进行介绍，经
+过优化后的 memset16 函数流程如图 4.3所示。
+MIPS64 系统 memset 普通汇编优化思路与 MIPS32 一致，主要区别在于
+MIPS64 的寄存器位宽更宽为 64 位，因此可以分更大的块去填充，另外就是
+52
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+图 4.3 mips32_memset16 函数流程图。
+Figure 4.3 mips32_memset16 function ﬂowchart.
+
+53
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+将对应的 32 位指令更改为对应的 64 位指令，因此对于 MIPS64 系统的 memset
+普通汇编优化本文不再介绍。
+4.5
+
+memcpy 函数优化
+memcpy 函数原型如下所示：
+
+v o i d ∗ memcpy ( v o i d ∗ d s t , c o n s t v o i d ∗ s r c , s i z e _ t l e n g t h ) ;
+
+memcpy 函数操作将 src 指向的内存中长度为 length 的数据拷贝到 dst 指向
+的内存中，实现内存间的数据拷贝。这个过程需要将数据从内存取到 CPU 的寄
+存器中，然后再存 CPU 的寄存器存到内存的另一个位置。
+同样，Android 操作系统并未针对 MIPS 架构做汇编优化，其 C 语言实现只
+是简单的保证了 memcpy 函数的正确性，其程序流程图如下 4.4所示。
+
+图 4.4 memcpy 函数流程图。
+Figure 4.4 memcpy function ﬂowchart.
+
+龙芯 2K 平台 memcpy 函数汇编优化算法也采用了类似 memset 函数中分块
+的方法，将要拷贝的内存数据分为 64 字节、32 字节、8 字节及小于 8 字节大小
+的细粒度数据块。如果要拷贝的内存数据大于 64 字节，则每次循环可以拷贝 64
+字节大小的数据，通过这种合理的循环展开方法提升 memcpy 函数的性能。这里
+54
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+需要注意的是，对于 memcpy 函数的分块需要考虑 src 及 dst 是否能够按字对齐，
+如果 src 与 dst 能够按字对齐，则可以直接从地址起始处开始拷贝；否则，首先
+需要将 dst 的地址处理为按字对齐，然后使用非对齐内存访问指令 lwl、lwr 将未
+按字对齐的数据对齐到寄存器中，然后拷贝到 dst 所指向的对齐后内存，memcpy
+函数汇编优化后的函数流程如图 4.5所示。
+
+图 4.5 汇编优化后 memcpy 函数流程图。
+Figure 4.5 Flow chart of memcpy after assembly optimization.
+
+55
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植优化效果与性能评估
+
+4.6
+
+性能测评工具介绍
+
+4.6.1
+
+目前主流的 Android 系统性能测试工具如商业应用安兔兔（AnTuTu Bench[43]
+，虽然能够较为全面的测试基于各硬件平台 Android 系统的 CPU、内存
+mark）
+
+和 3D 等关键性能。但其测试结果仅用于跑分排名，加之该应用闭源发布，无法
+较好的利用其作为 Android 系统性能分析的工具。
+然而在学术界，有代表性的如 SPEC CPU、SPECjvm、Linpack、Scimark 等
+Benchmark 程序并非专门为 Android 系统所设计，且它们的测试内容较为单一，
+有的仅关注 JVM（Java Virtual Machine）的性能指标，有的仅关注 CPU 计算性能
+指标，这些 Benchmark 程序均无法全面展现基于龙芯 2K1000 平台的 Android 操
+作系统的各项性能指标。
+0xbenchmark [44] 作为一款专为 Android 操作系统开发的应用程序，该应用本
+身集成了 Linpack、Scimark2、2D/3D 等 Benchmark，可以较为全面的测试分析
+Android 系统的性能。并且此应用采用 Apache、CDDL 开源软件协议实现开源，
+可以对该应用进行二次开发重构。0xbenchmark 开发团队自 2011 年 10 月 27 日
+发布 1.1.5 版本后就再未更新，此版本现已比较老旧，并不能适用于本课题龙芯
+2K1000 平台 Android 5.1.1 Lollipop 操作系统的性能测试分析。
+结合 0xbenchmark 应用现状以及在龙芯 2K1000 平台 Android 5.1.1 Lollipop
+操作系统的性能测试分析的具体需求，本课题对 0xbenchmark 进行了二次开发与
+重构。主要是在深入分析 0xbenchmark 应用源码架构及各 Benchmark 的基础上，
+将 0xbenchmark 原先 Eclipse 工程更换为目前主流的 Android Studio 工程，并将源
+码中嵌入的中 Linpack、Scimark 等原有的老旧版本的 benchmark 提升到最新版
+本，方便后续基于龙芯 2K1000 平台 Android 5.1.1 Lollipop 操作系统的性能分析
+工作。
+0xbenchmark 工具介绍
+
+4.6.2
+
+0xbenchmark 作为谷歌官方的 benchmark 工具，拥有对 Android 操作系统进
+行全面测试的能力。其测试项分 CPU、2D、3D、内存、系统等几个大类。其
+中 0xbenchmark 选取 Linpack Java [45] 和 Scimark 2.0 [46] 作为 CPU 的性能测试
+benchmark。
+56
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+Linpack 是国际上使用最广泛的测试高性能计算机系统浮点性能的基准测
+试。通过对高性能计算机采用高斯消元法求解一元 N 次稠密线性代数方程组的
+测试，评价高性能计算机的浮点计算性能。Linpack 的结果按每秒百万次浮点运
+算次数（Mﬂops）表示。
+SciMark 2.0 是用于科学和数值计算的 Java 基准测试程序。它测量几个计算
+内核，并以每秒百万次浮点运算次数（Mﬂops）报告综合得分。SciMark 2.0 主要
+进行以下几个计算内核的测试：
+1. Fast Fourier Transform：快速傅里叶变换；
+2. Jacobi Successive Over-relaxation：雅可比连续超松弛；
+3. Monte Carlo integration：蒙特卡洛积分；
+4. Sparse matrix multiply：稀疏矩阵乘；
+5. dense LU matrix factorization：稠密 LU 矩阵分解。
+0xbenchmark 测试工具的 2D 图形渲染测试分以下几个项目：
+1. DrawCanvas：Canvas 绘图性能测试；
+2. DrawCircle：绘制圆形性能测试；
+3. DrawCircle2：绘制实心圆形性能测试；
+4. DrawRect：绘制矩形性能测试；
+5. DrawArc：绘制弧形性能测试；
+6. DrawImage：绘制位图性能测试；
+7. DrawText：绘制文字性能测试。
+0xbenchmark 的 3D 图形渲染测试分以下几个项目：
+1. Cube：3D 魔方渲染性能测试；
+2. Blending：3D 空心立方体渲染性能测试；
+3. Fog：3D 木箱渲染性能测试；
+4. Teapot：3D 茶壶渲染性能测试。
+0xbenchmark 的 2D、3D 性能测试以每秒传输帧数（FPS）值作为测试结果，
+FPS 是图像领域中的定义，是指画面每秒传输帧数，通俗来讲就是指动画或视频
+的画面数。FPS 是测量用于保存、显示动态视频的信息数量。每秒钟帧数越多，
+所显示的动作就会越流畅。通常，要避免动作不流畅的最低 FPS 值是 30。
+
+57
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+基于龙芯 2K 平台的 Android 5.1.1 系统移植效果
+
+4.6.3
+
+基于龙芯 2K 平台的 Android 5.1.1 操作系统 64_32 multilib 移植成功后，Android 5.1.1 操作系统能够在龙芯 2K 平台正常开机启动并流畅运行。Android 操作
+系统中除蓝牙、WIFI 等本次移植未适配驱动的硬件部件外，其余各项功能均能
+正常使用。Android 5.1.1 操作系统在硬件加速模式下运行在龙芯 2K 平台时的界
+面如图 4.6所示。
+
+(a)
+
+(b)
+
+(c)
+
+(d)
+
+图 4.6 龙芯 2K 平台 Android 5.1.1 系统界面。(a) 系统 home 界面，(b) 系统主界面，(c) 系统
+信息界面，(d) 日历界面。
+Figure 4.6 Android 5.1.1 interface of loongson 2K platform.(a) home interface, (b) main interface, (c) system information, (d) calendar interface.
+
+基于龙芯 2K 平台的 Android 5.1.1 系统性能评估
+
+4.6.4
+4.6.4.1
+
+系统库函数优化效果评估
+
+Android 系统库函数 memset、memcpy 在考虑龙芯 2K 平台体系结构的基础
+上实现了以细粒度分块，减少循环分支开销为指导思想的汇编优化。优化完成
+后，为观测函数优化效果，以 memset 函为例编写测试代码如下所示。
+1 g e t t i m e o f d a y (& t v 1 , NULL) ;
+
+3 memset ( a r r _ 1 , VAL, NUM) ;
+
+5 g e t t i m e o f d a y (& t v 2 , NULL) ;
+
+7 t e s t _ t i m e = ( t v 2 . t v _ s e c − t v 1 . t v _ s e c ) ∗1000000 + ( t v 2 . t v _ u s e c − t v 1 . t v _ u s e c ) ;
+
+58
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+在测试代码中，通过测试 memset 函数填充 100000 个相应类型整型数的执
+行时间来对比优化效果。测试结果如图 4.7所示。
+
+图 4.7 memset 函数优化前后执行时间对比。
+Figure 4.7 The compare of memset function before and after optimization.
+
+根据图中数据可以看到，libc memset 函数汇编优化后比优化前的性能提升
+有 50 倍左右的提升，其他 memset 函数也有一定的性能提升。另外，图中 Skia
+2D 图形库 memset32 函数优化后的性能提升并没有很明显，是因为其 C 语言函
+数对填充内存分块时没有类似 memset16 函数中数据类型转换、对齐处理等多余
+操作，使得 memset32 函数性能比 memset16 函数高很多，这一点从图中可以看
+出 C 语言的 Skia memset16 函数填充十万个 16 位无符号整型数需要用时 4775 微
+秒，而 C 语言 Skia memset32 函数填充十万个 32 位无符号整型数只需用时 683.7
+微秒。
+memcpy 函数的测试思路与 memset 一致，其测试结果如图 4.8所示。由图可
+知，memcpy 函数优化后，其性能有接近 10 倍的提升。
+针对 memset 和 memcpy 系统库访存操作函数的单项性能测试证明通过汇编
+优化后的 memset 和 memcpy 函数的性能确实得到了很大程度的提升，那么这
+种优化带来的性能提升能否提现在系统性能上呢？我们测试了龙芯 2K 平台上
+Android 5.1.1 系统在软件渲染模式下访存操作函数优化前后的 2D 绘图性能，并
+进行对比，如图 4.9所示。
+
+59
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+图 4.8 memcpy 函数优化前后执行时间对比。
+Figure 4.8 The compare of memcpy function before and after optimization.
+
+图 4.9 访存操作函数优化前后 2D 图形渲染性能对比。
+Figure 4.9 Performance comparison of 2D rendering before and after optimization.
+
+60
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+由图可知，虽然 memset 和 memcpy 系统库访存操作函数在优化后性能有很
+大的提升，但是如表 4.1和 4.2所示，访存操作占进程总体 CPU 执行时间只有百
+分之十左右，因此，对系统整体性能提升帮助并不明显。
+进一步分析表 4.1与表 4.2中 perf 分析数据，在软件渲染模式下，除了访存
+操作函数外，Skia 2D 图形库以及 ART 运行时占据了绝大多数的 CPU 执行时间。
+如果想要在龙芯 2K 平台的 Android 5.1 系统软件渲染模式下取得更好的系统性
+能和流畅度，根据以上分析，可以从以下几个方面入手：
+1. 处理器中加入批量 load、store 指令支持，实现一条批量 load、stroe 指令
+完成若干条普通 load、store 指令的操作。
+2. 处理器支持更大位宽寄存器以及硬件、软件数据预取。
+3. 进一步实现针对 Skia 2D 图形库以及 ART 运行时的体系结构级深入优化。
+4.6.4.2
+
+龙芯 2K 平台 Android 5.1.1 系统硬件加速性能评估
+
+随着移动终端硬件中图形硬件加速器性能的逐步提升，Android 操作系统通
+过硬件加速技术优化图形系统，从而大幅提升 Android 图形渲染的整体性能。龙
+芯 2K 平台 2K1000 SOC 中内嵌有专用于图形硬件加速的 GPU，因此在移植龙芯
+2K 平台 Android 5.1.1 系统时也针对龙芯 2K 平台进行了图形硬件加速系统的移
+植，使用 0xbencmark 性能测试工具测试龙芯 2K 平台 Android 系统在软件渲染模
+式和硬件加速模式下 2D、3D 图形渲染性能如图 4.10所示。
+
+(a)
+
+(b)
+
+图 4.10 龙芯 2K 平台 Android 系统软件渲染与硬件加速模式下 2D、3D 图形性能对比。(a)
+2D 图形渲染测试，(b) 3D 图形渲染测试。
+Figure 4.10 Performance comparison of Loongson 2K platform Android system software rendering and hardware acceleration mode for 2D and 3D graphics.(a) 2D graphics rendering test, (b) 3D graphics rendering test.
+
+61
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+龙芯 2K 平台 Android 5.1.1 系统开启 GPU 硬件加速 2D、3D 图形渲染后，其
+性能相比于软件渲染模式得到了极大的提升，大多数测试的 FPS 值都大于 30。
+因此在硬件加速模式下，Android 系统主界面操作流畅，使用 0xbenchmark 工具
+进行 2D、3D 图形性能测试时，其渲染出的图形完整，图片切换流畅。
+4.6.4.3
+
+龙芯 2K 平台 Android 5.1.1 系统性能对比
+
+魅蓝 E2 是魅族科技于 2017 年 4 月上市的一款智能手机，该手机主要配置
+如表 4.3所示。
+表 4.3 魅蓝 E2 智能手机配置表。
+Table 4.3 The conﬁguration table of the MeiLan E2.
+名称
+
+特性
+
+处理器 联发科 Helio P20(2.3GHz Cortex A53 x4, 1.6GHz Cortex A53 x4)
+GPU
+
+ARM Mali-T880 MP2(900MHz)
+
+内存
+
+4GB(LPDDR4x-1600MHz)
+
+硬盘
+
+64GB
+
+系统
+
+Android 6.0.1
+
+本文使用 0xbenchmark 性能测试工具分别对采用硬件加速模式的龙芯 2K 平
+台 Android 5.1.1 系统和魅蓝 E2 手机进行测试，对比两者数学运算、2D 图形渲
+染和 3D 图形渲染性能。
+最终测得两者数学运算性能如下表 4.4所示，由于魅蓝 E2 采用 Helio P20 8
+核心处理器且处理器核主频高于龙芯 2K1000 处理器，因此魅蓝 E2 数学运算性
+能高于龙芯 2K 平台属于正常。这也进一步说明在未来工作中，需要继续深耕处
+理器核研发技术，在提升龙芯处理器单核心运算能力及主频的同时兼顾多核心
+处理器的扩展能力。
+2D 和 3D 图形渲染测试结果对比如下图 4.11所示，可见龙芯 2K 平台的
+Android 系统 2D 和 3D 图形渲染性能在硬件加速模式下会比魅蓝 E2 稍微弱一
+点，其中 2D 图形渲染测试中 Rect、Arc、Image 测试只有魅蓝 E2 不到一半的
+性能，通过数学运算性能测试数据分析，魅蓝 E2 使用的处理器性能强于龙芯
+2K1000 处理器，且魅蓝 E2 采用 Android 6.0.1 版本，相对于 Android 5.1 有进一
+步的性能优化和升级。另外，GPU 性能也是影响 2D 和 3D 图形渲染性能的因素
+62
+
+第4章
+
+基于龙芯 2k 平台的 Android 5.1.1 系统性能分析与优化
+
+表 4.4 数学运算性能对比。
+Table 4.4 Math performance comparison.
+测试项 (Mﬂops/s)
+
+龙芯 2K 魅蓝 E2
+
+Linpack
+
+4.19
+
+34.86
+
+Fast Fourier Transform
+
+3.58
+
+24.41
+
+Jacobi Successive Over-relaxation
+
+9.75
+
+57.51
+
+Monte Carlo Intergration
+
+0.37
+
+12.55
+
+Sparse matrix multiply
+
+5.64
+
+32.86
+
+dense LU matrix factorization
+
+5.83
+
+38.08
+
+之一。因此，在后续工作中需要通过提升 Android 系统版本、进一步优化 ART 运
+行时及图形子系统来提升龙芯 2K 平台 Android 系统的 2D 和 3D 图形性能。此
+外，从体系结构角度入手，进一步提升国产处理器单核心主频及多核扩展能力，
+提升访存带宽以及 IO 性能也是实现上层应用高质量运行的前提和保证。
+
+(a)
+
+(b)
+
+图 4.11 龙芯 2K 平台 Android 系统软件渲染与硬件加速模式下 2D、3D 图形性能对比。(a)
+2D 图形渲染测试，(b) 3D 图形渲染测试。
+Figure 4.11 Performance comparison of Loongson 2K platform Android system software rendering and hardware acceleration mode for 2D and 3D graphics.(a) 2D graphics rendering test, (b) 3D graphics rendering test.
+
+4.7
+
+本章小结
+本章首先通过对比分析 AOSP 针对 ARM 等平台对 Android 系统进行的一系
+
+列深层次的优化工作，介绍了龙芯 2K 平台 Android 操作系统存在的性能问题和
+对 Android 系统库访存函数进行汇编优化的必要性。接下来，介绍了 perf 性能
+分析工具及其使用方法，然后借助此工具对龙芯 2K 平台 Android 系统主界面进
+63
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+程及 0xbenchmark 应用的 2D 图形绘制程序进行了测试分析，由分析结果可知系
+统库 memset 函数占据了大量的 CPU 执行时间，从而影响了系统的性能和流畅
+度。因此，基于上述分析结论，展开了对龙芯 2K 平台 Android 系统库 memset 及
+memcpy 函数进行了汇编优化，优化完成后与原 c 语言实现的 memset 函数进行
+对比，libc 库 memset 函数性能有接近 50 倍的提升，同时 memcpy 函数优化后也
+有接近 10 倍左右的性能提升。但是由于系统库访存操作函数在 Android 系统中
+占 CPU 执行时间的比例并不是很高，因此这两个函数的优化对提升整体系统性
+能的效果并不显著。本章最后介绍了 Android 操作系统上相关的测试工具，通过
+对比最后选用了谷歌官方提供的 0xbenchmark 性能测试工具。对其进行了一定的
+升级后，针对龙芯 2K 平台下的 Android 操作系统进行了一系列性能测试。最后
+通过测试结果可以看出，龙芯 2K 平台 Android 系统在硬件加速模式下的图形渲
+染能力远大于软件渲染模式，同时通过与魅蓝 E2 手机的测试结果对比，表明了
+龙芯 2K1000 处理器由于主频和处理器核心数的差距与魅蓝 E2 的数学运算能力
+差距较大，但是其 2D、3D 图形硬件渲染能力稍弱与魅蓝 E2，通过后续工作进
+一步对龙芯 2K 平台 Android 系统的优化升级，相信龙芯 2K 平台的 Android 系
+统可以从能用提升至流畅好用的水平。
+
+64
+
+第 5 章 总结与展望
+
+第 5 章 总结与展望
+5.1
+
+本文工作总结
+本文主要完成了龙芯 2K 平台的 Android 5.1.1 操作系统移植，通过对 Android
+
+操作系统分析找出性能瓶颈，使用普通汇编优化技术对其进行优化。最后使用
+0xbenchmark 工具对龙芯 2K 平台上的 Android 操作系统进行性能评估与分析，具
+体总结如下：
+第一章首先介绍了本课题的研究背景及意义，通过介绍 Android 操作系统的
+发展、x86 及 MIPS 的相关 Android 操作系统移植项目以及国内相关研究机构的
+研究现状，分析了本课题基于龙芯 2K 平台 Android 操作系统移植的重点和难点。
+最后介绍了本课题的论文工作和文章结构。
+第二章深入分析了 Android 操作系统的层次化架构，对 Android 操作系统中
+的定制 Linux 内核、Android 系统本地共享函数库、Android 运行时以及其他相关
+重要组件进行了详细的分析介绍，为后文的 Android 移植和优化工作奠定了理论
+基础。
+第三章主要介绍了龙芯 2K 平台 Android 5.1.1 操作系统移植的难点和移植策
+略。详细阐述了 Android 定制 Linux 驱动 64/32 位文件系统适配、Android 开发编
+译环境构建、Android 运行时移植以及 Android 图形子系统重构等工作。
+第四章在第三章成功在龙芯 2K 平台上完成 Android 操作系统移植的基础上，
+通过 perf 工具分析了 Android 操作系统在软件渲染模式下主界面和 2D 图形应用
+的性能瓶颈，并对相关内存操作函数进行了普通汇编优化。接着使用 0xbenchmark
+性能测试工具对龙芯 2K 平台上的 Android 5.1.1 操作系统进行了算术运算性能、
+2D、3D 图形渲染功能的性能测试，测试结果表明移植后的 Android 系统初步具
+备了一定的实用性。
+本文的贡献在于：
+1. 完成了龙芯 2K 平台上 Android 5.1.1 操作系统移植，使得该系统成功稳
+定运行。
+2. 完成 Android 系统的优化，实现 Android 系统 2D、3D 图形硬件加速，提
+升了龙芯 2K 平台 Android 系统的性能，使得系统运行时更加流畅。
+65
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+3. 使用 0xbenchmark 性能分析工具，对龙芯平台上的 Android 系统进行全
+面的性能测试分析，通过与真实手机下的测试结果对比，基于龙芯 2K 平台的
+Android 5.1.1 操作系统已具备流畅运行的能力，为龙芯 2K 平台开拓市场提供了
+有力的技术支持。
+5.2
+
+未来研究方向
+本文对基于龙芯 2K 平台的 Android 5.1.1 操作系统移植及优化工作只是一个
+
+开始，仍有更多的工作需要进行深入探索，包括：
+1. 向龙芯全平台、最新版本 Android 操作系统移植演进。
+2. 对于 Android 操作系统在 ARM 平台上针对 Android 运行时及其他子模块
+的更深层次优化工作仍未在龙芯平台上实现，后续仍有很大的优化空间。
+3. 龙芯 Android 操作系统对于目前 Android 应用市场上的 Android 应用程序
+的兼容也是一个值得研究的方向。
+
+66
+
+附录 A Android 相关源码
+
+附录 A Android 相关源码
+A.1 libcutils 库 memset 函数
+“system/core/libcutils”目录下分别定义了 C 语言实现的 android_memset16 及
+android_memset32 函数，如下代码所示。
+1
+
+void android_memset16 ( u i n t 1 6 _ t ∗ dst , u i n t 1 6 _ t value , s i z e _ t s i z e )
+3 {
+
+s i z e >>= 1 ;
+5
+
+w h i l e ( s i z e −−) {
+
+7
+
+}
+
+∗ d s t ++ = v a l u e ;
+
+}
+9
+
+void android_memset32 ( u i n t 3 2 _ t ∗ dst , u i n t 3 2 _ t value , s i z e _ t s i z e )
+11 {
+
+s i z e >>= 2 ;
+w h i l e ( s i z e −−) {
+
+13
+
+∗ d s t ++ = v a l u e ;
+}
+
+15
+
+}
+
+A.2 skia 库 memset 函数
+“external/skia/src/core/”目录下也实现了适用于 Skia 2D 图形库的 memset 函
+数，如下代码所示。
+1
+
+# define assign_16_longs ( dst , value )
+3
+
+5
+
+7
+
+9
+
+11
+
+do {
+
+\
+\
+
+∗ ( d s t )++ = v a l u e ;
+
+∗ ( d s t )++ = v a l u e ;
+
+\
+
+∗ ( d s t )++ = v a l u e ;
+
+∗ ( d s t )++ = v a l u e ;
+
+\
+
+∗ ( d s t )++ = v a l u e ;
+
+∗ ( d s t )++ = v a l u e ;
+
+\
+
+∗ ( d s t )++ = v a l u e ;
+
+∗ ( d s t )++ = v a l u e ;
+
+\
+
+∗ ( d s t )++ = v a l u e ;
+
+∗ ( d s t )++ = v a l u e ;
+
+\
+
+∗ ( d s t )++ = v a l u e ;
+
+∗ ( d s t )++ = v a l u e ;
+
+\
+
+∗ ( d s t )++ = v a l u e ;
+
+∗ ( d s t )++ = v a l u e ;
+
+\
+
+∗ ( d s t )++ = v a l u e ;
+
+∗ ( d s t )++ = v a l u e ;
+
+\
+
+} while (0)
+13
+
+67
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+void sk_memset16_portable ( u i n t 1 6 _ t d s t [ ] , u i n t 1 6 _ t value , i n t count ) {
+15
+
+i f ( d s t == NULL | | c o u n t < 0 ) {
+p r i n t f ( ” a s s e r t e r r o r ! \ n” ) ;
+
+17
+
+return ;
+19
+
+}
+
+21
+
+i f ( c o u n t == 0 ) {
+return ;
+
+23
+
+}
+
+25
+
+/ / n o t s u r e i f t h i s h e l p s t o s h o r t − c i r c u i t on s m a l l v a l u e s o f c o u n t
+i f ( count < 8) {
+
+27
+
+do {
+
+29
+
+} w h i l e (−− c o u n t != 0 ) ;
+
+∗ d s t ++ = ( u i n t 1 6 _ t ) v a l u e ;
+
+return ;
+}
+
+31
+
+/ / e n s u r e we ’ r e on a l o n g b o u n d a r y
+
+33
+
+i f ( ( s i z e _ t ) dst & 2) {
+∗ d s t ++ = ( u i n t 1 6 _ t ) v a l u e ;
+
+35
+
+c o u n t −= 1 ;
+37
+
+}
+
+39
+
+u i n t 3 2 _ t v a l u e 3 2 = ( ( u i n t 3 2 _ t ) v a l u e << 1 6 ) | v a l u e ;
+
+/ / h a n d l e t h e b u l k w i t h o u r u n r o l l e d macro
+
+41
+
+{
+i n t s i x t e e n l o n g s = c o u n t >> 5 ;
+
+43
+
+if ( sixteenlongs ) {
+u i n t 3 2 _ t ∗ dst32 = ( u i n t 3 2 _ t ∗) d s t ;
+
+45
+
+do {
+assign_16_longs ( dst32 , value32 ) ;
+
+47
+
+} w h i l e (−− s i x t e e n l o n g s != 0 ) ;
+d s t = ( u i n t 1 6 _ t ∗) dst32 ;
+
+49
+
+c o u n t &= 3 1 ;
+}
+
+51
+
+}
+53
+
+/ / h a n d l e ( most ) o f t h e r e s t
+{
+
+55
+
+i n t l o n g s = c o u n t >> 1 ;
+i f ( longs ) {
+
+57
+
+do {
+∗( u i n t 3 2 _ t ∗) d s t = value32 ;
+
+59
+
+d s t += 2 ;
+} w h i l e (−− l o n g s != 0 ) ;
+
+61
+
+68
+
+附录 A Android 相关源码
+
+}
+63
+
+}
+
+65
+
+/ / cleanup a possible t r a i l i n g short
+i f ( count & 1) {
+∗ dst = ( uint16_t ) value ;
+
+67
+
+}
+69 }
+
+71 v o i d s k _ m e m s e t 3 2 _ p o r t a b l e ( u i n t 3 2 _ t
+
+73
+
+d s t [ ] , u i n t 3 2 _ t value , i n t count ) {
+
+i f ( d s t == NULL | | c o u n t < 0 ) {
+p r i n t f ( ” a s s e r t e r r o r ! \ n” ) ;
+return ;
+
+75
+
+}
+77
+
+i n t s i x t e e n l o n g s = c o u n t >> 4 ;
+79
+
+if ( sixteenlongs ) {
+do {
+assign_16_longs ( dst , value ) ;
+
+81
+
+} w h i l e (−− s i x t e e n l o n g s != 0 ) ;
+c o u n t &= 1 5 ;
+
+83
+
+}
+85
+
+i f ( count ) {
+do {
+
+87
+
+∗ d s t ++ = v a l u e ;
+} w h i l e (−− c o u n t != 0 ) ;
+
+89
+
+}
+91 }
+
+69
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+70
+
+参考文献
+
+参考文献
+[1] Statcounter. Mobile operating system market share worldwide[EB/OL]. 2020. https://gs.
+statcounter.com/os-market-share/mobile/worldwide.
+[2] Wikipedia contributors. Android (operating system) — Wikipedia, the free encyclopedia
+[EB/OL]. 2020. https://en.wikipedia.org/wiki/Android_(operating_system).html.
+[3] Open Handset Alliance. Android overview[EB/OL]. 2020. https://www.openhandsetalliance.
+com/android_overview.html.
+[4] Android Open Source Project. About the android open source project[EB/OL]. 2020. https:
+//source.android.com/.
+[5] Loongson Co.,Ltd. Loongson 2k1000[EB/OL]. 2020. http://www.loongson.cn/product/cpu/
+2/Loongson2K1000.html.
+[6] Android. Say hello to android 10.[EB/OL]. 2020. https://www.android.com/.
+[7] Android-x86. Android-x86 run android on your pc[EB/OL]. 2020. https://www.android-x86.
+org/.
+[8] MIPS. Getting started with android[EB/OL]. 2020. https://www.mips.com/develop/android/.
+[9] 雷鸣, 靳婷, 徐晓亮, 等. 面向龙芯平台的 Android 系统移植研究[J]. 计算机工程与应用,
+2012, 48(22):70-73.
+[10] SWEETMAN D. See mips run, 2nd edition[M]. Morgan Kaufmann, 2006.
+[11] 孙浩志. 基于龙芯 3A 平台的 Android4.0 操作系统移植与优化[D]. 中国科学院大学,
+2013.
+[12] 姚昱
+
+, 刘卫国. Android 的架构与应用开发研究[J]. 计算机系统应用(11):26+112-114.
+
+[13] Chris Hoﬀman. Android is based on linux, but what does that mean?[EB/OL]. 2017. https:
+//www.howtogeek.com/189036/android-is-based-on-linux-but-what-does-that-mean/.
+[14] 范立涛. Android 进程间通信（IPC）机制 Binder[EB/OL]. 2020. https://blog.csdn.net/litton_
+van/article/details/7050298.
+[15] MARCO CESATI D P B. Understanding the linux kernel[M]. O’Reilly Media, Inc., 2005.
+[16] 罗升阳. Android 系统源代码情景分析[M]. 2012.
+[17] 柯元旦. Android 内核剖析[M]. 2011.
+[18] YAGHMOUR K. Embedded android: Porting, extending, and customizing[M]. O’Reilly
+Media, Inc., 2013.
+[19] Wikipedia contributors. Android runtime — Wikipedia, the free encyclopedia[EB/OL]. 2019.
+https://en.wikipedia.org/w/index.php?title=Android_Runtime&oldid=927642088.
+
+71
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+[20] Android Open Source Project. Dalvik executable format[EB/OL]. 2020. https://source.
+android.com/devices/tech/dalvik/dex-format.
+[21] 毛宏斌. Android 虚拟机内存管理机制的分析及性能优化[D]. 东南大学, 2016.
+[22] Google I/O 2014. The art runtime[EB/OL]. 2014. https://source.android.com/devices/tech/
+dalvik/dex-format.
+[23] 金泰延. Android 框架揭秘[M]. 2012.
+[24] 林仕鼎, 任爱华, 王雷, 等. Linux 内核在新型硬件平台上的实现[J]. 北京航空航天大学学
+报(3):197-201.
+[25] CORBET J, RUBINI A, KROAH-HARTMAN G. Linux device drivers, 3rd edition[M].
+O’Reilly Media, Inc., 2009.
+[26] Android Open Source Project. Build system[EB/OL]. 2020. https://source.android.com/setup/
+build.
+[27] Wikipedia contributors. Docker (software) — Wikipedia, the free encyclopedia[EB/OL].
+2020. https://en.wikipedia.org/w/index.php?title=Docker_(software)&oldid=944113664.
+[28] docker. Docker frequently asked questions[EB/OL]. 2020. https://docs.docker.com/engine/
+faq/#what-does-docker-technology-add-to-just-plain-lxc.
+[29] docker.
+
+What is a container?[EB/OL].
+
+2020.
+
+https://www.docker.com/resources/
+
+what-container.
+[30] Android Open Source Project. Building android[EB/OL]. 2020. https://source.android.com/
+setup/building.
+[31] 罗升阳. Android 运行时 ART 加载 OAT 文件的过程分析[EB/OL]. 2020. https://blog.csdn.
+net/Luoshengyang/article/details/39307813.
+[32] Chris Lattner. The design decisions that shaped llvm[EB/OL]. 2020. http://www.aosabook.
+org/en/llvm.html.
+[33] 邓凡平. 深入理解 Android. 卷 2[M]. 2012.
+[34] Chris Simmonds. The android graphics path in depth[EB/OL]. 2020. https://elinux.org/
+images/2/2b/Android_graphics_path--chis_simmonds.pdf.
+[35] The Mesa project. The mesa 3d graphics library introduction[EB/OL]. 2020. https://www.
+mesa3d.org/intro.html.
+[36] HENNESSY J L, PATTERSON D A. Computer architecture: A quantitative approach, ﬁfth
+edition[M]. Elsevier,Inc., 2012.
+[37] W H S, C P H, D H T. Mobile digital image stabilisation using simd data path[J]. Electronics
+Letters, 2012, 48(15):922-924.
+[38] ARM.
+
+Neon[EB/OL].
+
+simd-isas/neon.
+72
+
+2020.
+
+https://developer.arm.com/architectures/instruction-sets/
+
+参考文献
+
+[39] The Mesa project. Skia graphics library[EB/OL]. 2020. https://skia.org/.
+[40] 李文龙, 林隽民, 汤志忠. IA-64 中软件数据预取的优化[J]. 清华大学学报 (自然科学版),
+2004(9):130-133.
+[41] Ghods and Amir Reza. A study of linux perf and slab allocation sub-systems[M/OL]. UWSpace, 2016. http://hdl.handle.net/10012/10184.
+[42] SARKAR V. Optimized unrolling of nested loops[J]. In Proceedings of the International
+Conference on Supercomputing (ISC’00), 2000:153-166.
+[43] AnTuTu Benchmark. Antutu[EB/OL]. 2020. https://www.antutu.com/en/index.htm.
+[44] 0xlab. 0xbench, integrated android benchmark suite by 0xlab[EB/OL]. 2020. https://code.
+google.com/archive/p/0xbench/.
+[45] Jack Dongarra and Reed Wade and Paul McMahan.
+
+Linpack benchmark – java version
+
+[EB/OL]. 2020. http://www.netlib.org/benchmark/linpackjava/.
+[46] Roldan Pozo and Bruce Miller. Scimark 2.0[EB/OL]. 2020. https://math.nist.gov/scimark2/.
+
+73
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+74
+
+作者简历及攻读学位期间发表的学术论文与研究成果
+
+作者简历及攻读学位期间发表的学术论文与研究成果
+作者简历
+姓名：杜泽旭 性别：男 出生日期：1992 年 02 月 12 日 籍贯：甘肃省合
+作市
+学习经历
+2017.09 - 2020.07
+
+中国科学院计算技术研究所
+
+2011.09 - 2015.06
+
+四川大学
+
+计算机技术专业
+
+电气工程及其自动化专业
+
+硕士
+
+本科
+
+获奖情况
+[1]
+
+2018 年被评为中国科学院大学三好学生
+
+[2]
+
+2019 年度硕士生国家奖学金
+
+75
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+76
+
+致 谢
+时光荏苒，转眼间为期三年的研究生生涯即将画上句号。蓦然回首，从研一
+入学时对研究生学习的热切期待，到现在即将结束研究生阶段的学习，曾感受过
+彷徨和迷茫；也受到过教训和挫折；更怀疑过自己和人生。幸运的是，我遇到了
+专业负责的老师，热情团结的同学还有支持鼓励我的家人。正是他们的陪伴，让
+我顺利走完了这三年的磨砺。在此，我要向他们表以衷心的感谢！
+首先，我要感谢我的导师肖俊华老师，无论是在学术研究、论文撰写还是生
+活问题上，肖老师时常与我讨论交流，给我提供意见、建议和帮助。在我意志消
+沉之时，肖老师给予我关怀和鼓励，使我坚持下去；在我迷茫彷徨之时，肖老师
+像是指路明灯，给我前进方向；在我大意犯错之时，肖老师对我进行耐心教导，
+使我不会误入歧途。肖老师对待工作一丝不苟、对待科研严谨求真，具有深厚的
+学术涵养以及强烈的工作热情。从肖老师的言行举止中，我不仅学到了专业知
+识，还学到了学术和工作素养。
+其次，我要感谢实验室的张福新、王剑、章隆兵老师，感谢他们为我指明研
+究方向，感谢他们对我研究工作的教导、支持和帮助。这里特别要感谢张福新老
+师对我的谆谆教诲，教会了我许多只有在实践中才能够学到的工程能力，让我收
+获了知识和快乐。也非常感谢王剑老师、章隆兵老师对我的激励和鞭策，以及在
+我撰写论文阶段对我论文中的不足提供中肯的意见和建议，以及在我工程中遇
+到困难的指导。
+接着，我要感谢我实验室的李环宇、刘天义、赵士彭师兄，李文青师姐，李
+亚伟等其他同届同学对我学习和生活中给予的帮助和支持。
+最后，我要感谢我的妻子、父母，是他们无条件的包容和支持，使我顺利走
+到了今天，也使我的研究生生涯增添色彩，充实快乐。
+短暂的研究生生涯即将结束，我也将开启新的人生篇章，在此我向我人生中
+帮助过支持过我的家人、老师、同学、朋友们再次表以衷心的感谢，祝福你们身
+体健康、工作顺利、扎西德勒！
+
+77
+
+基于龙芯 2K 平台的 Android 系统移植与优化
+
+78
+
+

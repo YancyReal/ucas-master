@@ -2,12 +2,22 @@
 
 \section{适配目标、范围与设计原则}
 
+第 2 章已经从执行链、体系结构约束和问题类型三个角度分析了 AOSP 15 ART 在 LoongArch 平台上的主要难点。
+本章进一步回答其中最基础的问题：这些难点如何被逐步收束为可运行、可验证的执行能力。
+
 相较于普通用户态程序，ART 的平台适配不是若干体系结构相关文件的局部迁移，而是执行引擎能力的系统性
 构建过程\citep{AndroidRuntime2024,ArtJitCompiler2024,LoongArchISA2023,
 LoongArchELFABI2025}。原因在于，解释器、JIT 编译器、JNI 桥接与运行时入口点之间存在紧密耦合；
 任何一个子系统缺失，都可能使 Java 方法调用链、异常恢复链或 Java/native 边界调用链无法真正打通。
 因此，本文将 LoongArch 平台上的 ART 适配目标界定为一个“四能力单元”问题：解释器与 Nterp、
 JIT 编译器后端、JNI 编译器与运行时入口点，以及标准库与 Intrinsic 的基础能力。
+
+需要进一步说明的是，本章工作按性质可以分为两类。第一类是遵循既有 ART 架构接口完成的常规平台补齐，
+例如寄存器描述、基础指令发射、调用约定接线和公共辅助路径迁移；这类工作决定 LoongArch 平台能否接入
+现有执行引擎框架。第二类是在 LoongArch64 上遇到的平台特定障碍，并需要围绕执行链重新校正约定或
+补足语义的研究性工作。后者构成本文在执行能力构建阶段的主要研究贡献，集中体现在 Nterp 与调用桩之间的
+栈帧衔接、浮点比较与转换中的 NaN 语义处理，以及 JIT 与 Nterp 混合执行时的对象状态一致性三个方面。
+因此，本章不以枚举移植文件为目标，而是围绕这些非平凡问题说明执行能力为何能够真正闭合。
 
 围绕这一目标，本文遵循三条设计原则。第一，先建立最小执行路径，再逐步补齐高性能路径，即以
 C++ 解释器建立语义基线，再扩展到 Nterp、JIT 与 JNI。第二，先统一底层发射与调用约定，再补齐上层
@@ -79,6 +89,49 @@ $\rightarrow$ 对象与数组语义 $\rightarrow$ 各类 invoke 变体”的顺�
 与 Nterp 混合执行时的对象状态一致性问题。经过上述修复，LoongArch 平台不仅具备了平台无关的解释执行
 能力，也具备了与主流架构接近的高性能解释执行通路。
 
+从解释器分发表规模看，LoongArch64 Nterp 已按 packed opcode 生成 \texttt{256} 个 handler 槽位。
+运行时中的 \texttt{CheckNterpAsmConstants()} 会进一步检查解释器总大小是否满足
+\texttt{interp\_size = kNumPackedOpcodes * kNterpHandlerSize}，其中
+\texttt{kNumPackedOpcodes = 0x100}。因此，若按 packed opcode handler 统计，当前 LoongArch64
+Nterp 的分发表覆盖率已达到 \texttt{100\%}。需要说明的是，这一数字表达的是解释器槽位覆盖，而不是对所有上层
+语义场景都已穷尽验证；后文的 run-test 与混合执行回归，承担的是语义正确性层面的补充证明。
+
+\subsection{Nterp 与调用桩之间的栈帧衔接}
+
+LoongArch64 平台上的 Nterp 适配并不是孤立地补齐一个汇编入口，而是要让 Nterp 自建解释器帧、普通
+invoke stub、quick entrypoints 与 Nterp-to-Nterp 快速路径共享同一套栈帧约定。实际实现中，
+Nterp 主入口 \texttt{ExecuteNterpImpl} 负责按“寄存器槽、out 参数区与 padding”计算解释器帧大小并建立
+运行时布局；\texttt{invoke.S} 负责在方法调用边界上搬运参数与返回值；\texttt{quick\_entrypoints}
+中的 invoke stub 与 \texttt{ExecuteSwitchImplAsm} 则承担 quick entrypoints 与解释执行之间的
+入口/返回包装。若这些路径对栈对齐、保存寄存器位置、\texttt{ArtMethod*} 槽位或结果寄存器的理解不一致，
+跨越 Nterp、JNI 桩与 JIT 桩的调用链就会在参数传递、异常展开或栈回溯阶段失配。
+
+这一问题的难点不在于 LoongArch64 的栈增长方向本身，而在于解释器帧和调用桩对“谁负责补齐 padding、
+谁负责保留调用现场、谁负责恢复返回值通道”必须形成一致约定。本文在 LoongArch64 后端中统一了
+frame size 与 padding 计算、调用桩的参数拷贝布局以及 Nterp 返回路径的现场恢复方式，使
+\texttt{ExecuteNterpImpl}、\texttt{NterpToNterpInstance}、普通 invoke stub 与 quick
+entrypoints 可以在同一 ABI 假设下协同工作。该问题最终通过与 JIT/JNI 边界直接相关的
+\texttt{667-jit-jni-stub} 等目标机 run-test 收敛，说明 LoongArch 平台上的解释执行路径已经不再是
+“单点可运行”，而是已经与调用桩和运行时入口形成一致的执行链。
+
+\subsection{LoongArch64 浮点比较中的 NaN 语义处理}
+
+浮点路径中的平台特定难点，同样不能被简化为“指令能否工作”。对 ART 而言，真正需要保证的是 DEX/Java
+语义在 LoongArch64 浮点指令上的可重现性。以
+\texttt{runtime/interpreter/mterp/loongarch64/floating\_point.S} 为例，
+\texttt{cmpg/cmpl} 指令并不是直接照搬硬件比较结果，而是通过组合
+\texttt{fcmp.cle}/\texttt{fcmp.clt} 的结果，显式保留 DEX 字节码要求的
+\texttt{gt-bias}/\texttt{lt-bias} 语义；同一文件中的 \texttt{float/double} 到整数转换路径还使用
+\texttt{fclass} 对 NaN 情形做额外判别，以满足 DEX 规范关于 NaN 转换结果的约束。也就是说，
+这里真正要解决的问题不是“LoongArch64 是否支持 NaN”，而是平台默认的无序比较和分类结果能否被稳定
+映射回 ART 解释器所要求的语义。
+
+因此，本文对 NaN 问题的处理重点放在“语义对齐”而不是“数值技巧”上：比较类字节码要保持
+\texttt{cmpg/cmpl} 的偏置规则，转换类字节码要保证 NaN 不被错误传播为任意整数结果。相关实现最终由
+run-test 中的比较与数值边界用例共同收敛，其中比较类用例能够直接约束
+\texttt{cmpg/cmpl} 在 NaN 参与时的返回值行为。这一过程说明，LoongArch64 Nterp 的浮点适配不是
+把其它架构代码机械移植过来，而是要把平台指令的默认行为重新纳入 ART 的语义边界。
+
 \section{JIT 编译器后端与 JNI 编译器适配}
 
 如果说解释器适配解决的是“代码尚未编译时如何执行”的问题，那么 JIT 后端适配解决的就是“热点代码如何
@@ -122,7 +175,7 @@ trampoline 以及若干数学与字符串辅助入口，使 LoongArch 平台上�
 在运行时入口点基本闭合之后，本文继续补齐标准库与 Intrinsic 的基础能力，包括 Memory peek/poke、
 \texttt{Float}/\texttt{Double} 相关路径、整型与浮点最值计算以及 \texttt{Math.fma} 等高频语义。
 这一阶段的目标不是立即榨取极致性能，而是确保热点标准库语义在 LoongArch 平台上具备正确、稳定且可
-回归的机器级实现。换言之，Intrinsic 在本章中的角色首先是“执行能力完善”，而不是“正文主结果”；
+回归的机器级实现。Intrinsic 在本章中的角色首先是“执行能力完善”，而不是“正文主结果”；
 这也为后文将相关补充材料放入附录、而不与正文主结论混算奠定了边界。
 
 \section{可运行执行环境的形成与验证接口}
@@ -133,10 +186,10 @@ trampoline 以及若干数学与字符串辅助入口，使 LoongArch 平台上�
 编译执行能力，JNI 与运行时入口点打通 Java/native 边界，而标准库与 Intrinsic 则补齐高频语义的
 基础支撑。
 
-更重要的是，这些能力并非停留在“能跑一些样例”的层面，而是向第 4 章暴露了清晰的验证接口。其一，
+这些能力并非停留在“能跑一些样例”的层面，而是向第 4 章暴露了清晰的验证接口。其一，
 完整编译与部署链可以稳定产生 LoongArch64 目标产物；其二，目标机 \texttt{run-test} 与
 \texttt{libcore} 测试能够覆盖解释执行、编译执行、异常处理、对象访问和 Java API 行为；其三，
-基准测试入口能够在统一 baseline 下采集分数、日志、热点统计与 flamegraph。也就是说，第 4 章的
+基准测试入口能够在统一 baseline 下采集分数、日志、热点统计与 flamegraph。第 4 章的
 验证体系并不是额外附加的实验包装，而是本章执行能力构建自然暴露出的证据接口。
 
 从研究边界看，本文将从初始移植起点到稳定 baseline 版本这一提交区间视为“执行能力构建阶段”的主体成果。
@@ -149,5 +202,5 @@ trampoline 以及若干数学与字符串辅助入口，使 LoongArch 平台上�
 解释器与 Nterp 解决最小与高效解释执行路径，JIT 编译器后端与 JNI 编译器解决编译执行与跨语言调用链，
 运行时入口点与标准库基础能力负责把不同执行模式接到同一运行时支撑层上。只有这四个能力单元共同成立，
 LoongArch 平台上的 ART 才能从“局部可运行”演进为“系统可验证、可研究、可优化”的完整运行环境。
-下一章将在此基础上继续建立正文证据链，回答哪些数据可以进入论文主结论，以及这些数据为什么可信。
+下一章将在此基础上继续建立正文证据基础，回答哪些数据可以进入论文主结论，以及这些数据为什么可信。
 %---------------------------------------------------------------------------%

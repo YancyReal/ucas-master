@@ -2,7 +2,7 @@
 
 \subsection{S0、S1、S2 实验设计}
 
-本附录对应第 7.6 节提到的完整 SIMD 候选消融快照（\texttt{Snapshot-E}）。其目的不是重述正文正式方案，
+本附录对应第 6.6 节提到的完整 SIMD 候选消融快照（\texttt{Snapshot-E}）。其目的不是重述正文正式方案，
 而是说明为何正文保留最小可用版本 \texttt{S1} 作为主结论，同时将完整覆盖候选版 \texttt{S2} 降级为边界比较对象。
 
 三种状态的含义如下：
@@ -20,32 +20,32 @@
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/loongarch64-lsx-full-simd-ablation-geomean.pdf}
-    \caption{\texttt{S0/S1/S2} 在不同 workload 集合上的几何平均比较}
+    \caption{\texttt{S0/S1/S2} 在不同工作负载集合上的几何平均比较}
     \label{fig:app-lsx-full-simd-ablation-geomean}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/loongarch64-lsx-full-simd-ablation-key-speedup.pdf}
-    \caption{\texttt{S0/S1/S2} 在关键 workload 上的相对收益比较}
+    \caption{\texttt{S0/S1/S2} 在关键工作负载上的相对收益比较}
     \label{fig:app-lsx-full-simd-ablation-key}
 \end{figure}
 
-图~\ref{fig:app-lsx-full-simd-ablation-geomean} 表明，在全部 JIT workload 几何平均意义下，\texttt{S1}
+图~\ref{fig:app-lsx-full-simd-ablation-geomean} 表明，在全部 JIT 工作负载的几何平均意义下，\texttt{S1}
 仍然优于 \texttt{S2}：\texttt{S1/S0 = 1.0318x}，\texttt{S2/S0 = 1.0252x}，
 \texttt{S2/S1 = 0.9936x}。然而，图~\ref{fig:app-lsx-full-simd-ablation-key} 又显示，
-\texttt{S2} 在 \texttt{lu.small}、\texttt{h2}、\texttt{avrora} 等关键 workload 上继续超过
+\texttt{S2} 在 \texttt{lu.small}、\texttt{h2}、\texttt{avrora} 等关键工作负载上继续超过
 \texttt{S1}，说明更完整的后端覆盖并非无效，而是收益更集中。
 
-因此，完整覆盖候选版的正确学术定位应当是“功能覆盖更完整、在关键 workload 上继续获益的候选增强版”，而不是
-“已经可以直接替代正文正式方案的最终版本”。这一结论与第 7 章的处理方式完全一致。
+因此，完整覆盖候选版的正确学术定位应当是“功能覆盖更完整、在关键工作负载上继续获益的候选增强版”，而不是
+“已经可以直接替代正文正式方案的最终版本”。这一结论与第 6 章的处理方式完全一致。
 
 \subsection{正式方案与候选增强版的边界}
 
 从论文组织角度看，\texttt{S1} 与 \texttt{S2} 的边界可概括为以下三点。
 
 \begin{enumerate}
-    \item \textbf{证据强度不同。} \texttt{S1} 已通过第 7 章的正式对比快照与统计验证快照双重约束；
+    \item \textbf{证据强度不同。} \texttt{S1} 已通过第 6 章的正式对比快照与统计验证快照双重约束；
     \texttt{S2} 目前只适合承担附录中的边界比较角色。
     \item \textbf{研究问题不同。} \texttt{S1} 回答的是“最小可用 LSX 浮点路径是否成立”，而 \texttt{S2}
     回答的是“在更大覆盖范围下是否还能继续收益”。
