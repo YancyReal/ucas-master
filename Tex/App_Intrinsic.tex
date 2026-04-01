@@ -21,7 +21,8 @@ intrinsic 开关对应的是较宽泛的库调用与编译器机制增强，而�
 \end{figure}
 
 图~\ref{fig:intrinsic-ablation-geomean} 表明，在 \texttt{JIT} 模式下，LoongArch64 intrinsic 开关带来了
-稳定的整体正收益：全部可比较 workload 的几何平均 speedup 为 \texttt{1.0415x}，其中
+稳定的整体正收益。这里的几何平均 speedup 同样按式~\ref{eq:geomean-speedup} 计算。全部可比较 workload 的
+几何平均 speedup 为 \texttt{1.0415x}，其中
 \texttt{SPEC startup} 为 \texttt{1.0339x}，\texttt{SPEC throughput} 为 \texttt{1.0508x}，
 \texttt{DaCapo} 为 \texttt{1.0387x}。相比之下，\texttt{interpreter} 模式总体接近负对照，
 大部分 workload 落在 \texttt{\pm 2\%} 波动范围内。

@@ -30,7 +30,7 @@ C++ 解释器建立语义基线，再扩展到 Nterp、JIT 与 JNI。第二，�
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.97\textwidth]{porting/art-porting-overview.pdf}
+    \includegraphics[width=1.00\textwidth]{porting/art-porting-overview.pdf}
     \caption{AOSP 15 中 ART 执行引擎相关结构及本文适配范围}
     \label{fig:art-porting-overview}
 \end{figure}
@@ -106,6 +106,20 @@ Nterp 主入口 \texttt{ExecuteNterpImpl} 负责按“寄存器槽、out 参数�
 入口/返回包装。若这些路径对栈对齐、保存寄存器位置、\texttt{ArtMethod*} 槽位或结果寄存器的理解不一致，
 跨越 Nterp、JNI 桩与 JIT 桩的调用链就会在参数传递、异常展开或栈回溯阶段失配。
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.00\textwidth]{porting/nterp-frame-layout.pdf}
+    \caption{LoongArch64 Nterp 解释器帧的逻辑布局}
+    \label{fig:nterp-frame-layout}
+\end{figure}
+
+图~\ref{fig:nterp-frame-layout} 给出了本文实际采用的 Nterp 栈帧逻辑布局。这里刻意画成“逻辑布局图”而非逐字节偏移表，
+原因在于论文需要说明的是跨组件共享的结构约定，而不是把某一版汇编中的所有固定偏移逐项抄写出来。对本文论证最关键的，
+是三类信息必须同时可从帧中恢复：一是当前方法与调用边界状态，即 \texttt{ArtMethod*}、保存现场和返回通道；
+二是解释执行语义状态，即 \texttt{Dex PC} 与 dex register / vreg 数组；三是 GC 与异常处理所需的可见信息，
+即 reference array 和对齐后的调用区。运行时辅助接口 \texttt{NterpFrameInfo()}、\texttt{NterpGetDexPC()}、
+\texttt{NterpGetReferenceArray()} 与 \texttt{NterpGetRegistersArray()} 恰好对应这几类核心布局元素。
+
 这一问题的难点不在于 LoongArch64 的栈增长方向本身，而在于解释器帧和调用桩对“谁负责补齐 padding、
 谁负责保留调用现场、谁负责恢复返回值通道”必须形成一致约定。本文在 LoongArch64 后端中统一了
 frame size 与 padding 计算、调用桩的参数拷贝布局以及 Nterp 返回路径的现场恢复方式，使
@@ -167,7 +181,7 @@ trampoline 以及若干数学与字符串辅助入口，使 LoongArch 平台上�
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.97\textwidth]{porting/art-porting-runtime-paths.pdf}
+    \includegraphics[width=1.00\textwidth]{porting/art-porting-runtime-paths.pdf}
     \caption{解释执行、编译执行与运行时入口点的协同关系}
     \label{fig:art-runtime-cooperation}
 \end{figure}

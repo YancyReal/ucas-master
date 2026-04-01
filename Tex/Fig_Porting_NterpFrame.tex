@@ -1,0 +1,27 @@
+\begin{tikzpicture}[
+    font=\normalsize,
+    every node/.style={align=center},
+    framebox/.style={draw=black!70, rounded corners=2pt, fill=black!4, minimum width=7.8cm, minimum height=0.98cm, inner sep=5pt, line width=0.75pt},
+    titlebox/.style={draw=black!80, rounded corners=2pt, fill=black!12, minimum width=7.8cm, minimum height=1.02cm, inner sep=5pt, line width=0.9pt},
+    note/.style={anchor=west, font=\small},
+    arrow/.style={->, line width=0.85pt, draw=black!75}
+]
+    \node[titlebox] (caller) at (5.2,6.45) {调用者 quick / Nterp 帧};
+    \node[framebox] (saved) at (5.2,5.45) {返回地址与保存现场\\callee-saved 寄存器 / 调用桩恢复信息};
+    \node[framebox] (method) at (5.2,4.45) {\texttt{ArtMethod*} 与帧元数据\\供调用边界、异常展开和栈回溯识别当前方法};
+    \node[framebox] (dexpc) at (5.2,3.45) {\texttt{Dex PC} / handler 上下文\\供异常处理与解释器继续执行定位当前位置};
+    \node[framebox] (refs) at (5.2,2.45) {reference array\\供 GC 扫描 Nterp 帧中的引用槽位};
+    \node[framebox] (vregs) at (5.2,1.45) {dex register / vreg 数组\\保存解释执行所需的寄存器语义状态};
+    \node[framebox] (outargs) at (5.2,0.45) {out 参数区与 padding\\供 invoke stub 传参与 16-byte 对齐};
+
+    \draw[arrow] (1.2,6.9) -- (1.2,-0.05);
+    \node[note] at (1.45,6.75) {高地址};
+    \node[note] at (1.45,0.10) {低地址};
+    \node[rotate=-90, font=\small] at (0.55,3.35) {栈向低地址增长};
+
+    \draw[black!60, dashed] (1.95,5.95) -- (8.45,5.95);
+    \draw[black!60, dashed] (1.95,2.95) -- (8.45,2.95);
+
+    \node[note] at (8.75,5.95) {调用边界恢复};
+    \node[note] at (8.75,2.95) {GC / 异常 / 栈回溯可见区};
+\end{tikzpicture}

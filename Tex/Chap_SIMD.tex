@@ -20,15 +20,15 @@ LoongArch64 后端完成 lowering，那么这些循环本质上仍然停留在�
     \caption{规则浮点数值内核进入正文主结论的结构条件}
     \label{tab:simd-kernel-features}
     \begin{tabular}{p{3.0cm}p{7.6cm}}
-        \hline
+        \toprule
         \textbf{条件} & \textbf{对 LSX 最小路径的含义} \\
-        \hline
+        \midrule
         连续单位步长数组访问 & 便于直接映射到 \texttt{VecLoad/VecStore}，避免复杂 gather/scatter 需求 \\
         循环不变量广播值 & 需要后端支持标量到向量的复制，即 \texttt{VecReplicateScalar} \\
         加减乘为主的稳定算子组合 & 只需最小可用的浮点 \texttt{VecAdd/VecSub/VecMul} 即可解释主要收益 \\
         向量长度可由 128-bit 自然决定 & \texttt{float32} 对应 4 lane，\texttt{float64} 对应 2 lane，适配 LSX 宽度 \\
         不依赖复杂 idiom 与完整后端覆盖 & 使正文能够先证明“最小可用路径成立”，而非过早扩展到完整 SIMD 后端 \\
-        \hline
+        \bottomrule
     \end{tabular}
 \end{table}
 
@@ -42,8 +42,8 @@ LSX 向量流。
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{optimization/scheme3-vectorization-boundary.pdf}
-    \caption{LoongArch64 最小可用 LSX 浮点 SIMD 路径的边界与能力范围，只保留正文真正依赖的最小能力集合}
+    \includegraphics[width=1.00\textwidth]{optimization/scheme3-vectorization-boundary.pdf}
+    \caption{最小可用 LSX 浮点 SIMD 路径的能力边界}
     \label{fig:scheme3-vectorization-boundary}
 \end{figure}
 
@@ -89,12 +89,116 @@ return MinimalLSXPath;
 能力同时满足条件时，才进入 LSX 向量路径；否则保持既有标量路径不变。这样写的原因不是为了保守本身，而是避免把
 尚未充分验证的后端能力混入正式结论，从而保证“启用即有清楚语义，失配即回到原有标量路径”的安全边界。
 
+为了避免这一节停留在高层伪代码，下面给出两段正式方案中的真实实现片段。两段代码分别节选自
+\texttt{loop\_optimization.cc} 与 \texttt{code\_generator\_loongarch64.cc}。正文仅省略与论证无关的分支，
+并保留原始行号，便于将论文叙述与源码实现一一对应。
+
+\begin{lstlisting}[language=C++,numbers=left,firstnumber=2395,basicstyle=\ttfamily\scriptsize,caption={向量 IR 构造中的核心节点生成（节选自 \texttt{loop\_optimization.cc}）},label={lst:vec-ir-generation}]
+      // Generates ReplicateScalar( (optional_type_conv) org ).
+      HInstruction* input = org;
+      DataType::Type input_type = input->GetType();
+      if (type != input_type && (type == DataType::Type::kInt64 ||
+                                 input_type == DataType::Type::kInt64)) {
+        input = Insert(vector_preheader_,
+                       new (global_allocator_) HTypeConversion(type, input, kNoDexPc));
+      }
+      vector = new (global_allocator_)
+          HVecReplicateScalar(global_allocator_, input, type, vector_length_, kNoDexPc);
+      vector_permanent_map_->Put(org, Insert(vector_preheader_, vector));
+      MaybeInsertInVectorExternalSet(vector);
+    }
+    vector_map_->Put(org, vector);
+  }
+}
+
+void HLoopOptimization::GenerateVecMem(HInstruction* org,
+                                       HInstruction* opa,
+                                       HInstruction* opb,
+                                       HInstruction* offset,
+                                       DataType::Type type) {
+  uint32_t dex_pc = org->GetDexPc();
+  HInstruction* vector = nullptr;
+  if (synthesis_mode_ == LoopSynthesisMode::kVector) {
+    // Vector store or load.
+    bool is_string_char_at = false;
+    HInstruction* base = org->InputAt(0);
+    if (opb != nullptr) {
+      vector = new (global_allocator_) HVecStore(
+          global_allocator_, base, opa, opb, type, org->GetSideEffects(), vector_length_, dex_pc);
+    } else  {
+      is_string_char_at = org->AsArrayGet()->IsStringCharAt();
+      vector = new (global_allocator_) HVecLoad(global_allocator_,
+                                                base,
+                                                opa,
+                                                type,
+                                                org->GetSideEffects(),
+                                                vector_length_,
+                                                is_string_char_at,
+                                                dex_pc);
+\end{lstlisting}
+
+代码清单~\ref{lst:vec-ir-generation} 对应的是“标量循环如何被改写成向量 IR”这一步。其关键不是简单新建几个节点，
+而是明确区分了两类最重要的向量语义：一类是把循环不变量扩展为 \texttt{HVecReplicateScalar}，另一类是把数组访问
+重写为 \texttt{HVecLoad/HVecStore}。这正是前文伪代码里“启用后会进入哪条真实 IR 路径”的源码落点。
+
+\begin{lstlisting}[language=C++,numbers=left,firstnumber=6081,basicstyle=\ttfamily\scriptsize,caption={LSX lowering 中的广播入口（节选自 \texttt{code\_generator\_loongarch64.cc}）},label={lst:lsx-lowering-core}]
+void LocationsBuilderLOONGARCH64::VisitVecReplicateScalar(HVecReplicateScalar* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  HInstruction* input = instruction->InputAt(0);
+  bool is_zero = IsZeroBitPattern(input);
+  switch (instruction->GetPackedType()) {
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64:
+      locations->SetInAt(0, is_zero ? Location::ConstantLocation(input)
+                                    : Location::RequiresFpuRegister());
+      locations->SetOut(is_zero ? Location::RequiresFpuRegister()
+                                : Location::SameAsFirstInput());
+      break;
+    default:
+      LOG(FATAL) << "Unsupported SIMD replicate type " << instruction->GetPackedType();
+      UNREACHABLE();
+  }
+}
+
+void InstructionCodeGeneratorLOONGARCH64::VisitVecReplicateScalar(HVecReplicateScalar* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  FRegister dst = locations->Out().AsFpuRegister<FRegister>();
+  if (IsZeroBitPattern(instruction->InputAt(0))) {
+    EmitVecZero(GetAssembler(), dst);
+    return;
+  }
+
+  ScratchRegisterScope srs(GetAssembler());
+  XRegister tmp = srs.AllocateXRegister();
+  switch (instruction->GetPackedType()) {
+    case DataType::Type::kInt8: {
+      Location src_loc = locations->InAt(0);
+      XRegister src = src_loc.IsRegister() ? src_loc.AsRegister<XRegister>() : tmp;
+      if (src_loc.IsConstant()) {
+        __ LoadConst32(src, src_loc.GetConstant()->AsIntConstant()->GetValue());
+      }
+      EmitVecReplicateFromGpr(GetAssembler(), DataType::Type::kInt8, dst, src);
+      break;
+    }
+    default:
+      break;
+  }
+\end{lstlisting}
+
+代码清单~\ref{lst:lsx-lowering-core} 则对应“向量 IR 如何真正进入 LoongArch64 LSX lowering”。其阅读重点有两点：
+第一，\texttt{LocationsBuilder} 明确约束了输入与输出必须落在向量寄存器语义上；第二，真正的
+\texttt{InstructionCodeGenerator} 路径并不是抽象记号，而是调用底层 \texttt{EmitVecZero}、
+\texttt{EmitVecReplicateFromGpr} 等 LSX 发射接口。与之并列的 \texttt{VisitVecAdd}、
+\texttt{VisitVecSub}、\texttt{VisitVecMul} 与 \texttt{VisitVecCnv} 则分别调用
+\texttt{EmitVecAdd}、\texttt{EmitVecSub}、\texttt{EmitVecMul} 和 \texttt{EmitVecCnv}，
+从而把前端 \texttt{HVec*} 节点继续落到具体 LSX 指令。
+
 \section{从 Loop Vectorization 到 LSX Lowering 的关键链路}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.97\textwidth]{optimization/scheme3-lsx-lowering.pdf}
-    \caption{从 Loop Vectorization 到 LSX Lowering 的关键链路，展示向量 IR 如何落到 LSX 目标指令}
+    \includegraphics[width=1.00\textwidth]{optimization/scheme3-lsx-lowering.pdf}
+    \caption{Loop Vectorization 到 LSX Lowering 的关键链路}
     \label{fig:scheme3-lsx-lowering}
 \end{figure}
 
@@ -108,33 +212,72 @@ LoongArch64 后端把这些 IR 节点 lowering 为 LSX 指令序列的全过程�
 \texttt{HVecAdd}、\texttt{HVecSub}、\texttt{HVecMul} 与受限的 \texttt{HVecCnv}。第三，
 \texttt{code\_generator\_loongarch64.cc} 负责把这些向量 IR 节点进一步 lowering 为具体的 LSX 指令。
 
-为使这一过程更具可读性，表~\ref{tab:ir-to-lsx-mapping} 总结了正文正式方案真正依赖的 IR 到 LSX 指令映射。
-这些指令名并非推断，而是直接对应 LoongArch64 后端代码中的 lowering 入口。
+为使这一过程更具可读性，表~\ref{tab:vector-ir-structure} 先总结本文真正依赖的向量 IR 节点结构；随后再用
+表~\ref{tab:ir-to-lsx-mapping} 与表~\ref{tab:ir-to-lsx-boundary} 分别说明 IR 到 LSX 的映射关系和
+对应边界。这种拆分比把“节点语义、目标指令、边界条件”全部堆进一张表更利于阅读。
+
+\begin{table}[htbp]
+    \centering
+    \scriptsize
+    \caption{本文正式方案中关键向量 IR 节点的结构定义}
+    \label{tab:vector-ir-structure}
+    \begin{tabular}{p{3.0cm}p{4.5cm}p{3.8cm}}
+        \toprule
+        \textbf{节点/结构} & \textbf{关键字段} & \textbf{在本文中的作用} \\
+        \midrule
+        \texttt{HVecOperation} & \shortstack[l]{\texttt{packed\_type}\\\texttt{vector\_length\_}\\\texttt{PredicationKind}} & 所有向量 IR 的公共元数据，决定 lane 类型、向量长度和谓词形式 \\
+        \texttt{HVecReplicateScalar} & \shortstack[l]{标量输入\\目标 \texttt{packed\_type}\\\texttt{vector\_length}} & 将循环不变量或标量输入广播到所有 lane \\
+        \texttt{HVecCnv} & 输入节点、输入类型、结果类型 & 表示逐 lane 类型转换，是 \texttt{int32/64 -> float32/64} 路径的桥接节点 \\
+        \texttt{HVecLoad} & \texttt{base}、\texttt{index}、\texttt{is\_string\_char\_at} & 描述连续向量读取，并保留字符串读取特例 \\
+        \texttt{HVecStore} & \texttt{base}、\texttt{index}、\texttt{value} & 描述连续向量写回，是向量化内存路径的对称出口 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 \begin{table}[htbp]
     \centering
     \scriptsize
     \caption{正文正式方案中关键向量 IR 到 LSX 指令的映射}
     \label{tab:ir-to-lsx-mapping}
-    \begin{tabular}{p{3.4cm}p{4.3cm}p{4.0cm}}
-        \hline
-        \textbf{ART 向量 IR} & \textbf{对应 LSX 指令/序列} & \textbf{关键边界条件} \\
-        \hline
-        \texttt{ReplicateScalar<f32>} & \texttt{Movfr2gr\_s + vreplgr2vr.w} & 标量值先经 GPR，再广播到 4-lane 向量 \\
-        \texttt{ReplicateScalar<f64>} & \texttt{Movfr2gr\_d + vreplgr2vr.d} & 标量值先经 GPR，再广播到 2-lane 向量 \\
-        \texttt{VecLoad<f32/f64>} & \texttt{vld} & 连续单位步长访存，地址计算满足 LSX 向量宽度 \\
-        \texttt{VecStore<f32/f64>} & \texttt{vst} & 与 load 路径对称，沿既有数组布局写回 \\
-        \texttt{VecAdd<f32/f64>} & \texttt{vfadd.s / vfadd.d} & 仅对浮点 lane 开放，不混入整数扩展语义 \\
-        \texttt{VecSub<f32/f64>} & \texttt{vfsub.s / vfsub.d} & 维持与标量减法一致的浮点语义 \\
-        \texttt{VecMul<f32/f64>} & \texttt{vfmul.s / vfmul.d} & 直接命中 \texttt{lu.small} 的核心乘法内核 \\
-        \texttt{VecCnv<i32/64 -> f32/64>} & \texttt{vffint.s.w / vffint.d.l} & 仅保留正文所需的受限类型转换路径 \\
-        \hline
+    \begin{tabular}{p{4.4cm}p{6.2cm}}
+        \toprule
+        \textbf{ART 向量 IR} & \textbf{对应 LSX 指令/序列} \\
+        \midrule
+        \texttt{ReplicateScalar<f32>} & \texttt{Movfr2gr\_s + vreplgr2vr.w} \\
+        \texttt{ReplicateScalar<f64>} & \texttt{Movfr2gr\_d + vreplgr2vr.d} \\
+        \texttt{VecLoad<f32/f64>} & \texttt{vld} \\
+        \texttt{VecStore<f32/f64>} & \texttt{vst} \\
+        \texttt{VecAdd<f32/f64>} & \texttt{vfadd.s / vfadd.d} \\
+        \texttt{VecSub<f32/f64>} & \texttt{vfsub.s / vfsub.d} \\
+        \texttt{VecMul<f32/f64>} & \texttt{vfmul.s / vfmul.d} \\
+        \texttt{VecCnv<i32/64 -> f32/64>} & \texttt{vffint.s.w / vffint.d.l} \\
+        \bottomrule
     \end{tabular}
 \end{table}
 
-表~\ref{tab:ir-to-lsx-mapping} 所体现的，不只是“会生成几条指令”，而是方案三的技术硬核所在：前端向量化产生的
-IR 节点已经能够在 LoongArch64 后端找到一一对应的 LSX 落点，从而使 \texttt{lu.small} 这类规则浮点循环真正
-从标量流切换为向量流。也正因此，后文的性能收益才能被解释为“后端路径补齐”而非其它偶然因素。
+\begin{table}[htbp]
+    \centering
+    \scriptsize
+    \caption{关键向量 IR 映射的边界条件}
+    \label{tab:ir-to-lsx-boundary}
+    \begin{tabular}{p{4.4cm}p{6.2cm}}
+        \toprule
+        \textbf{ART 向量 IR} & \textbf{关键边界条件} \\
+        \midrule
+        \texttt{ReplicateScalar<f32>} & 标量值先经 GPR，再广播到 4-lane 向量 \\
+        \texttt{ReplicateScalar<f64>} & 标量值先经 GPR，再广播到 2-lane 向量 \\
+        \texttt{VecLoad<f32/f64>} & 连续单位步长访存，地址计算满足 LSX 向量宽度 \\
+        \texttt{VecStore<f32/f64>} & 与 load 路径对称，沿既有数组布局写回 \\
+        \texttt{VecAdd/VecSub<f32/f64>} & 仅对浮点 lane 开放，不混入整数扩展语义 \\
+        \texttt{VecMul<f32/f64>} & 直接命中 \texttt{lu.small} 的核心乘法内核 \\
+        \texttt{VecCnv<i32/64 -> f32/64>} & 仅保留正文所需的受限类型转换路径 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:vector-ir-structure} 解决的是“向量 IR 节点到底长什么样”；表~\ref{tab:ir-to-lsx-mapping} 与
+表~\ref{tab:ir-to-lsx-boundary} 解决的则是“这些节点怎样落到 LSX，以及落地时有哪些硬边界”。从论文论证角度看，
+这比单纯列出指令名更关键，因为它把结构定义、目标代码和适用范围同时交代清楚了。
 
 \section{实现边界、正确性回归与保守启用策略}
 
@@ -185,6 +328,8 @@ benchmark 前重点回归了与 SIMD 图和 JIT 路径直接相关的测试：
 \subsection{正式对比快照结果}
 
 方案三在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme3-result} 所示。
+表中的“相对对照版本收益”统一按第 4 章式~\ref{eq:speedup-throughput}--\ref{eq:relative-gain} 计算，其中
+\texttt{pmd} 使用时延型定义，其余 workload 使用吞吐型定义。
 
 \begin{table}[htbp]
     \centering
@@ -192,14 +337,14 @@ benchmark 前重点回归了与 SIMD 图和 JIT 路径直接相关的测试：
     \caption{方案三在正式对比快照中的结果}
     \label{tab:scheme3-result}
     \begin{tabular}{lccc}
-        \hline
+        \toprule
         \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{方案结果} & \textbf{相对对照版本收益} \\
-        \hline
+        \midrule
         \texttt{pmd} & \texttt{3272\,msec} & \texttt{3270\,msec} & +0.06\% \\
         \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.84\,ops/m} & +1.81\% \\
         \texttt{lu.small} & \texttt{46.22\,ops/m} & \texttt{66.74\,ops/m} & +44.40\% \\
         \texttt{fft.small} & \texttt{76.43\,ops/m} & \texttt{74.44\,ops/m} & -2.60\% \\
-        \hline
+        \bottomrule
     \end{tabular}
 \end{table}
 
@@ -218,7 +363,7 @@ LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/statistical-validation-stripplot.pdf}
-    \caption{统计验证快照中方案一与方案三的原始散点、均值与标准差误差棒，用于区分稳定收益与仅具方向性的收益}
+    \caption{方案一与方案三的重复测量散点与误差棒}
     \label{fig:statistical-validation-stripplot}
 \end{figure}
 
@@ -238,10 +383,19 @@ LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接
 
 \section{与完整 SIMD 覆盖候选版的边界比较}
 
+对于多工作负载的整体比较，本文采用几何平均 speedup 作为统一统计量，其定义如式~\ref{eq:geomean-speedup}
+所示：
+\begin{equation}
+    \label{eq:geomean-speedup}
+    \operatorname{GM}(S_1,\ldots,S_n)=\left(\prod_{i=1}^{n} S_i\right)^{1/n}
+\end{equation}
+其中，$S_i$ 表示第 $i$ 个 workload 相对对照版本的 speedup。也就是说，正文与附录中的几何平均比较
+都建立在单 workload 已先按式~\ref{eq:speedup-throughput}--\ref{eq:relative-gain} 换算成同向 speedup 的前提下。
+
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/loongarch64-lsx-full-simd-ablation-geomean.pdf}
-    \caption{最小 SIMD 正式方案与完整 SIMD 覆盖候选版的几何平均比较，体现 \texttt{S1} 的整体稳健性}
+    \caption{最小 SIMD 正式方案与完整覆盖候选版的几何平均比较}
     \label{fig:lsx-full-simd-ablation-geomean}
 \end{figure}
 
@@ -261,15 +415,15 @@ LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接
     \caption{完整 SIMD 候选版相对最小 SIMD 正式方案的分组几何平均比较}
     \label{tab:s2-boundary-groups}
     \begin{tabular}{lc}
-        \hline
+        \toprule
         \textbf{分组视角} & \textbf{\texttt{S2/S1}} \\
-        \hline
+        \midrule
         全部 \texttt{JIT} 工作负载 & \texttt{0.9936x} \\
         \texttt{SPEC} startup & \texttt{0.9762x} \\
         \texttt{SPEC} throughput & \texttt{0.9993x} \\
         \texttt{DaCapo} & \texttt{1.0402x} \\
         关键 SIMD 敏感工作负载 & \texttt{1.0157x} \\
-        \hline
+        \bottomrule
     \end{tabular}
 \end{table}
 
@@ -303,7 +457,7 @@ LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/final-comparison-heatmap.pdf}
-    \caption{三项正式方案在五个代表性工作负载上的统一比较，展示各方案命中的工作负载边界}
+    \caption{三项正式方案在代表性工作负载上的统一比较}
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
@@ -333,16 +487,16 @@ JIT 进入时机，方案二主要命中字符串热路径的数据搬移，方�
 \begin{table}[htbp]
     \centering
     \small
-    \caption{三项正式方案的叠加状态与单方案结果对照}
+    \caption{三项正式方案的叠加状态与单方案对照}
     \label{tab:stacking-conflict}
     \begin{tabular}{lccc}
-        \hline
+        \toprule
         \textbf{状态} & \textbf{\texttt{pmd}} & \textbf{\texttt{mpegaudio}} & \textbf{\texttt{lu.small}} \\
-        \hline
+        \midrule
         方案一单独启用 & +3.30\% & +1.42\% & +34.25\% \\
         方案一 + 方案二 & -8.56\% & +1.65\% & +29.16\% \\
         方案一 + 方案二 + 方案三 & -9.54\% & -12.45\% & +50.41\% \\
-        \hline
+        \bottomrule
     \end{tabular}
 \end{table}
 

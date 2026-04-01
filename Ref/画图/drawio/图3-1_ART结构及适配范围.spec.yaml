@@ -1,0 +1,350 @@
+meta:
+  theme: tech-blue
+  layout: horizontal
+  source: edited
+  title: 图3.1 ART结构及适配范围
+modules: []
+nodes:
+  - id: n2
+    label: AOSP 15 中 ART 执行引擎相关结构及本文适配范围
+    type: service
+    position:
+      x: 896
+      'y': 48
+    size: xl
+    style:
+      fontSize: 32
+  - id: n3
+    label: 浅黄模块：本文直接适配或补齐
+    type: service
+    position:
+      x: 1488
+      'y': 48
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.5
+      fontSize: 16
+  - id: n10
+    label: n10
+    type: service
+    position:
+      x: 896
+      'y': 176
+    size: xl
+    style:
+      fillColor: '#f5f9ff'
+      strokeColor: '#dce8f7'
+      strokeWidth: 1.2
+  - id: n11
+    label: 外部入口与工具
+    type: service
+    position:
+      x: 896
+      'y': 136
+    size: xl
+    style:
+      fillColor: '#e3eefb'
+      strokeColor: '#7e9fc4'
+      strokeWidth: 1.4
+      fontSize: 22
+  - id: n12
+    label: dex2oat
+    type: service
+    position:
+      x: 360
+      'y': 200
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7e9fc4'
+      strokeWidth: 1.4
+      fontSize: 19
+  - id: n13
+    label: app_process / dalvikvm
+    type: service
+    position:
+      x: 896
+      'y': 200
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.6
+      fontSize: 19
+  - id: n14
+    label: profman / artd
+    type: service
+    position:
+      x: 1432
+      'y': 200
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7e9fc4'
+      strokeWidth: 1.4
+      fontSize: 19
+  - id: n20
+    label: n20
+    type: service
+    position:
+      x: 472
+      'y': 456
+    size: xl
+    style:
+      fillColor: '#f8f8f8'
+      strokeColor: '#dddddd'
+      strokeWidth: 1.2
+  - id: n21
+    label: 编译器侧（art/compiler）
+    type: service
+    position:
+      x: 472
+      'y': 320
+    size: xl
+    style:
+      fillColor: '#efefef'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.4
+      fontSize: 21
+  - id: n22
+    label: 后端汇编与代码生成
+    type: service
+    position:
+      x: 280
+      'y': 416
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.6
+      fontSize: 18
+  - id: n23
+    label: Optimizing 编译器
+    type: service
+    position:
+      x: 664
+      'y': 416
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.4
+      fontSize: 18
+  - id: n24
+    label: JNI 编译器
+    type: service
+    position:
+      x: 280
+      'y': 552
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.6
+      fontSize: 18
+  - id: n25
+    label: Driver / Linker
+    type: service
+    position:
+      x: 664
+      'y': 552
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.4
+      fontSize: 18
+  - id: n30
+    label: n30
+    type: service
+    position:
+      x: 1320
+      'y': 456
+    size: xl
+    style:
+      fillColor: '#f8f8f8'
+      strokeColor: '#dddddd'
+      strokeWidth: 1.2
+  - id: n31
+    label: 运行时侧（art/runtime）
+    type: service
+    position:
+      x: 1320
+      'y': 320
+    size: xl
+    style:
+      fillColor: '#efefef'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.4
+      fontSize: 21
+  - id: n32
+    label: C++ 解释器与 Nterp
+    type: service
+    position:
+      x: 1120
+      'y': 416
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.6
+      fontSize: 18
+  - id: n33
+    label: JIT / 运行时协同
+    type: service
+    position:
+      x: 1504
+      'y': 416
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.6
+      fontSize: 18
+  - id: n34
+    label: Quick Entrypoints
+    type: service
+    position:
+      x: 1120
+      'y': 552
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.6
+      fontSize: 18
+  - id: n35
+    label: ClassLinker / GC / Thread / JNI
+    type: service
+    position:
+      x: 1504
+      'y': 552
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.4
+      fontSize: 18
+  - id: n40
+    label: n40
+    type: service
+    position:
+      x: 896
+      'y': 744
+    size: xl
+    style:
+      fillColor: '#f3f7fc'
+      strokeColor: '#d8e1ee'
+      strokeWidth: 1.2
+  - id: n41
+    label: 共享支撑与产物
+    type: service
+    position:
+      x: 896
+      'y': 696
+    size: xl
+    style:
+      fillColor: '#e6ecf5'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.4
+      fontSize: 22
+  - id: n42
+    label: libdexfile / libartbase
+    type: document
+    position:
+      x: 360
+      'y': 768
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.4
+      fontSize: 19
+  - id: n43
+    label: OAT / ELF / CFI
+    type: service
+    position:
+      x: 896
+      'y': 768
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.4
+      fontSize: 19
+  - id: n44
+    label: Profile / Native Bridge
+    type: document
+    position:
+      x: 1432
+      'y': 768
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.4
+      fontSize: 19
+  - id: n50
+    label: LoongArch64 平台基础（ISA / ABI / Linux-Android 环境）
+    type: service
+    position:
+      x: 896
+      'y': 904
+    size: xl
+    style:
+      fillColor: '#5f6f81'
+      strokeColor: '#314354'
+      fontColor: '#ffffff'
+      strokeWidth: 1.6
+      fontSize: 24
+edges:
+  - from: n12
+    to: n21
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+  - from: n13
+    to: n31
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+  - from: n14
+    to: n31
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+  - from: n21
+    to: n42
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+  - from: n31
+    to: n44
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+  - from: n43
+    to: n50
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true

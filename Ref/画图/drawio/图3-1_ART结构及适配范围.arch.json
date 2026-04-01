@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "title": "图3.1 ART结构及适配范围",
+  "type": "flow-diagram",
+  "source": "edited",
+  "profile": "default",
+  "theme": "tech-blue",
+  "layout": "horizontal",
+  "counts": {
+    "nodes": 25,
+    "edges": 6,
+    "modules": 0
+  },
+  "nodes": [
+    {
+      "id": "n2",
+      "label": "AOSP 15 中 ART 执行引擎相关结构及本文适配范围",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n3",
+      "label": "浅黄模块：本文直接适配或补齐",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n10",
+      "label": "n10",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n11",
+      "label": "外部入口与工具",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n12",
+      "label": "dex2oat",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n13",
+      "label": "app_process / dalvikvm",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n14",
+      "label": "profman / artd",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n20",
+      "label": "n20",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n21",
+      "label": "编译器侧（art/compiler）",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n22",
+      "label": "后端汇编与代码生成",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n23",
+      "label": "Optimizing 编译器",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n24",
+      "label": "JNI 编译器",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n25",
+      "label": "Driver / Linker",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n30",
+      "label": "n30",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n31",
+      "label": "运行时侧（art/runtime）",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n32",
+      "label": "C++ 解释器与 Nterp",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n33",
+      "label": "JIT / 运行时协同",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n34",
+      "label": "Quick Entrypoints",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n35",
+      "label": "ClassLinker / GC / Thread / JNI",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n40",
+      "label": "n40",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n41",
+      "label": "共享支撑与产物",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n42",
+      "label": "libdexfile / libartbase",
+      "type": "document",
+      "size": "xl"
+    },
+    {
+      "id": "n43",
+      "label": "OAT / ELF / CFI",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n44",
+      "label": "Profile / Native Bridge",
+      "type": "document",
+      "size": "xl"
+    },
+    {
+      "id": "n50",
+      "label": "LoongArch64 平台基础（ISA / ABI / Linux-Android 环境）",
+      "type": "service",
+      "size": "xl"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "from": "n12",
+      "to": "n21",
+      "type": "primary"
+    },
+    {
+      "id": "edge-2",
+      "from": "n13",
+      "to": "n31",
+      "type": "primary"
+    },
+    {
+      "id": "edge-3",
+      "from": "n14",
+      "to": "n31",
+      "type": "primary"
+    },
+    {
+      "id": "edge-4",
+      "from": "n21",
+      "to": "n42",
+      "type": "primary"
+    },
+    {
+      "id": "edge-5",
+      "from": "n31",
+      "to": "n44",
+      "type": "primary"
+    },
+    {
+      "id": "edge-6",
+      "from": "n43",
+      "to": "n50",
+      "type": "primary"
+    }
+  ],
+  "modules": []
+}

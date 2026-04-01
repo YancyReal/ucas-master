@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "title": "图3.4 执行路径协同",
+  "type": "flow-diagram",
+  "source": "edited",
+  "profile": "default",
+  "theme": "tech-blue",
+  "layout": "horizontal",
+  "counts": {
+    "nodes": 18,
+    "edges": 9,
+    "modules": 0
+  },
+  "nodes": [
+    {
+      "id": "n2",
+      "label": "解释执行、编译执行与运行时入口点的协同关系",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n9",
+      "label": "n9",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n10",
+      "label": "执行路径",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n11",
+      "label": "Java 方法 / DEX 字节码",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n12",
+      "label": "C++ 解释器",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n13",
+      "label": "Nterp",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n14",
+      "label": "JIT 编译代码",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n20",
+      "label": "入口与桥接层",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n21",
+      "label": "Quick Entrypoints",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n22",
+      "label": "Trampolines",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n23",
+      "label": "JNI Bridge / Native Stub",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n24",
+      "label": "调用约定 / 状态切换",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n30",
+      "label": "运行时服务",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n31",
+      "label": "分配 / 类解析 / 类型检查",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n32",
+      "label": "字段访问 / 字符串辅助",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n33",
+      "label": "异常 / 去优化 / 返回修复",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n34",
+      "label": "GC / 锁 / 线程 / JNI 支撑",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n40",
+      "label": "关系说明：解释器可直连部分辅助路径；Nterp 与编译代码主要通过统一入口层收敛接入运行时",
+      "type": "service",
+      "size": "xl"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "from": "n12",
+      "to": "n31",
+      "type": "primary"
+    },
+    {
+      "id": "edge-2",
+      "from": "n13",
+      "to": "n21",
+      "type": "primary"
+    },
+    {
+      "id": "edge-3",
+      "from": "n14",
+      "to": "n21",
+      "type": "primary"
+    },
+    {
+      "id": "edge-4",
+      "from": "n21",
+      "to": "n31",
+      "type": "primary"
+    },
+    {
+      "id": "edge-5",
+      "from": "n22",
+      "to": "n33",
+      "type": "primary"
+    },
+    {
+      "id": "edge-6",
+      "from": "n23",
+      "to": "n34",
+      "type": "primary"
+    },
+    {
+      "id": "edge-7",
+      "from": "n21",
+      "to": "n22",
+      "type": "data"
+    },
+    {
+      "id": "edge-8",
+      "from": "n22",
+      "to": "n23",
+      "type": "data"
+    },
+    {
+      "id": "edge-9",
+      "from": "n23",
+      "to": "n24",
+      "type": "data"
+    }
+  ],
+  "modules": []
+}

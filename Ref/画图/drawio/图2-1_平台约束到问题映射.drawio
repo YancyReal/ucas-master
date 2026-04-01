@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="cli" modified="" agent="drawio-skill-cli" version="21.0.0">
+  <diagram name="Page-1">
+    <mxGraphModel dx="1120" dy="720" grid="1" gridSize="8" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1672" pageHeight="720" math="1" background="#FFFFFF">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="LoongArch 平台约束-成本-问题映射" style="rounded=1;arcSize=16;html=1;whiteSpace=wrap;fillColor=#FFFFFF;strokeColor=#1E1E1E;strokeWidth=1;fontColor=#1E1E1E;fontSize=36;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="356" y="14" width="960" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="平台约束" style="rounded=1;arcSize=16;html=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=24;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="104" y="148" width="420" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="主导成本" style="rounded=1;arcSize=16;html=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=24;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="626" y="148" width="420" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="6" value="研究问题" style="rounded=1;arcSize=16;html=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=24;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="1148" y="148" width="420" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="70" value="" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#f5f9ff;strokeColor=#dce8f7;strokeWidth=1.1;" vertex="1" parent="1">
+          <mxGeometry x="104" y="236" width="420" height="408" as="geometry"/>
+        </mxCell>
+        <mxCell id="71" value="" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#faf7fd;strokeColor=#e6dcf2;strokeWidth=1.1;" vertex="1" parent="1">
+          <mxGeometry x="626" y="236" width="420" height="408" as="geometry"/>
+        </mxCell>
+        <mxCell id="72" value="" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#f5fbf5;strokeColor=#d9ebd8;strokeWidth=1.1;" vertex="1" parent="1">
+          <mxGeometry x="1148" y="236" width="420" height="408" as="geometry"/>
+        </mxCell>
+        <mxCell id="7" value="控制流与分层 JIT 约束&#xa;分支/桩跳转/修补" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#6c8ebf;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="134" y="248" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="8" value="解释器驻留与首编固定成本" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#9673a6;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="656" y="248" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="9" value="JIT 进入时机" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#82b366;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="1178" y="248" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="10" value="数据搬移与访存路径约束&#xa;load/store 与索引更新" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#6c8ebf;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="134" y="392" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="11" value="短拷贝高频路径框架成本" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#9673a6;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="656" y="392" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="12" value="字符串热路径数据搬移" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#82b366;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="1178" y="392" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="13" value="LSX 向量与 lowering 约束&#xa;128 位通道与 IR→ISA 缺口" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#6c8ebf;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="134" y="536" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="14" value="规则浮点循环&#xa;LSX 落码稳定性" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#9673a6;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="656" y="536" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="15" value="最小 LSX 浮点 SIMD 路径" style="rounded=1;arcSize=14;html=1;whiteSpace=wrap;fillColor=#ffffff;strokeColor=#82b366;strokeWidth=1.6;fontColor=#1E1E1E;fontSize=20;fontFamily=PingFang SC;verticalAlign=middle;align=center" vertex="1" parent="1">
+          <mxGeometry x="1178" y="536" width="360" height="96" as="geometry"/>
+        </mxCell>
+        <mxCell id="16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6c8ebf;strokeWidth=2.2;endArrow=block;endFill=1;endSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8" edge="1" parent="1" source="7" target="8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6c8ebf;strokeWidth=2.2;endArrow=block;endFill=1;endSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8" edge="1" parent="1" source="8" target="9">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9673a6;strokeWidth=2.2;endArrow=block;endFill=1;endSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8" edge="1" parent="1" source="10" target="11">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9673a6;strokeWidth=2.2;endArrow=block;endFill=1;endSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8" edge="1" parent="1" source="11" target="12">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=2.2;endArrow=block;endFill=1;endSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8" edge="1" parent="1" source="13" target="14">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=2.2;endArrow=block;endFill=1;endSize=14;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8" edge="1" parent="1" source="14" target="15">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

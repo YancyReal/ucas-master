@@ -1,0 +1,28 @@
+<mxfile host="app.diagrams.net" modified="2026-04-01T21:15:00.000Z" agent="Mozilla/5.0" version="29.0.3" type="device">
+  <diagram id="fig6-1" name="图6.1 最小LSX边界">
+    <mxGraphModel dx="1568" dy="1008" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1792" pageHeight="1008" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="最小可用 LSX 浮点 SIMD 路径的能力边界" style="text;html=1;strokeWidth=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=30;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="481" y="22" width="828" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="10" value="规则浮点内核 → 正式准入边界 → 最小 LSX 能力集合" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=17;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="246" y="100" width="1299" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="20" value="正文范围（最小路径）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=20;fontFamily=PingFang SC;fontStyle=1;verticalAlign=top;" parent="1" vertex="1"><mxGeometry x="190" y="201" width="683" height="470" as="geometry" /></mxCell>
+        <mxCell id="21" value="float32 x 4" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="246" y="268" width="246" height="52" as="geometry" /></mxCell>
+        <mxCell id="22" value="float64 x 2" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="537" y="268" width="246" height="52" as="geometry" /></mxCell>
+        <mxCell id="23" value="ReplicateScalar / Load / Store / Add / Sub / Mul" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="246" y="347" width="537" height="62" as="geometry" /></mxCell>
+        <mxCell id="24" value="受限 VecCnv（仅覆盖正文链路所需）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="246" y="434" width="537" height="58" as="geometry" /></mxCell>
+        <mxCell id="25" value="规则浮点内核示例：lu.small" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="246" y="517" width="537" height="56" as="geometry" /></mxCell>
+
+        <mxCell id="30" value="扩展范围（完整覆盖候选）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=20;fontFamily=PingFang SC;fontStyle=1;verticalAlign=top;" parent="1" vertex="1"><mxGeometry x="940" y="201" width="683" height="470" as="geometry" /></mxCell>
+        <mxCell id="31" value="predication / reduction" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="996" y="268" width="268" height="52" as="geometry" /></mxCell>
+        <mxCell id="32" value="更复杂循环 idiom" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="1299" y="268" width="268" height="52" as="geometry" /></mxCell>
+        <mxCell id="33" value="完整整数向量覆盖" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="996" y="347" width="571" height="53" as="geometry" /></mxCell>
+        <mxCell id="34" value="完整 SIMD 候选版（S2）" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="996" y="427" width="571" height="53" as="geometry" /></mxCell>
+
+        <mxCell id="40" value="边界说明：最小 LSX 浮点路径与扩展范围的结构对比" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=16;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="291" y="728" width="1209" height="52" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

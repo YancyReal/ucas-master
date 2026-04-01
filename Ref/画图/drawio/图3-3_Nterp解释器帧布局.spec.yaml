@@ -1,0 +1,216 @@
+meta:
+  theme: tech-blue
+  layout: horizontal
+  source: edited
+  title: 图3.3 Nterp帧布局
+modules: []
+nodes:
+  - id: n2
+    label: LoongArch64 Nterp 解释器帧逻辑布局
+    type: service
+    position:
+      x: 896
+      'y': 48
+    size: xl
+    style:
+      fontSize: 32
+  - id: n6
+    label: 逻辑槽位示意（非逐字节偏移表）
+    type: service
+    position:
+      x: 896
+      'y': 88
+    size: xl
+    style:
+      fontColor: '#6b7280'
+      fontSize: 18
+  - id: n7
+    label: n7
+    type: service
+    position:
+      x: 752
+      'y': 536
+    size: xl
+    style:
+      fillColor: '#f3f7fc'
+      strokeColor: '#d8e1ee'
+      strokeWidth: 1.2
+  - id: n8
+    label: 帧槽位（高地址 → 低地址）
+    type: service
+    position:
+      x: 752
+      'y': 168
+    size: xl
+    style:
+      fillColor: '#e6ecf5'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.4
+      fontSize: 22
+  - id: n3
+    label: 高地址
+    type: service
+    position:
+      x: 144
+      'y': 216
+    size: small
+    style:
+      fontSize: 18
+  - id: n4
+    label: 低地址
+    type: service
+    position:
+      x: 144
+      'y': 888
+    size: small
+    style:
+      fontSize: 18
+  - id: n10
+    label: caller quick / Nterp frame
+    type: service
+    position:
+      x: 752
+      'y': 256
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n11
+    label: saved return + callee-saved state
+    type: service
+    position:
+      x: 752
+      'y': 344
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n12
+    label: ArtMethod* 与帧元信息
+    type: service
+    position:
+      x: 752
+      'y': 432
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n13
+    label: Dex PC / handler 上下文
+    type: service
+    position:
+      x: 752
+      'y': 520
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n14
+    label: reference 数组
+    type: service
+    position:
+      x: 752
+      'y': 608
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n15
+    label: dex register / vreg 数组
+    type: service
+    position:
+      x: 752
+      'y': 704
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n16
+    label: out args + padding（16 字节对齐）
+    type: service
+    position:
+      x: 752
+      'y': 824
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7a8aa0'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n20
+    label: 调用边界 / 展开恢复
+    type: service
+    position:
+      x: 1456
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.5
+      fontSize: 18
+  - id: n21
+    label: GC 扫描 / 异常 / 栈遍历可见区
+    type: service
+    position:
+      x: 1456
+      'y': 680
+    size: xl
+    style:
+      fillColor: '#e9f7ec'
+      strokeColor: '#7da37a'
+      strokeWidth: 1.5
+      fontSize: 18
+  - id: n22
+    label: 栈向低地址增长
+    type: service
+    position:
+      x: 760
+      'y': 928
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.6
+      fontSize: 20
+edges:
+  - from: n3
+    to: n4
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2.4
+      endArrow: block
+      endFill: true
+  - from: n20
+    to: n12
+    type: data
+    style:
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.8
+      dashed: true
+      dashPattern: 8 6
+      endArrow: block
+      endFill: true
+  - from: n21
+    to: n15
+    type: data
+    style:
+      strokeColor: '#7da37a'
+      strokeWidth: 1.8
+      dashed: true
+      dashPattern: 8 6
+      endArrow: block
+      endFill: true

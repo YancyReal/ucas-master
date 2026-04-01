@@ -1,0 +1,32 @@
+<mxfile host="app.diagrams.net" modified="2026-04-01T21:05:00.000Z" agent="Mozilla/5.0" version="29.0.3" type="device">
+  <diagram id="fig5-3" name="图5.3 字符串批量搬移">
+    <mxGraphModel dx="1568" dy="1008" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1792" pageHeight="1008" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="字符串热路径：逐元素复制 vs 8 路批量搬移" style="text;html=1;strokeWidth=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=30;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="470" y="22" width="851" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="10" value="热点来源：DoReplace / DoConcat / AllocFromUtf16" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="425" y="89" width="940" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="20" value="原始标量路径" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#f5f5f5;strokeColor=#666666;fontSize=20;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="134" y="168" width="716" height="52" as="geometry" /></mxCell>
+        <mxCell id="21" value="源数组" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#ffffff;strokeColor=#666666;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="179" y="257" width="246" height="52" as="geometry" /></mxCell>
+        <mxCell id="22" value="目标数组" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#ffffff;strokeColor=#666666;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="560" y="257" width="246" height="52" as="geometry" /></mxCell>
+        <mxCell id="23" value="逐元素复制 / 替换" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="324" y="358" width="336" height="78" as="geometry" /></mxCell>
+        <mxCell id="24" value="每轮都要索引更新与分支判断" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#f8cecc;strokeColor=#b85450;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="246" y="459" width="492" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="30" value="批量搬移路径" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=20;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="940" y="168" width="716" height="52" as="geometry" /></mxCell>
+        <mxCell id="31" value="源数组" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#ffffff;strokeColor=#666666;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="985" y="257" width="246" height="52" as="geometry" /></mxCell>
+        <mxCell id="32" value="目标数组" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#ffffff;strokeColor=#666666;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="1366" y="257" width="246" height="52" as="geometry" /></mxCell>
+        <mxCell id="33" value="8 路 helper 批量搬移" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="1131" y="358" width="336" height="78" as="geometry" /></mxCell>
+        <mxCell id="34" value="尾段 remainder 路径" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="1164" y="459" width="268" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="40" value="语义保持不变；优化点仅在于压缩循环框架开销" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=16;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="470" y="582" width="851" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="50" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="21" target="22" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="51" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="31" target="32" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="52" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;dashed=1;" parent="1" source="23" target="24" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="53" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;dashed=1;" parent="1" source="33" target="34" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

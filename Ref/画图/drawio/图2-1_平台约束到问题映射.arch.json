@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "title": "Page-1",
+  "type": "flow-diagram",
+  "source": "edited",
+  "profile": "default",
+  "theme": "tech-blue",
+  "layout": "horizontal",
+  "counts": {
+    "nodes": 16,
+    "edges": 6,
+    "modules": 0
+  },
+  "nodes": [
+    {
+      "id": "n2",
+      "label": "LoongArch 平台约束-成本-问题映射",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n4",
+      "label": "平台约束",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n5",
+      "label": "主导成本",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n6",
+      "label": "研究问题",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n70",
+      "label": "n70",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n71",
+      "label": "n71",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n72",
+      "label": "n72",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n7",
+      "label": "控制流与分层 JIT 约束&#xa;分支/桩跳转/修补",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n8",
+      "label": "解释器驻留与首编固定成本",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n9",
+      "label": "JIT 进入时机",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n10",
+      "label": "数据搬移与访存路径约束&#xa;load/store 与索引更新",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n11",
+      "label": "短拷贝高频路径框架成本",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n12",
+      "label": "字符串热路径数据搬移",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n13",
+      "label": "LSX 向量与 lowering 约束&#xa;128 位通道与 IR→ISA 缺口",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n14",
+      "label": "规则浮点循环&#xa;LSX 落码稳定性",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n15",
+      "label": "最小 LSX 浮点 SIMD 路径",
+      "type": "service",
+      "size": "xl"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "from": "n7",
+      "to": "n8",
+      "type": "primary"
+    },
+    {
+      "id": "edge-2",
+      "from": "n8",
+      "to": "n9",
+      "type": "primary"
+    },
+    {
+      "id": "edge-3",
+      "from": "n10",
+      "to": "n11",
+      "type": "primary"
+    },
+    {
+      "id": "edge-4",
+      "from": "n11",
+      "to": "n12",
+      "type": "primary"
+    },
+    {
+      "id": "edge-5",
+      "from": "n13",
+      "to": "n14",
+      "type": "primary"
+    },
+    {
+      "id": "edge-6",
+      "from": "n14",
+      "to": "n15",
+      "type": "primary"
+    }
+  ],
+  "modules": []
+}

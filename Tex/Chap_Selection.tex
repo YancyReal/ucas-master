@@ -21,21 +21,29 @@ DEX 校验成本。其中，前两类将在本章后续展开为代表性局部�
     \small
     \caption{从热点观察收缩得到的四类研究问题}
     \label{tab:problem-modeling-axes}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.0cm}}
-        \hline
-        \textbf{问题类别} & \textbf{代表工作负载} & \textbf{主导成本线索} & \textbf{正文中的问题表述} \\
-        \hline
-        控制流与 JIT 时机 & \texttt{DaCapo/pmd} & 解释执行驻留、baseline JIT 进入偏晚 & 短生命周期工作负载的第一层编译是否进入过晚 \\
-        运行时热路径数据搬移 & \texttt{pmd}、\texttt{mpegaudio} & 字符串替换、拼接、UTF-16 构造路径反复出现 & 运行时热路径中的复制与搬移能否局部批量化 \\
-        规则浮点数值内核向量化 & \texttt{scimark.lu.small} & 向量 IR 可形成但 LoongArch64 后端缺少最小 lowering & 最小可用 LSX 浮点 SIMD 路径是否已经成立 \\
-        启动期 DEX 校验 & \shortstack[l]{\texttt{startup.}\\\texttt{helloworld}} & verifier、probing 与 LEB128 解码占启动时间比例较高 & 启动期校验链能否沿主热点阶段化收缩 \\
-        \hline
+    \begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{6.0cm}}
+        \toprule
+        \textbf{问题类别} & \textbf{代表工作负载} & \textbf{主导成本线索} \\
+        \midrule
+        控制流与 JIT 时机 & \texttt{DaCapo/pmd} & 解释执行驻留、baseline JIT 进入偏晚 \\
+        运行时热路径数据搬移 & \texttt{pmd}、\texttt{mpegaudio} & 字符串替换、拼接、UTF-16 构造路径反复出现 \\
+        规则浮点数值内核向量化 & \texttt{scimark.lu.small} & 向量 IR 可形成但 LoongArch64 后端缺少最小 lowering \\
+        启动期 DEX 校验 & \shortstack[l]{\texttt{startup.}\\\texttt{helloworld}} & verifier、probing 与 LEB128 解码占启动时间比例较高 \\
+        \bottomrule
     \end{tabular}
 \end{table}
 
+表~\ref{tab:problem-modeling-axes} 中四类问题在正文中的正式表述分别为：
+\begin{enumerate}
+    \item \textbf{控制流与 JIT 时机。} 短生命周期工作负载的第一层编译是否进入过晚。
+    \item \textbf{运行时热路径数据搬移。} 运行时热路径中的复制与搬移能否局部批量化。
+    \item \textbf{规则浮点数值内核向量化。} 最小可用 LSX 浮点 SIMD 路径是否已经成立。
+    \item \textbf{启动期 DEX 校验。} 启动期校验链能否沿主热点阶段化收缩。
+\end{enumerate}
+
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.93\textwidth]{optimization/candidate-schemes-screening-map.pdf}
+    \includegraphics[width=1.00\textwidth]{optimization/candidate-schemes-screening-map.pdf}
     \caption{候选方向示例、筛选维度与正文角色之间的筛选关系图}
     \label{fig:candidate-schemes-screening-map}
 \end{figure}

@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "title": "图3.3 Nterp帧布局",
+  "type": "flow-diagram",
+  "source": "edited",
+  "profile": "default",
+  "theme": "tech-blue",
+  "layout": "horizontal",
+  "counts": {
+    "nodes": 16,
+    "edges": 3,
+    "modules": 0
+  },
+  "nodes": [
+    {
+      "id": "n2",
+      "label": "LoongArch64 Nterp 解释器帧逻辑布局",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n6",
+      "label": "逻辑槽位示意（非逐字节偏移表）",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n7",
+      "label": "n7",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n8",
+      "label": "帧槽位（高地址 → 低地址）",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n3",
+      "label": "高地址",
+      "type": "service",
+      "size": "small"
+    },
+    {
+      "id": "n4",
+      "label": "低地址",
+      "type": "service",
+      "size": "small"
+    },
+    {
+      "id": "n10",
+      "label": "caller quick / Nterp frame",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n11",
+      "label": "saved return + callee-saved state",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n12",
+      "label": "ArtMethod* 与帧元信息",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n13",
+      "label": "Dex PC / handler 上下文",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n14",
+      "label": "reference 数组",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n15",
+      "label": "dex register / vreg 数组",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n16",
+      "label": "out args + padding（16 字节对齐）",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n20",
+      "label": "调用边界 / 展开恢复",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n21",
+      "label": "GC 扫描 / 异常 / 栈遍历可见区",
+      "type": "service",
+      "size": "xl"
+    },
+    {
+      "id": "n22",
+      "label": "栈向低地址增长",
+      "type": "service",
+      "size": "xl"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "from": "n3",
+      "to": "n4",
+      "type": "primary"
+    },
+    {
+      "id": "edge-2",
+      "from": "n20",
+      "to": "n12",
+      "type": "data"
+    },
+    {
+      "id": "edge-3",
+      "from": "n21",
+      "to": "n15",
+      "type": "data"
+    }
+  ],
+  "modules": []
+}

@@ -1,0 +1,328 @@
+meta:
+  theme: tech-blue
+  layout: horizontal
+  source: edited
+  title: 图3.4 执行路径协同
+modules: []
+nodes:
+  - id: n2
+    label: 解释执行、编译执行与运行时入口点的协同关系
+    type: service
+    position:
+      x: 896
+      'y': 48
+    size: xl
+    style:
+      fontSize: 32
+  - id: n9
+    label: n9
+    type: service
+    position:
+      x: 896
+      'y': 416
+    size: xl
+    style:
+      fillColor: '#f3f7fc'
+      strokeColor: '#d8e1ee'
+      strokeWidth: 1.2
+  - id: n10
+    label: 执行路径
+    type: service
+    position:
+      x: 360
+      'y': 160
+    size: xl
+    style:
+      fillColor: '#e3eefb'
+      strokeColor: '#7e9fc4'
+      strokeWidth: 1.5
+      fontSize: 22
+  - id: n11
+    label: Java 方法 / DEX 字节码
+    type: service
+    position:
+      x: 360
+      'y': 240
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7e9fc4'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n12
+    label: C++ 解释器
+    type: service
+    position:
+      x: 360
+      'y': 320
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n13
+    label: Nterp
+    type: service
+    position:
+      x: 360
+      'y': 408
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7e9fc4'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n14
+    label: JIT 编译代码
+    type: service
+    position:
+      x: 360
+      'y': 488
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7e9fc4'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n20
+    label: 入口与桥接层
+    type: service
+    position:
+      x: 896
+      'y': 160
+    size: xl
+    style:
+      fillColor: '#efefef'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.5
+      fontSize: 22
+  - id: n21
+    label: Quick Entrypoints
+    type: service
+    position:
+      x: 896
+      'y': 272
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n22
+    label: Trampolines
+    type: service
+    position:
+      x: 896
+      'y': 352
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n23
+    label: JNI Bridge / Native Stub
+    type: service
+    position:
+      x: 896
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n24
+    label: 调用约定 / 状态切换
+    type: service
+    position:
+      x: 896
+      'y': 520
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n30
+    label: 运行时服务
+    type: service
+    position:
+      x: 1440
+      'y': 160
+    size: xl
+    style:
+      fillColor: '#e9f7ec'
+      strokeColor: '#7da37a'
+      strokeWidth: 1.5
+      fontSize: 22
+  - id: n31
+    label: 分配 / 类解析 / 类型检查
+    type: service
+    position:
+      x: 1440
+      'y': 272
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7da37a'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n32
+    label: 字段访问 / 字符串辅助
+    type: service
+    position:
+      x: 1440
+      'y': 352
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7da37a'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n33
+    label: 异常 / 去优化 / 返回修复
+    type: service
+    position:
+      x: 1440
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7da37a'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n34
+    label: GC / 锁 / 线程 / JNI 支撑
+    type: service
+    position:
+      x: 1440
+      'y': 520
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#7da37a'
+      strokeWidth: 1.5
+      fontSize: 20
+  - id: n40
+    label: 关系说明：解释器可直连部分辅助路径；Nterp 与编译代码主要通过统一入口层收敛接入运行时
+    type: service
+    position:
+      x: 896
+      'y': 776
+    size: xl
+    style:
+      fillColor: '#fff3d6'
+      strokeColor: '#d8b34d'
+      strokeWidth: 1.5
+      fontSize: 18
+edges:
+  - from: n12
+    to: n31
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2
+      endArrow: block
+      endFill: true
+    waypoints:
+      - x: 620
+        'y': 262
+      - x: 1186
+        'y': 262
+  - from: n13
+    to: n21
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2
+      endArrow: block
+      endFill: true
+    waypoints:
+      - x: 620
+        'y': 406
+      - x: 620
+        'y': 268
+  - from: n14
+    to: n21
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2
+      endArrow: block
+      endFill: true
+    waypoints:
+      - x: 620
+        'y': 490
+      - x: 620
+        'y': 282
+  - from: n21
+    to: n31
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2
+      endArrow: block
+      endFill: true
+    waypoints:
+      - x: 1148
+        'y': 332
+      - x: 1186
+        'y': 268
+  - from: n22
+    to: n33
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2
+      endArrow: block
+      endFill: true
+    waypoints:
+      - x: 1148
+        'y': 352
+      - x: 1186
+        'y': 436
+  - from: n23
+    to: n34
+    type: primary
+    style:
+      strokeColor: '#5f6368'
+      strokeWidth: 2
+      endArrow: block
+      endFill: true
+    waypoints:
+      - x: 1148
+        'y': 436
+      - x: 1186
+        'y': 520
+  - from: n21
+    to: n22
+    type: data
+    style:
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.6
+      dashed: true
+      dashPattern: 8 6
+      endArrow: block
+      endFill: true
+  - from: n22
+    to: n23
+    type: data
+    style:
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.6
+      dashed: true
+      dashPattern: 8 6
+      endArrow: block
+      endFill: true
+  - from: n23
+    to: n24
+    type: data
+    style:
+      strokeColor: '#8c8c8c'
+      strokeWidth: 1.6
+      dashed: true
+      dashPattern: 8 6
+      endArrow: block
+      endFill: true

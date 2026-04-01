@@ -32,7 +32,9 @@
 \end{figure}
 
 图~\ref{fig:app-lsx-full-simd-ablation-geomean} 表明，在全部 JIT 工作负载的几何平均意义下，\texttt{S1}
-仍然优于 \texttt{S2}：\texttt{S1/S0 = 1.0318x}，\texttt{S2/S0 = 1.0252x}，
+仍然优于 \texttt{S2}。这里的几何平均 speedup 统一按式~\ref{eq:geomean-speedup} 计算，因此
+各 workload 的方向性已先被换算为同向 speedup。具体结果为：\texttt{S1/S0 = 1.0318x}，
+\texttt{S2/S0 = 1.0252x}，
 \texttt{S2/S1 = 0.9936x}。然而，图~\ref{fig:app-lsx-full-simd-ablation-key} 又显示，
 \texttt{S2} 在 \texttt{lu.small}、\texttt{h2}、\texttt{avrora} 等关键工作负载上继续超过
 \texttt{S1}，说明更完整的后端覆盖并非无效，而是收益更集中。

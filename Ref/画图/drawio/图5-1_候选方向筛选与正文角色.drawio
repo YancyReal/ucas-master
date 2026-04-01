@@ -1,0 +1,40 @@
+<mxfile host="app.diagrams.net" modified="2026-04-01T20:55:00.000Z" agent="Mozilla/5.0" version="29.0.3" type="device">
+  <diagram id="fig5-1" name="图5.1 候选方向筛选关系">
+    <mxGraphModel dx="1568" dy="1008" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1792" pageHeight="1008" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="候选方向、筛选维度与正文承载角色" style="text;html=1;strokeWidth=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=30;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="515" y="22" width="761" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="10" value="候选方向" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=20;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="123" y="134" width="403" height="52" as="geometry" /></mxCell>
+        <mxCell id="11" value="控制流 / JIT 时机" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff2e6;strokeColor=#d79b00;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="156" y="212" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="12" value="运行时字符串热路径" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff2e6;strokeColor=#d79b00;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="156" y="291" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="13" value="启动期 Dex 校验阶段链" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff2e6;strokeColor=#d79b00;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="156" y="369" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="14" value="LoongArch64 向量化 / lowering" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff2e6;strokeColor=#d79b00;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="156" y="448" width="336" height="53" as="geometry" /></mxCell>
+
+        <mxCell id="20" value="筛选维度" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=20;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="694" y="134" width="403" height="52" as="geometry" /></mxCell>
+        <mxCell id="21" value="主路径命中度" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#e6f0fa;strokeColor=#6c8ebf;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="728" y="212" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="22" value="机理解释完整性" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#e6f0fa;strokeColor=#6c8ebf;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="728" y="291" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="23" value="可验证回归集合" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#e6f0fa;strokeColor=#6c8ebf;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="728" y="369" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="24" value="正文承载价值" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#e6f0fa;strokeColor=#6c8ebf;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="728" y="448" width="336" height="53" as="geometry" /></mxCell>
+
+        <mxCell id="30" value="论文角色" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=20;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="1265" y="134" width="403" height="52" as="geometry" /></mxCell>
+        <mxCell id="31" value="正式方案一" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="1299" y="212" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="32" value="正式方案二" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="1299" y="291" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="33" value="启动期正交案例" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;" parent="1" vertex="1"><mxGeometry x="1299" y="369" width="336" height="53" as="geometry" /></mxCell>
+        <mxCell id="34" value="正式方案三" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#eaf4e8;strokeColor=#82b366;fontSize=16;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="1299" y="448" width="336" height="53" as="geometry" /></mxCell>
+
+        <mxCell id="40" value="筛选准入：成本、机理、验证与证据强度" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;strokeWidth=1.6;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontFamily=PingFang SC;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="280" y="582" width="1254" height="52" as="geometry" /></mxCell>
+
+        <mxCell id="50" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="11" target="21" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="51" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="12" target="22" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="52" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="13" target="23" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="53" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="14" target="24" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="54" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="21" target="31" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="55" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="22" target="32" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="56" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="23" target="33" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="57" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;endFill=1;strokeWidth=1.4;" parent="1" source="24" target="34" edge="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

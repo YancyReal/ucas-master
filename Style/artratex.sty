@@ -597,6 +597,7 @@
 %-
 %-> Complex tables
 %-
+\RequirePackage{booktabs}% explicit load so \toprule/\midrule/\bottomrule are always available
 \ifartx@table%
     \RequirePackage{ctable,multirow}% imports the array, tabularx, booktabs and multirow packages
 \fi
@@ -855,4 +856,3 @@
 \fi
 %---------------------------------------------------------------------------%
 \endinput
-

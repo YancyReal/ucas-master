@@ -1,0 +1,306 @@
+meta:
+  theme: tech-blue
+  layout: horizontal
+  source: edited
+  title: Page-1
+modules: []
+nodes:
+  - id: n2
+    label: LoongArch 平台约束-成本-问题映射
+    type: service
+    position:
+      x: 840
+      'y': 40
+    size: xl
+    style:
+      fillColor: '#FFFFFF'
+      strokeColor: '#1E1E1E'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1
+      fontSize: 36
+  - id: n4
+    label: 平台约束
+    type: service
+    position:
+      x: 312
+      'y': 184
+    size: xl
+    style:
+      fillColor: '#dae8fc'
+      strokeColor: '#6c8ebf'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 24
+  - id: n5
+    label: 主导成本
+    type: service
+    position:
+      x: 840
+      'y': 184
+    size: xl
+    style:
+      fillColor: '#e1d5e7'
+      strokeColor: '#9673a6'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 24
+  - id: n6
+    label: 研究问题
+    type: service
+    position:
+      x: 1360
+      'y': 184
+    size: xl
+    style:
+      fillColor: '#d5e8d4'
+      strokeColor: '#82b366'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 24
+  - id: n70
+    label: n70
+    type: service
+    position:
+      x: 312
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#f5f9ff'
+      strokeColor: '#dce8f7'
+      strokeWidth: 1.1
+  - id: n71
+    label: n71
+    type: service
+    position:
+      x: 840
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#faf7fd'
+      strokeColor: '#e6dcf2'
+      strokeWidth: 1.1
+  - id: n72
+    label: n72
+    type: service
+    position:
+      x: 1360
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#f5fbf5'
+      strokeColor: '#d9ebd8'
+      strokeWidth: 1.1
+  - id: n7
+    label: 控制流与分层 JIT 约束&#xa;分支/桩跳转/修补
+    type: service
+    position:
+      x: 312
+      'y': 296
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#6c8ebf'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n8
+    label: 解释器驻留与首编固定成本
+    type: service
+    position:
+      x: 840
+      'y': 296
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#9673a6'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n9
+    label: JIT 进入时机
+    type: service
+    position:
+      x: 1360
+      'y': 296
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#82b366'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n10
+    label: 数据搬移与访存路径约束&#xa;load/store 与索引更新
+    type: service
+    position:
+      x: 312
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#6c8ebf'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n11
+    label: 短拷贝高频路径框架成本
+    type: service
+    position:
+      x: 840
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#9673a6'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n12
+    label: 字符串热路径数据搬移
+    type: service
+    position:
+      x: 1360
+      'y': 440
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#82b366'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n13
+    label: LSX 向量与 lowering 约束&#xa;128 位通道与 IR→ISA 缺口
+    type: service
+    position:
+      x: 312
+      'y': 584
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#6c8ebf'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n14
+    label: 规则浮点循环&#xa;LSX 落码稳定性
+    type: service
+    position:
+      x: 840
+      'y': 584
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#9673a6'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+  - id: n15
+    label: 最小 LSX 浮点 SIMD 路径
+    type: service
+    position:
+      x: 1360
+      'y': 584
+    size: xl
+    style:
+      fillColor: '#ffffff'
+      strokeColor: '#82b366'
+      fontColor: '#1E1E1E'
+      strokeWidth: 1.6
+      fontSize: 20
+edges:
+  - from: n7
+    to: n8
+    type: primary
+    style:
+      strokeColor: '#6c8ebf'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      exitDx: 0
+      exitDy: 0
+      entryX: 0
+      entryY: 0.5
+      entryDx: 0
+      entryDy: 0
+  - from: n8
+    to: n9
+    type: primary
+    style:
+      strokeColor: '#6c8ebf'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      exitDx: 0
+      exitDy: 0
+      entryX: 0
+      entryY: 0.5
+      entryDx: 0
+      entryDy: 0
+  - from: n10
+    to: n11
+    type: primary
+    style:
+      strokeColor: '#9673a6'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      exitDx: 0
+      exitDy: 0
+      entryX: 0
+      entryY: 0.5
+      entryDx: 0
+      entryDy: 0
+  - from: n11
+    to: n12
+    type: primary
+    style:
+      strokeColor: '#9673a6'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      exitDx: 0
+      exitDy: 0
+      entryX: 0
+      entryY: 0.5
+      entryDx: 0
+      entryDy: 0
+  - from: n13
+    to: n14
+    type: primary
+    style:
+      strokeColor: '#82b366'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      exitDx: 0
+      exitDy: 0
+      entryX: 0
+      entryY: 0.5
+      entryDx: 0
+      entryDy: 0
+  - from: n14
+    to: n15
+    type: primary
+    style:
+      strokeColor: '#82b366'
+      strokeWidth: 2.2
+      endArrow: block
+      endFill: true
+      exitX: 1
+      exitY: 0.5
+      exitDx: 0
+      exitDy: 0
+      entryX: 0
+      entryY: 0.5
+      entryDx: 0
+      entryDy: 0

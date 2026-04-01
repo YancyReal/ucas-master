@@ -16,7 +16,7 @@ ART 的分层 JIT 至少包含两级关键阈值：第一层阈值
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.90\textwidth]{optimization/scheme1-tiered-jit-flow.pdf}
+  \includegraphics[width=1.00\textwidth]{optimization/scheme1-tiered-jit-flow.pdf}
     \caption{短生命周期工作负载下 JIT 分层进入时机的主要矛盾，核心在于 baseline JIT 是否足够早触发}
     \label{fig:scheme1-tiered-jit-flow}
 \end{figure}
@@ -185,7 +185,7 @@ baseline JIT 很容易受热度累积节奏和运行时状态影响；一旦某�
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{optimization/scheme2-string-copy-paths.pdf}
+  \includegraphics[width=1.00\textwidth]{optimization/scheme2-string-copy-paths.pdf}
     \caption{方案二的字符串热路径与 8 路批量搬移思路，强调在不改变语义的前提下压缩循环框架开销}
     \label{fig:scheme2-string-copy-paths}
 \end{figure}
@@ -347,7 +347,7 @@ void CopyUtf16ToBytes(dst8, src16, length) {
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.96\textwidth]{optimization/dexverifier-phase-chain-mechanism.pdf}
+  \includegraphics[width=1.00\textwidth]{optimization/dexverifier-phase-chain-mechanism.pdf}
     \caption{\texttt{DexFileVerifier} 启动期阶段链的主热点、阶段推进顺序与收益来源对应关系}
     \label{fig:dexverifier-phase-chain-mechanism}
 \end{figure}

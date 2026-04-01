@@ -17,7 +17,7 @@
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{verification/experiment-validation-workflow.pdf}
+    \includegraphics[width=1.00\textwidth]{verification/experiment-validation-workflow.pdf}
     \caption{本文正确性验证与性能评测的组织流程}
     \label{fig:verification-workflow}
 \end{figure}
@@ -188,18 +188,62 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
 存活集规模和 GC 行为上存在显著差异，因此基准选择本身就是实验设计的一部分
 \citep{Lengauer2017GCBench,Prokopec2019Renaissance}。
 
-结合热点分析结果，本文在正式图表中保留以下五个工作负载：
-\begin{itemize}
-    \item \texttt{DaCapo/pmd}：用于观察 JIT 进入时机、解释器驻留以及字符串运行时热点；
-    \item \texttt{SPECjvm2008/mpegaudio}：用于提供与 \texttt{pmd} 明显不同的吞吐型对照；
-    \item \texttt{SPECjvm2008/scimark.lu.small}：用于验证 LoongArch64 LSX 浮点 SIMD 方案；
-    \item \texttt{SPECjvm2008/scimark.sor.small}：用于观察数值型优化的可迁移性；
-    \item \texttt{SPECjvm2008/scimark.fft.small}：用于补充复杂数值内核的边界对照。
-\end{itemize}
+本文并未从全部可运行 benchmark 中任意抽取 5 个工作负载，而是按照四项原则进行收缩：其一，工作负载应来自
+ART/JVM 托管运行时研究中常用的代表性基准集合；其二，五个工作负载合起来必须覆盖本文关心的典型执行模式，
+即短生命周期控制流、稳态吞吐热路径和规则浮点数值内核；其三，工作负载必须能够在热点分析与 flamegraph 中
+稳定命中主导成本，而不是只对应局部噪声热点；其四，工作负载必须共享统一的验证链、统一的 JIT 模式与正式
+对比快照，能够纳入同一组正文主图进行比较。只有同时满足这四项条件的 workload，才进入本文正式图表。
+
+基于上述原则，本文在正式图表中保留的五个工作负载如表~\ref{tab:formal-workload-selection} 所示。
+
+\begin{table}[htbp]
+    \centering
+    \scriptsize
+    \caption{五个正式工作负载的选择依据与角色分工}
+    \label{tab:formal-workload-selection}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}p{3.3cm}>{\raggedright\arraybackslash}p{4.2cm}}
+        \toprule
+        \textbf{工作负载} & \textbf{基准来源} & \textbf{代表执行模式} & \textbf{在本文中的角色} \\
+        \midrule
+        \texttt{pmd} & DaCapo & 短生命周期、控制流密集、JIT 进入窗口敏感 & 观察解释器驻留、baseline JIT 进入时机与短生命周期 workload 的优化兑现条件 \\
+        \texttt{mpegaudio} & SPECjvm2008 & 稳态吞吐型、运行时热路径敏感 & 提供与 \texttt{pmd} 不同的吞吐型对照，用于观察字符串与运行时数据搬移路径的收益边界 \\
+        \texttt{scimark.lu.small} & SPECjvm2008 & 规则浮点稠密线性代数内核 & 作为 LoongArch64 LSX 浮点 SIMD 向量化的主验证 workload，承载第 6 章的核心性能结论 \\
+        \texttt{scimark.sor.small} & SPECjvm2008 & 规则 stencil 循环 & 作为数值型 workload 的迁移性对照，用于判断 SIMD 收益能否扩展到另一类规则循环 \\
+        \texttt{scimark.fft.small} & SPECjvm2008 & 结构更复杂的数值内核 & 作为复杂数值模式的边界对照，用于说明当前 SIMD 路径的适用范围并非无条件外推 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+这五个 workload 共同覆盖了本文的三类正式问题：\texttt{pmd} 对应控制流与 JIT 时机，
+\texttt{mpegaudio} 对应运行时热路径数据流，\texttt{lu.small}、\texttt{sor.small} 与
+\texttt{fft.small} 共同承担 SIMD 主结论、迁移性对照和复杂边界对照。
+
+\texttt{startup.\allowbreak helloworld} 虽然同样具有研究价值，但它服务于启动期 DEX 校验这一正交案例，
+不共享三项正式方案的统一对照设置与结果解释链，因此不并入五个正式 workload，而在后文作为独立案例讨论。
+其余可运行子项若不能稳定命中本文关心的主导成本，或更适合用于启动噪声、间接访存与分支主导场景的讨论，
+亦不进入正文主图。
 
 其中，DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小表示性能越好；SPECjvm2008
 的评价指标为 \texttt{ops/m}，数值越大表示吞吐越高。本文在后续分析中始终遵循这一指标方向，不将
-不同基准测试的分值含义混为一谈。
+不同基准测试的分值含义混为一谈。为避免指标方向不一致造成误读，本文统一先换算为同向的
+\textit{speedup}，再报告百分比收益。对于吞吐型指标，其定义如式~\ref{eq:speedup-throughput} 所示：
+\begin{equation}
+    \label{eq:speedup-throughput}
+    S_{\text{throughput}} = \frac{M_{\text{scheme}}}{M_{\text{control}}}
+\end{equation}
+其中，$M_{\text{scheme}}$ 和 $M_{\text{control}}$ 分别表示方案版本与对照版本的吞吐结果。对于时延型指标，
+其定义如式~\ref{eq:speedup-latency} 所示：
+\begin{equation}
+    \label{eq:speedup-latency}
+    S_{\text{latency}} = \frac{T_{\text{control}}}{T_{\text{scheme}}}
+\end{equation}
+其中，$T_{\text{scheme}}$ 和 $T_{\text{control}}$ 分别表示方案版本与对照版本的执行耗时。本文随后统一按
+式~\ref{eq:relative-gain} 报告“相对对照版本收益”：
+\begin{equation}
+    \label{eq:relative-gain}
+    G = (S - 1)\times 100\%
+\end{equation}
+在这一记号下，无论原始指标是 \texttt{msec} 还是 \texttt{ops/m}，只要 $G>0$ 就表示方案版本相对对照版本受益。
 
 \section{正式对比快照、统计验证快照与结果解释规则}
 
@@ -215,15 +259,15 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
     \caption{正文实验快照命名与归档映射}
     \label{tab:experiment-snapshots}
     \begin{tabular}{p{3.1cm}p{3.1cm}p{2.7cm}p{3.1cm}}
-        \hline
+        \toprule
         \textbf{快照} & \textbf{用途} & \textbf{正文角色} & \textbf{归档映射} \\
-        \hline
+        \midrule
         正式对比快照（\texttt{Snapshot-A}） & 单次全量正式对比 & 主结果来源 & \texttt{final-comparison} \\
         统计验证快照（\texttt{Snapshot-B}） & 重复测量验证 & 结论强度判断 & \texttt{statistical-validation} \\
         启动期校验快照（\texttt{Snapshot-C}） & DEX 校验阶段链实验 & 正交启动期案例 & \texttt{dexfileverifier-phase-chain} \\
-        Intrinsic 补充验证快照（\texttt{Snapshot-D}） & Intrinsic 开关补充验证 & 机制补充 & \texttt{intrinsic-ablation} \\
+        \shortstack[l]{Intrinsic 补充验证快照\\（\texttt{Snapshot-D}）} & \shortstack[l]{Intrinsic 开关\\补充验证} & 机制补充 & \texttt{intrinsic-ablation} \\
         完整 SIMD 候选消融快照（\texttt{Snapshot-E}） & 完整 LSX SIMD 覆盖候选消融 & 边界比较 & \texttt{lsx-full-simd-ablation} \\
-        \hline
+        \bottomrule
     \end{tabular}
 \end{table}
 
