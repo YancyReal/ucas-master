@@ -116,7 +116,7 @@ void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
     \label{tab:scheme1-result}
     \begin{tabular}{lccc}
         \hline
-        \textbf{基准测试项} & \textbf{基线结果} & \textbf{方案结果} & \textbf{相对变化} \\
+        \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{方案结果} & \textbf{相对对照版本收益} \\
         \hline
         \texttt{pmd} & \texttt{3272\,msec} & \texttt{3164\,msec} & +3.30\% \\
         \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.74\,ops/m} & +1.42\% \\
@@ -153,7 +153,7 @@ void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
         \hline
         \textbf{状态} & \textbf{3轮原始结果} & \textbf{均值} & \textbf{中位数} & \textbf{标准差} \\
         \hline
-        \texttt{baseline} & \texttt{3281, 3280, 3287\,msec} & \texttt{3282.67} & \texttt{3281} & \texttt{3.79} \\
+        对照版本 & \texttt{3281, 3280, 3287\,msec} & \texttt{3282.67} & \texttt{3281} & \texttt{3.79} \\
         \texttt{scheme1-only} & \texttt{3180, 3611, 3183\,msec} & \texttt{3324.67} & \texttt{3183} & \texttt{247.98} \\
         \hline
     \end{tabular}
@@ -162,7 +162,7 @@ void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
 表~\ref{tab:scheme1-stability} 说明，方案一并非“完全没有收益”，而是同时呈现出两种不同信号。其一，
 其中两次样本 \texttt{3180\,msec} 与 \texttt{3183\,msec} 与正式单次快照中的 \texttt{3164\,msec}
 方向一致，说明更早进入 baseline JIT 的确可能压缩 \texttt{pmd} 的解释器驻留成本；
-其二，第三轮出现 \texttt{3611\,msec} 的高延迟样本，使 3 轮均值反而回落到基线之下。这意味着，
+其二，第三轮出现 \texttt{3611\,msec} 的高延迟样本，使 3 轮均值反而回落到对照版本之下。这意味着，
 方案一当前更适合被表述为“存在可重复的正收益样本，但均值稳定性不足”，而不能直接升级为稳定默认策略。
 
 从机理上看，这种波动与方案一所作用的层级是一致的。它改变的是“热点方法能否及时跨过第一层编译门槛”，而
@@ -266,7 +266,7 @@ void CopyUtf16ToBytes(dst8, src16, length) {
 \texttt{AllocFromUtf16()}，因此其收益首先表现为热路径固定成本下降，而不是语义层面的变化。
 
 从机制证据看，方案二的因果链也应保持克制。更早的独立重复实验已经表明，\texttt{pmd} 上的两次结果都稳定优于
-对应基线，而配套 flamegraph 中 \texttt{DoReplace()}、\texttt{DoConcat()} 与
+对应对照版本，而配套 flamegraph 中 \texttt{DoReplace()}、\texttt{DoConcat()} 与
 \texttt{AllocFromUtf16()} 仍持续可见。这说明方案二确实命中了字符串热路径，并且收益更可能来自这些路径
 固定成本的下降。另一方面，由于部分归档存在 \texttt{perf-*.map} 缺失，JIT Java 符号并不完整，因此本文
 不把这些 flamegraph 写成“热点占比精确下降了多少”的定量证据，而只把它们作为“优化方向命中正确”的机制补充。
@@ -282,7 +282,7 @@ void CopyUtf16ToBytes(dst8, src16, length) {
     \label{tab:scheme2-result}
     \begin{tabular}{lccc}
         \hline
-        \textbf{基准测试项} & \textbf{基线结果} & \textbf{方案结果} & \textbf{相对变化} \\
+        \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{方案结果} & \textbf{相对对照版本收益} \\
         \hline
         \texttt{pmd} & \texttt{3272\,msec} & \texttt{3244\,msec} & +0.86\% \\
         \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.56\,ops/m} & +0.71\% \\
@@ -311,11 +311,11 @@ void CopyUtf16ToBytes(dst8, src16, length) {
 \subsection{问题来源与正文角色}
 
 \texttt{DexFileVerifier} 相关工作没有被写成一般性的候选对比方向，因为它与前两节的执行期优化不处于同一证据设置。
-它不共享正式三方案的统一基线，不能直接与 \texttt{pmd}、\texttt{lu.small} 的单方案结果放在同一主图比较；
+它不共享正式三方案的统一对照版本，不能直接与 \texttt{pmd}、\texttt{lu.small} 的单方案结果放在同一主图比较；
 但在启动期工作负载上，它形成了一条热点来源明确、阶段划分清楚且带有负对照的独立论证线索，因此仍值得作为本章
 正交案例保留。与前两节不同，这一案例更接近一次性遍历与顺序解码的启动期主链压缩，而不是稳态执行路径上的微调。
 
-在启动期校验快照（\texttt{Snapshot-C}）中，\texttt{startup.helloworld} 的基线 flamegraph 表明，
+在启动期校验快照（\texttt{Snapshot-C}）中，\texttt{startup.helloworld} 的对照版本 flamegraph 表明，
 \texttt{OffsetToPtr}、\texttt{FindIndexImpl}、\texttt{ElementForIndex}、\texttt{PtrToOffset} 与
 \texttt{CheckIntraDebugInfoItem} 等 verifier、container 与字符串校验相关路径的 flat hot share
 近似合计约为 \texttt{5.3\%}。相比之下，\texttt{scimark.lu.small} 上这组热点仅约
@@ -401,9 +401,9 @@ uint32_t DecodeMetadata(ptr) {                       // phase1234
 
 {\emergencystretch=2em
 图~\ref{fig:dexverifier-phase-chain-speedup} 给出 \texttt{Snapshot-C} 的阶段链结果。\texttt{phase1}
-尚未形成稳定正收益。在主目标 \texttt{startup.helloworld} 上，其均值甚至略低于基线。
+尚未形成稳定正收益。在主目标 \texttt{startup.helloworld} 上，其均值甚至略低于对照版本。
 但在 \texttt{phase12} 中，当 \texttt{offset\_to\_type\_map\_} 被替换为 \texttt{vector + lower\_bound}
-后，均值相对基线提升到 \texttt{+4.83\%}，且标准差明显收敛。这表明启动期 verifier 的主导成本确实不是
+后，均值相对对照版本收益达到 \texttt{+4.83\%}，且标准差明显收敛。这表明启动期 verifier 的主导成本确实不是
 边界检查本身，而是 Hash 容器 probing 链。\par}
 
 继续向后看，\texttt{phase123} 在保留正收益的同时，并未形成新的明显台阶，说明 UTF-8/ASCII fast path

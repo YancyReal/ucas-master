@@ -36,7 +36,7 @@
 本文的实验平台基于真实 LoongArch64 目标设备，处理器为龙芯 3A6000，四核，主频
 \texttt{2.5\,GHz}，内存为 \texttt{16\,GB}；目标系统为 Android 15，内核版本为
 Linux 6.6.46。软件侧以 AOSP 15 源码中的 \texttt{art/} 子项目为研究对象，在完成第 3 章所述
-平台适配后开展后续验证与性能评测。
+平台适配后开展后续验证与性能评测\citep{Loongson3A6000DataBook2023,AospArtAndroid15R1}。
 
 本文的正式性能结论统一建立在 LoongArch64 64 位 \texttt{debug} ART 与 \texttt{JIT} 模式下。
 选择这一设置有两方面原因。第一，\texttt{debug} 构建更容易暴露调用约定、异常恢复和慢路径跳转等
@@ -57,7 +57,7 @@ ART 改动统一通过 \texttt{art/tools/buildbot-build.sh --target} 完整编�
         \textbf{中文术语} & \textbf{英文术语/归档标签} & \textbf{本文约定} \\
         \hline
         工作负载 & \textit{workload} & 指单个基准测试项或应用负载，如 \texttt{pmd}、\texttt{lu.small} \\
-        基线 & \textit{baseline} & 指统一对照版本与实验设置；与 ART 分层编译中的 \texttt{baseline JIT} 术语区分 \\
+        对照版本 & \textit{control} / \texttt{baseline} & 指统一对照版本与实验设置；正文统一称“对照版本”，归档目录保留 \texttt{baseline} 标签 \\
         正式对比快照 & \texttt{Snapshot-A} / \texttt{final-comparison} & 用于正文主结果的单次全量对比数据集 \\
         统计验证快照 & \texttt{Snapshot-B} / \texttt{statistical-validation} & 用于同日重复测量与结论强度判断 \\
         启动期校验快照 & \texttt{Snapshot-C} / \texttt{dexfileverifier-phase-chain} & 用于 DEX 校验阶段链实验 \\
@@ -68,8 +68,9 @@ ART 改动统一通过 \texttt{art/tools/buildbot-build.sh --target} 完整编�
 \end{table}
 
 表~\ref{tab:experiment-terms} 给出了本文后续统一采用的术语约定。除保留快照代号与归档标签外，正文原则上统一使用
-中文术语；其中“基线”专指实验对照版本与设置，而 \texttt{baseline JIT} 仍保留为 ART 分层编译术语，以避免
-与实验对照概念混淆。
+中文术语，并将实验对照统一称为“对照版本”；归档目录中的 \texttt{baseline} 仅作为历史标签保留，
+\texttt{baseline JIT} 仍保留为 ART 分层编译术语。全文百分比结果统一写为“相对对照版本收益”，其中正值
+表示受益，负值表示回退。
 
 \begin{table}[htbp]
     \centering
@@ -232,12 +233,12 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
 
 \begin{itemize}
     \item \textbf{正式对比快照（\texttt{Snapshot-A}）。} 该快照用于正文主表和主图，包含统一正式
-    对比设置下的基线、三项正式方案以及叠加状态。本文随后引用的单次正式结果若无特别说明，均指向
-    该快照。其基线结果如表~\ref{tab:formal-baseline-values} 所示。
+    对比设置下的对照版本、三项正式方案以及叠加状态。本文随后引用的单次正式结果若无特别说明，均指向
+    该快照。其对照版本结果如表~\ref{tab:formal-baseline-values} 所示。
     \item \textbf{统计验证快照（\texttt{Snapshot-B}）。} 该快照仅用于验证两条最关键的性能主张，
     即方案一在 \texttt{pmd} 上的收益方向和方案三在 \texttt{lu.small} 上的稳定收益。其结果单独
     展示，不与 \texttt{Snapshot-A} 的正式对比结果混算。
-    \item \textbf{历史基线归档。} 该部分数据仅用于保留较早阶段的对照记录，不再作为三项正式
+    \item \textbf{历史对照归档。} 该部分数据仅用于保留较早阶段的对照记录，不再作为三项正式
     方案统一比较的主数据源。
 \end{itemize}
 
@@ -250,11 +251,11 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
 \begin{table}[htbp]
     \centering
     \small
-    \caption{正式对比数据集的五个基线结果}
+    \caption{正式对比数据集的五个对照版本结果}
     \label{tab:formal-baseline-values}
     \begin{tabular}{lc}
         \hline
-        \textbf{工作负载} & \textbf{基线结果} \\
+        \textbf{工作负载} & \textbf{对照版本结果} \\
         \hline
         \texttt{DaCapo/pmd} & \texttt{3272\,msec} \\
         \texttt{SPECjvm2008/mpegaudio} & \texttt{25.38\,ops/m} \\

@@ -9,12 +9,12 @@
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/candidate-schemes-heatmap.pdf}
-    \caption{附录对比方向在固定基线下的归一化比较}
+    \caption{附录对比方向在固定对照版本下的归一化比较}
     \label{fig:candidate-schemes-heatmap}
 \end{figure}
 
-图~\ref{fig:candidate-schemes-heatmap} 给出了固定基线下若干候选方向的统一比较结果。图中 \texttt{1.0}
-表示基线，低于 \texttt{1.0} 说明该候选方向未跨过 benchmark 级收益门槛。这张图的作用
+图~\ref{fig:candidate-schemes-heatmap} 给出了固定对照版本下若干候选方向的统一比较结果。图中 \texttt{1.0}
+表示对照版本，低于 \texttt{1.0} 说明该候选方向未跨过 benchmark 级收益门槛。这张图的作用
 不是堆叠负面对照，而是说明正文正式方案来自系统性筛选，而非只挑选了若干正结果样本。
 按技术路线划分，这些对比方向分别对应阈值调节、OSR 边界改写、解释器快路径、通用复制入口优化等常见技术路线
 \citep{Arnold2005,Lameed2013,Haubl2008OptimizedStrings,Lemire2022UnicodeSIMD}；
@@ -34,7 +34,7 @@
         JIT OSR 热路径内联调整 & \texttt{pmd -17.78\%} & 假设更接近解释器/OSR 场景，无法解释正式比较中的主瓶颈 \\
         Nterp 热点循环 OSR 重检查调整 & \texttt{mpegaudio -1.84\%} & 增加固定成本，未换来稳定收益 \\
         解释器已解析类型快路径 & \texttt{pmd -18.39\%} & 命中局部解析成本，但附加判断放大主路径开销 \\
-        JIT debug-info 延后生成 & 多数工作负载低于基线 & 热点虽可见，但真实生效点与 benchmark 级收益之间缺少稳定机制解释 \\
+        JIT debug-info 延后生成 & 多数工作负载低于对照版本 & 热点虽可见，但真实生效点与 benchmark 级收益之间缺少稳定机制解释 \\
         \hline
     \end{tabular}
 \end{table}
@@ -59,7 +59,7 @@
         \texttt{memcpy} 快速入口接线 & \texttt{pmd -11.95\%} & 目标工作负载不稳定落到该低层入口 \\
         CRC32 JNI 快路径 & \texttt{mpegaudio -14.28\%} & 目标热点占比仅约 \texttt{0.21\%}，优化对象选错 \\
         \texttt{DexFileVerifier} 连续栈容器替换 & \texttt{pmd -11.91\%} & 单一容器替换未覆盖完整启动期主链，故改写为正文阶段链案例 \\
-        命令行参数/JIT init 相关方向 & 多数结果低于基线 & 只压低局部 parser 开销，未命中主导成本 \\
+        命令行参数/JIT init 相关方向 & 多数结果低于对照版本 & 只压低局部 parser 开销，未命中主导成本 \\
         \hline
     \end{tabular}
 \end{table}

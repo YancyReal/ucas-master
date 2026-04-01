@@ -49,7 +49,10 @@ LSX 向量流。
 
 图~\ref{fig:scheme3-vectorization-boundary} 给出了本文正式方案三的能力边界。这里的关键词是“最小可用”，即正文
 明确只回答一个受限问题：\textbf{LoongArch64 是否已经具备让规则浮点循环稳定落成 LSX 向量机器码的最小能力集。}
-这一定义主动排除了更宽泛但也更难收束的叙事，例如“一次性完成完整 SIMD 后端”或“让所有数值工作负载自动受益”。
+为避免“最小”和“可用”在语义上继续游移，本文将其形式化限定为两个条件：其一，“最小”指正文主结论真正依赖
+的最小能力集合，只覆盖规则浮点循环所需的数据类型、算子、寄存器宽度和 lowering 路径；其二，“可用”指该路径
+已经通过最小回归验证、能够稳定生成目标向量代码，并在统一实验链中获得可重复的正收益。这一定义主动排除了更
+宽泛但也更难收束的叙事，例如“一次性完成完整 SIMD 后端”或“让所有数值工作负载自动受益”。
 
 在实现上，本文将最小路径限定为如下能力集合：
 \begin{itemize}
@@ -190,7 +193,7 @@ benchmark 前重点回归了与 SIMD 图和 JIT 路径直接相关的测试：
     \label{tab:scheme3-result}
     \begin{tabular}{lccc}
         \hline
-        \textbf{基准测试项} & \textbf{基线结果} & \textbf{方案结果} & \textbf{相对变化} \\
+        \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{方案结果} & \textbf{相对对照版本收益} \\
         \hline
         \texttt{pmd} & \texttt{3272\,msec} & \texttt{3270\,msec} & +0.06\% \\
         \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.84\,ops/m} & +1.81\% \\
@@ -226,7 +229,7 @@ LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接
 \texttt{3611\,msec} 的高延迟轮次，因此其重复测量均值回落到 \texttt{3324.67\,msec}，标准差达到
 \texttt{247.98\,msec}，只能支持“存在方向性样本”的较弱结论。相比之下，右侧 \texttt{lu.small}
 中方案三的三轮结果稳定集中在 \texttt{68--69\,ops/m} 区间，均值由 \texttt{47.30\,ops/m} 提升到
-\texttt{68.91\,ops/m}，相对基线增幅达到 \texttt{+45.70\%}，标准差仅 \texttt{0.50\,ops/m}。
+\texttt{68.91\,ops/m}，相对对照版本收益达到 \texttt{+45.70\%}，标准差仅 \texttt{0.50\,ops/m}。
 
 这意味着，方案三的收益不是来自偶然样本，而是能够在相邻时间窗口中稳定复现的结果。正因为有
 \texttt{Snapshot-B} 的支撑，本文才有足够依据把“LoongArch64 最小可用 LSX 浮点 SIMD 路径已经成立”写成
@@ -243,7 +246,7 @@ LSX lowering 被补齐后，向量 IR 不再滞留在前端，而是能够直接
 \end{figure}
 
 为了避免把正文方案三误写成“LoongArch64 完整 SIMD 后端”，本文又引入完整 SIMD 候选消融快照
-（\texttt{Snapshot-E}）进行边界比较。该快照比较了三种状态：无 SIMD 基线 \texttt{S0}、正文正式方案
+（\texttt{Snapshot-E}）进行边界比较。该快照比较了三种状态：无 SIMD 对照版本 \texttt{S0}、正文正式方案
 \texttt{S1} 与完整覆盖候选版 \texttt{S2}。图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角下的
 总体结果。
 
