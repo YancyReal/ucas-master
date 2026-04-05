@@ -19,7 +19,7 @@ ArtJitCompiler2024,AospArtAndroid15R1}。相较于早期 Dalvik，ART 采用解�
 决定了 ART 的平台适配不是补一个后端即可，而是要同时处理解释器、编译器后端、JNI 编译器和运行时
 入口点等多个子系统。
 
-然而，截至本文写作时，AOSP 官方主线的 ART 源码目录中仍未见面向 LoongArch 的执行引擎
+然而，在本文采用的 AOSP 15 基线下，AOSP 官方主线的 ART 源码目录中仍未见面向 LoongArch 的执行引擎
 后端实现\citep{AospArtAndroid15R1,AospArtMain2026}。对于新架构平台而言，
 即使 Linux 内核、Bionic 和系统框架层已经具备基础可运行能力，若缺少 ART 层支持，Android
 应用生态仍难以真正落地。特别是 ART 中与体系结构密切相关的解释器入口、Nterp 汇编解释器、

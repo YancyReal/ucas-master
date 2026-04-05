@@ -40,7 +40,7 @@ intrinsic 开关对应的是较宽泛的库调用与编译器机制增强，而�
     \label{fig:intrinsic-ablation-heatmap}
 \end{figure}
 
-图~\ref{fig:intrinsic-ablation-heatmap} 进一步说明，intrinsic 收益主要集中在加解密与部分库热点 workload。
+图~\ref{fig:intrinsic-ablation-heatmap} 进一步表明，intrinsic 的收益主要体现在加解密相关任务及部分库调用热点工作负载。具体而言，收益较高的样本集中在加解密相关负载，而通用控制流型负载未出现同方向增益。
 其中，\texttt{crypto.aes} 达到 \texttt{1.4996x}，\texttt{startup.crypto.aes} 为 \texttt{1.2993x}；
 \texttt{h2} 约为 \texttt{1.1513x}，\texttt{crypto.signverify} 约为 \texttt{1.0604x}。
 相比之下，\texttt{pmd} 出现 \texttt{0.9474x} 的负向样本，说明其主导成本并不在 intrinsic 命中的热点上。
