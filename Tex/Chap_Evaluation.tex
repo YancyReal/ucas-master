@@ -24,19 +24,19 @@
 \begin{table}[htbp]
     \centering
     \small
-    \caption{本文关键术语、快照名称与归档标签对照}
+    \caption{本文关键术语、快照名称对照}
     \label{tab:experiment-terms}
     \begin{tabular}{>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{5.0cm}}
         \hline
-        \textbf{中文术语} & \textbf{英文术语/归档标签} & \textbf{本文约定} \\
+        \textbf{中文术语} & \textbf{英文术语} & \textbf{本文约定} \\
         \hline
         工作负载 & \textit{workload} & 指单个基准测试项或应用负载，如 \texttt{pmd}、\texttt{lu.small} \\
         对照版本 & \textit{control} / \texttt{baseline} & 指统一对照版本与实验设置；正文统一称“对照版本”，归档目录保留 \texttt{baseline} 标签 \\
-        正式对比快照 & \texttt{Snapshot-A} / \texttt{final-comparison} & 用于正式结果的单次全量对比数据集 \\
-        统计验证快照 & \texttt{Snapshot-B} / \texttt{statistical-validation} & 用于同日重复测量与稳定性判断 \\
-        启动期校验快照 & \texttt{Snapshot-C} / \texttt{dexfileverifier-phase-chain} & 用于 DEX 校验阶段链实验 \\
-        Intrinsic 补充验证快照 & \texttt{Snapshot-D} / \texttt{intrinsic-ablation} & 用于 Intrinsic 开关的机制补充验证 \\
-        完整 SIMD 候选消融快照 & \texttt{Snapshot-E} / \texttt{lsx-full-simd-ablation} & 用于最小 SIMD 方案与完整覆盖候选版的边界比较 \\
+        正式对比快照 & \texttt{Snapshot-A}  & 用于正式结果的单次全量对比数据集 \\
+        统计验证快照 & \texttt{Snapshot-B}  & 用于同日重复测量与稳定性判断 \\
+        启动期校验快照 & \texttt{Snapshot-C}  & 用于 DEX 校验阶段链实验 \\
+        Intrinsic 补充验证快照 & \texttt{Snapshot-D}  & 用于 Intrinsic 开关的机制补充验证 \\
+        完整 SIMD 候选消融快照 & \texttt{Snapshot-E} & 用于最小 SIMD 方案与完整覆盖候选版的边界比较 \\
         \hline
     \end{tabular}
 \end{table}
@@ -213,7 +213,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 表~\ref{tab:scheme1-result} 中最具代表性的结果是 \texttt{pmd} 的 \texttt{+3.30\%}。这一变化与第 4 章的机理分析一致，即方法更早进入 baseline JIT 后，短生命周期工作负载能够更快回收解释器驻留成本。\texttt{mpegaudio} 只出现轻微提升，也符合其更依赖稳态吞吐而非进入时机的特点。
 
-为判断该机制能否从“单次正收益”进一步推广为“稳定收益”，本文进一步引用统计验证快照（\texttt{Snapshot-B}）中 \texttt{pmd} 的同日三轮重复测量结果，如表~\ref{tab:scheme1-stability} 所示。
+为判断该机制能否从“单次性能提升”进一步推广为“稳定收益”，本文进一步引用统计验证快照（\texttt{Snapshot-B}）中 \texttt{pmd} 的同日三轮重复测量结果，如表~\ref{tab:scheme1-stability} 所示。
 
 \begin{table}[htbp]
     \centering
@@ -225,12 +225,12 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
         \textbf{状态} & \textbf{3轮原始结果} & \textbf{均值} & \textbf{中位数} & \textbf{标准差} \\
         \hline
         对照版本 & \texttt{3281, 3280, 3287\,msec} & \texttt{3282.67} & \texttt{3281} & \texttt{3.79} \\
-        \texttt{warmup-threshold-tuned} & \texttt{3180, 3611, 3183\,msec} & \texttt{3324.67} & \texttt{3183} & \texttt{247.98} \\
+        阈值调优版本 & \texttt{3180, 3611, 3183\,msec} & \texttt{3324.67} & \texttt{3183} & \texttt{247.98} \\
         \hline
     \end{tabular}
 \end{table}
 
-表~\ref{tab:scheme1-stability} 表明，该机制同时呈现两类信号：两次样本与正式快照方向一致，而第三轮出现高延迟样本，导致三轮均值回落至对照版本之下。因此，该机制更适合被表述为“存在可重复的正收益样本，但均值稳定性不足”。
+表~\ref{tab:scheme1-stability} 表明，该机制同时呈现两类信号：两次样本与正式快照方向一致，而第三轮出现高延迟样本，导致三轮均值回落至对照版本之下。因此，该机制在部分测试轮次中表现出了一定的性能提升，但整体方差较大，缺乏稳定的加速能力”。
 
 \subsection{批量搬移机制的性能表现}
 
@@ -263,9 +263,9 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \label{fig:dexverifier-phase-chain-speedup}
 \end{figure}
 
-图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段链结果。\texttt{phase1} 尚未形成稳定正收益，在主目标 \texttt{startup.helloworld} 上其均值甚至略低于对照版本。但在 \texttt{phase12} 中，当 \texttt{offset\_to\_type\_map\_} 被替换为 \texttt{vector + lower\_bound} 后，均值相对对照版本收益达到 \texttt{+4.83\%}，且标准差明显收敛。这表明启动期 verifier 的主要成本并不来自边界检查本身，而来自 Hash 容器 probing 链。
+图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段链结果。\texttt{phase1} 尚未形成稳定性能提升，在主目标 \texttt{startup.helloworld} 上其均值甚至略低于对照版本。但在 \texttt{phase12} 中，当 \texttt{offset\_to\_type\_map\_} 被替换为 \texttt{vector + lower\_bound} 后，均值相对对照版本收益达到 \texttt{+4.83\%}，且标准差明显收敛。这表明启动期 verifier 的主要成本并不来自边界检查本身，而来自 Hash 容器 probing 链。
 
-继续向后看，\texttt{phase123} 在保留正收益的同时，并未形成新的明显台阶，说明 UTF-8/ASCII fast path 更接近收益巩固的次级优化；\texttt{phase1234} 则进一步将收益推进到 \texttt{+5.46\%}。负对照 \texttt{lu.small} 在各阶段都围绕 \texttt{82\,ops/m} 附近波动，说明这一优化属于启动期专用路径，而非通用工作负载的收益来源。
+继续向后看，\texttt{phase123} 在保留性能提升的同时，并未形成新的明显台阶，说明 UTF-8/ASCII fast path 更接近收益巩固的次级优化；\texttt{phase1234} 则进一步将收益推进到 \texttt{+5.46\%}。负对照 \texttt{lu.small} 在各阶段都围绕 \texttt{82\,ops/m} 附近波动，说明这一优化属于启动期专用路径，而非通用工作负载的收益来源。
 
 \section{浮点循环自动向量化性能评估}
 
@@ -292,18 +292,6 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 
 \texttt{lu.small} 高达 \texttt{+44.40\%} 的提升是全文最显著的性能结果之一。这一数据不仅收益幅度明显，而且与第 4 章的机理分析一致：最小 LSX lowering 路径补齐之后，前端形成的向量 IR 得以直接转化为目标向量指令。相比之下，该机制在 \texttt{pmd} 上未产生显著影响，在 \texttt{fft.small} 上则出现轻微回退，也说明其收益主要集中在规则浮点数值内核。
 
-\subsection{收益稳定性与重复测量验证}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.88\textwidth]{mybenchmark/statistical-validation-stripplot.pdf}
-    \caption{基线 JIT 提早触发机制与 LSX 向量化 lowering 路径的重复测量散点与误差棒}
-    \label{fig:statistical-validation-stripplot}
-\end{figure}
-
-仅凭单次正式快照，还不足以说明收益是否稳定。因此，本文利用统计验证快照（\texttt{Snapshot-B}）对最关键的两条性能主张进行重复测量，其中与本节直接相关的是 LSX 向量化 lowering 路径在 \texttt{lu.small} 上的稳定性。如图~\ref{fig:statistical-validation-stripplot} 所示，右侧 \texttt{lu.small} 中该机制的三轮结果稳定集中在 \texttt{68--69\,ops/m} 区间，均值由 \texttt{47.30\,ops/m} 提升到 \texttt{68.91\,ops/m}，相对对照版本收益达到 \texttt{+45.70\%}，标准差仅 \texttt{0.50\,ops/m}。
-
-这一结果表明，LSX 向量化 lowering 路径在规则浮点数值内核上的收益具备跨时间窗口的稳定复现能力。相较之下，基线 JIT 提早触发机制在 \texttt{pmd} 上波动较大，因此无法支持同等强度的稳定性结论。
 
 \section{综合性能对比与扩展分析}
 
@@ -354,7 +342,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-图~\ref{fig:final-comparison-heatmap} 汇总了正式对比快照（\texttt{Snapshot-A}）中五个代表性工作负载的统一结果。由图可见，三类机制分别命中不同主路径：基线 JIT 提早触发机制在 \texttt{pmd} 上最具代表性，说明它更适合解释短生命周期工作负载的 JIT 进入窗口问题；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上只有弱正收益，却在 \texttt{lu.small} 上回退，体现出其微优化性质；LSX 向量化 lowering 路径在 \texttt{lu.small} 上取得压倒性收益，但对 \texttt{pmd} 未产生显著影响，对 \texttt{sor.small} 与 \texttt{fft.small} 也未产生同等级提升。
+图~\ref{fig:final-comparison-heatmap} 汇总了正式对比快照（\texttt{Snapshot-A}）中五个代表性工作负载的统一结果。由图可见，三类机制分别命中不同主路径：基线 JIT 提早触发机制在 \texttt{pmd} 上最具代表性，说明它更适合解释短生命周期工作负载的 JIT 进入窗口问题；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上只有弱性能提升，却在 \texttt{lu.small} 上回退，体现出其微优化性质；LSX 向量化 lowering 路径在 \texttt{lu.small} 上取得压倒性收益，但对 \texttt{pmd} 未产生显著影响，对 \texttt{sor.small} 与 \texttt{fft.small} 也未产生同等级提升。
 
 \subsection{多项机制的叠加效应分析}
 

@@ -4,8 +4,8 @@
 
 本批文献围绕你的两条“已验证有效/重点分析”实验主线组织：
 
-- 主线A：`JIT 分层热度阈值调整`（对 `DaCapo/pmd` 有正收益，对 `SPECjvm2008/mpegaudio` 无稳定正收益）
-- 主线B：`运行时字符串搬运批量化`（对 `DaCapo/pmd` 有稳定小幅收益，对 `mpegaudio` 无稳定正收益）
+- 主线A：`JIT 分层热度阈值调整`（对 `DaCapo/pmd` 有性能提升，对 `SPECjvm2008/mpegaudio` 无稳定性能提升）
+- 主线B：`运行时字符串搬运批量化`（对 `DaCapo/pmd` 有稳定小幅收益，对 `mpegaudio` 无稳定性能提升）
 
 文献已落地到以下目录：
 

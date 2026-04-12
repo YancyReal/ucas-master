@@ -99,7 +99,7 @@ void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
 
 \subsection{重复测量中的波动性分析}
 
-为判断方案一能否从“单次正收益”升级为“稳定收益”，本文进一步引用统计验证快照（\texttt{Snapshot-B}）中 \texttt{pmd} 的同日三轮重复测量结果，如表~\ref{tab:scheme1-stability} 所示。
+为判断方案一能否从“单次性能提升”升级为“稳定收益”，本文进一步引用统计验证快照（\texttt{Snapshot-B}）中 \texttt{pmd} 的同日三轮重复测量结果，如表~\ref{tab:scheme1-stability} 所示。
 
 \begin{table}[htbp]
     \centering
@@ -116,7 +116,7 @@ void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
     \end{tabular}
 \end{table}
 
-表~\ref{tab:scheme1-stability} 说明，方案一并非“完全没有收益”，而是同时呈现出两种不同信号。其一，其中两次样本 \texttt{3180\,msec} 与 \texttt{3183\,msec} 与正式单次快照中的 \texttt{3164\,msec} 方向一致，说明更早进入 baseline JIT 的确可能压缩 \texttt{pmd} 的解释器驻留成本；其二，第三轮出现 \texttt{3611\,msec} 的高延迟样本，导致三轮均值回落至对照版本之下。这意味着，方案一当前更适合被表述为“存在可重复的正收益样本，但均值稳定性不足”，而不能直接升级为稳定默认策略。
+表~\ref{tab:scheme1-stability} 说明，方案一并非“完全没有收益”，而是同时呈现出两种不同信号。其一，其中两次样本 \texttt{3180\,msec} 与 \texttt{3183\,msec} 与正式单次快照中的 \texttt{3164\,msec} 方向一致，说明更早进入 baseline JIT 的确可能压缩 \texttt{pmd} 的解释器驻留成本；其二，第三轮出现 \texttt{3611\,msec} 的高延迟样本，导致三轮均值回落至对照版本之下。这意味着，方案一当前更适合被表述为“存在可重复的性能提升样本，但均值稳定性不足”，而不能直接升级为稳定默认策略。
 
 从机理上看，这种波动与方案一所作用的层级是一致的。它改变的是“热点方法能否及时跨过第一层编译门槛”，而非已经进入编译态后的稳态代码质量。对 \texttt{pmd} 这类短生命周期工作负载而言，方法是否来得及进入 baseline JIT 极易受热度累积节奏和运行时状态影响；一旦某些关键方法在某轮实验中刚好未跨过阈值，收益就会被明显削弱。当前数据因此更支持“JIT 进入窗口高度敏感”这一解释，而不足以把波动归结为某一项单独根因。因此，本文仅将方案一定位为方向性结论，并将其与方案三的稳定收益刻意区分开来。
 
@@ -207,7 +207,7 @@ void CopyUtf16ToBytes(dst8, src16, length) {
 
 与方案一和第 6 章的方案三相比，方案二的收益明显更弱。\texttt{pmd} 和 \texttt{mpegaudio} 上都只有约 \texttt{1\%} 的轻微提升，这说明字符串热路径虽然被命中，但并不是这些工作负载的唯一主导瓶颈。因此，方案二的价值更多在于证明 LoongArch 平台 ART 的运行时字符串路径仍存在清楚的局部改进空间，而非证明“字符串一优化，整体分数就会明显上升”。
 
-其中，\texttt{mpegaudio} 上的 \texttt{+0.71\%} 更应谨慎解读。更早的独立重复实验并未在该工作负载上形成稳定正收益证据，因此当前正式快照中的轻微上升更适合被理解为弱正信号，而非已被重复测量确认的收益结论。这也再次说明，方案二的适用范围主要由字符串热路径是否构成主导成本决定，而不能从单次弱波动直接外推。
+其中，\texttt{mpegaudio} 上的 \texttt{+0.71\%} 更应谨慎解读。更早的独立重复实验并未在该工作负载上形成稳定性能提升证据，因此当前正式快照中的轻微上升更适合被理解为弱正信号，而非已被重复测量确认的收益结论。这也再次说明，方案二的适用范围主要由字符串热路径是否构成主导成本决定，而不能从单次弱波动直接外推。
 
 更关键的是，\texttt{lu.small} 出现了 \texttt{-8.89\%} 的回退。这一结果进一步说明，方案二的收益高度依赖工作负载类型：若主路径为规则数值循环而非短字符串构造、拼接与替换，那么额外引入的代码体积和调度变化反而可能成为负担。当前数据足以支持“方案二并不命中 \texttt{lu.small} 的主路径”这一边界判断，但不足以将回退进一步归因为某一项单独实现成本。因此，方案二在本文中的定位应当是\emph{定向微优化}，而非可以无差别打开的通用默认策略。
 
@@ -287,9 +287,9 @@ uint32_t DecodeMetadata(ptr) {                       // phase1234
 \end{figure}
 
 {\emergencystretch=2em
-图~\ref{fig:dexverifier-phase-chain-speedup} 给出 \texttt{Snapshot-C} 的阶段链结果。\texttt{phase1} 尚未形成稳定正收益。在主目标 \texttt{startup.helloworld} 上，其均值甚至略低于对照版本。但在 \texttt{phase12} 中，当 \texttt{offset\_to\_type\_map\_} 被替换为 \texttt{vector + lower\_bound} 后，均值相对对照版本收益达到 \texttt{+4.83\%}，且标准差明显收敛。这表明启动期 verifier 的主导成本实非边界检查本身，而是 Hash 容器 probing 链。\par}
+图~\ref{fig:dexverifier-phase-chain-speedup} 给出 \texttt{Snapshot-C} 的阶段链结果。\texttt{phase1} 尚未形成稳定性能提升。在主目标 \texttt{startup.helloworld} 上，其均值甚至略低于对照版本。但在 \texttt{phase12} 中，当 \texttt{offset\_to\_type\_map\_} 被替换为 \texttt{vector + lower\_bound} 后，均值相对对照版本收益达到 \texttt{+4.83\%}，且标准差明显收敛。这表明启动期 verifier 的主导成本实非边界检查本身，而是 Hash 容器 probing 链。\par}
 
-继续向后看，\texttt{phase123} 在保留正收益的同时，并未形成新的明显台阶，说明 UTF-8/ASCII fast path 更像是巩固收益的次级优化，而非主导阶段；\texttt{phase1234} 则进一步将收益推进到 \texttt{+5.46\%}，说明当 container 成本降低后，LEB128 元数据解码的细粒度成本开始显露，并成为新的可兑现收益点。
+继续向后看，\texttt{phase123} 在保留性能提升的同时，并未形成新的明显台阶，说明 UTF-8/ASCII fast path 更像是巩固收益的次级优化，而非主导阶段；\texttt{phase1234} 则进一步将收益推进到 \texttt{+5.46\%}，说明当 container 成本降低后，LEB128 元数据解码的细粒度成本开始显露，并成为新的可兑现收益点。
 
 负对照 \texttt{lu.small} 的作用在这里也非常关键。它在各阶段都围绕 \texttt{82\,ops/m} 附近波动，且 verifier hot share 仅 \texttt{0.3\%} 到 \texttt{0.4\%}，因此不应被当作该阶段链的收益证明。这表明，\texttt{DexFileVerifier} 优化的论文价值，在于说明“命中启动期 DEX 校验主路径时可以形成明确收益”，而非证明“任何工作负载都会因为 verifier 变快而受益”。
 

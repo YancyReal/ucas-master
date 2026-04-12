@@ -88,5 +88,5 @@
   <text x="1008.44" y="194" font-family="Arial, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif" font-size="13" font-weight="700" text-anchor="middle" fill="#2b8a5a">sd = 0.50</text>
   <text x="1008.44" y="234.69580246913574" font-family="Arial, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="#2b8a5a">mean = 68.91</text>
   <rect x="124" y="529" width="952" height="18" rx="9" ry="9" fill="#f4f4f4" stroke="#d0d0d0" stroke-width="1.0" />
-  <text x="600" y="542" font-family="Arial, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#666666">左图显示方案一存在正收益样本，但波动显著；右图显示方案三在相邻时间窗口内保持稳定增益。</text>
+  <text x="600" y="542" font-family="Arial, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="#666666">左图显示方案一存在性能提升样本，但波动显著；右图显示方案三在相邻时间窗口内保持稳定增益。</text>
 </svg>

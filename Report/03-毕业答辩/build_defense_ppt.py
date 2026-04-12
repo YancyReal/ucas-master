@@ -815,7 +815,7 @@ def build_deck() -> None:
                 "color": NAVY,
                 "space_after": 8,
             },
-            bullet("方案一在 pmd 上存在正收益样本，但复测均值尚未稳定转正。"),
+            bullet("方案一在 pmd 上存在性能提升样本，但复测均值尚未稳定转正。"),
             bullet("方案二说明“局部热点下降”不等于“全局 benchmark 提升”。"),
             bullet("方案三收益集中在规则浮点循环，并不会自动推广到所有数值 workload。"),
             bullet("因此，LoongArch 平台 ART 优化应优先命中主导热点，并严格控制副作用。"),

@@ -35,7 +35,7 @@
     \label{fig:scheme3-vectorization-boundary}
 \end{figure}
 
-图~\ref{fig:scheme3-vectorization-boundary} 展示了方案三的能力边界。此处的“最小可用”意味着本文仅回答一个受限问题：LoongArch64 是否具备使规则浮点循环稳定转化为 LSX 向量机器码的最小能力集。为避免“最小”和“可用”在语义上继续游移，本文将其形式化限定为两个条件：其一，“最小”指正文主结论真正依赖的最小能力集合，只覆盖规则浮点循环所需的数据类型、算子、寄存器宽度和 lowering 路径；其二，“可用”指该路径已经通过最小回归验证、能够稳定生成目标向量代码，并在统一实验链中获得可重复的正收益。此定义排除了“一次性完成完整 SIMD 后端”或“使所有数值工作负载自动受益”等宽泛论述。
+图~\ref{fig:scheme3-vectorization-boundary} 展示了方案三的能力边界。此处的“最小可用”意味着本文仅回答一个受限问题：LoongArch64 是否具备使规则浮点循环稳定转化为 LSX 向量机器码的最小能力集。为避免“最小”和“可用”在语义上继续游移，本文将其形式化限定为两个条件：其一，“最小”指正文主结论真正依赖的最小能力集合，只覆盖规则浮点循环所需的数据类型、算子、寄存器宽度和 lowering 路径；其二，“可用”指该路径已经通过最小回归验证、能够稳定生成目标向量代码，并在统一实验链中获得可重复的性能提升。此定义排除了“一次性完成完整 SIMD 后端”或“使所有数值工作负载自动受益”等宽泛论述。
 
 在实现上，本文将最小路径限定为特定能力集合。具体而言，包括面向 \texttt{float32/float64} 的 128-bit 向量路径（其中 \texttt{float32} 为 4 lane，\texttt{float64} 为 2 lane）；支持 \texttt{VecReplicateScalar}、\texttt{VecLoad}、\texttt{VecStore}、\texttt{VecAdd}、\texttt{VecSub}、\texttt{VecMul} 等核心算子；并对 \texttt{int32 -> float32} 与 \texttt{int64 -> float64} 提供受限的 \texttt{VecCnv}，以服务特定循环形态。此外，完整 idiom 覆盖、复杂 reduction 优化及更宽泛的整数向量路径均不包含在此最小路径中。
 
@@ -281,7 +281,7 @@ void InstructionCodeGeneratorLOONGARCH64::VisitVecReplicateScalar(HVecReplicateS
     \label{fig:statistical-validation-stripplot}
 \end{figure}
 
-仅凭单次正式快照，还不足以说明收益是否稳定。因此，本文利用统计验证快照（\texttt{Snapshot-B}）对最关键的两条性能主张进行重复测量，其中与本章直接相关的是方案三在 \texttt{lu.small} 上的稳定性。如图~\ref{fig:statistical-validation-stripplot} 所示，图中的误差棒表示标准差。左侧 \texttt{DaCapo/pmd} 显示方案一虽然出现了 \texttt{3180\,msec} 和 \texttt{3183\,msec} 两个正收益样本，但也出现了 \texttt{3611\,msec} 的高延迟轮次，因此其重复测量均值回落到 \texttt{3324.67\,msec}，标准差达到 \texttt{247.98\,msec}，只能支持“存在方向性样本”的较弱结论。相比之下，右侧 \texttt{lu.small} 中方案三的三轮结果稳定集中在 \texttt{68--69\,ops/m} 区间，均值由 \texttt{47.30\,ops/m} 提升到 \texttt{68.91\,ops/m}，相对对照版本收益达到 \texttt{+45.70\%}，标准差仅 \texttt{0.50\,ops/m}。
+仅凭单次正式快照，还不足以说明收益是否稳定。因此，本文利用统计验证快照（\texttt{Snapshot-B}）对最关键的两条性能主张进行重复测量，其中与本章直接相关的是方案三在 \texttt{lu.small} 上的稳定性。如图~\ref{fig:statistical-validation-stripplot} 所示，图中的误差棒表示标准差。左侧 \texttt{DaCapo/pmd} 显示方案一虽然出现了 \texttt{3180\,msec} 和 \texttt{3183\,msec} 两个性能提升样本，但也出现了 \texttt{3611\,msec} 的高延迟轮次，因此其重复测量均值回落到 \texttt{3324.67\,msec}，标准差达到 \texttt{247.98\,msec}，只能支持“存在方向性样本”的较弱结论。相比之下，右侧 \texttt{lu.small} 中方案三的三轮结果稳定集中在 \texttt{68--69\,ops/m} 区间，均值由 \texttt{47.30\,ops/m} 提升到 \texttt{68.91\,ops/m}，相对对照版本收益达到 \texttt{+45.70\%}，标准差仅 \texttt{0.50\,ops/m}。
 
 这表明方案三的收益具备跨时间窗口的稳定复现能力。基于 \texttt{Snapshot-B} 的数据支撑，“LoongArch64 最小可用 LSX 浮点 SIMD 路径已成立”构成了全文证据强度最高的结论。相对而言，第 5 章方案一波动较大，无法支持同等强度的推论。
 
@@ -344,7 +344,7 @@ void InstructionCodeGeneratorLOONGARCH64::VisitVecReplicateScalar(HVecReplicateS
 
 在完成方案三自身论证之后，正文最后还需要回答一个更高层的问题：三项正式方案在统一设置下究竟分别解决了什么，以及它们能否被看作同一种“默认优化项”。图~\ref{fig:final-comparison-heatmap} 汇总了正式对比快照（\texttt{Snapshot-A}）中五个代表性工作负载的统一结果。
 
-从图~\ref{fig:final-comparison-heatmap} 可以得到三个直接结论。第一，方案一在 \texttt{pmd} 上最具代表性，说明它更适合解释短生命周期工作负载的 JIT 进入时机问题。第二，方案二在 \texttt{pmd} 与 \texttt{mpegaudio} 上只有弱正收益，却在 \texttt{lu.small} 上回退，说明它只能被理解为定向微优化。第三，方案三在 \texttt{lu.small} 上取得压倒性收益，但对 \texttt{pmd} 呈中性，对 \texttt{sor.small} 与 \texttt{fft.small} 亦未产生同等提升，表明其作用对象严格限定于规则浮点数值内核，而非泛指所有数值型负载。
+从图~\ref{fig:final-comparison-heatmap} 可以得到三个直接结论。第一，方案一在 \texttt{pmd} 上最具代表性，说明它更适合解释短生命周期工作负载的 JIT 进入时机问题。第二，方案二在 \texttt{pmd} 与 \texttt{mpegaudio} 上只有弱性能提升，却在 \texttt{lu.small} 上回退，说明它只能被理解为定向微优化。第三，方案三在 \texttt{lu.small} 上取得压倒性收益，但对 \texttt{pmd} 呈中性，对 \texttt{sor.small} 与 \texttt{fft.small} 亦未产生同等提升，表明其作用对象严格限定于规则浮点数值内核，而非泛指所有数值型负载。
 
 三项方案并无高下之分，而是针对不同主路径的分工优化。方案一聚焦控制流与 JIT 进入时机，方案二针对字符串热路径的数据搬移，方案三则填补规则浮点数值内核的后端向量化缺口。抽象而言，三者分别处理阶段边界、固定框架成本与执行宽度这三个层面的问题。基于此，全文将这三者作为面向不同主导瓶颈的独立论证路径，而非同类技术的版本更迭。此外，\texttt{DexFileVerifier} 属于启动期正交案例，故未纳入 \texttt{Snapshot-A} 的统一对比。
 
