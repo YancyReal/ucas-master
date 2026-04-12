@@ -614,6 +614,8 @@
     \RequirePackage{algpseudocode,algorithm,algorithmicx}% algorithm
     \providecommand{\algname}{Algorithm}%
     \def\ALG@name{\algname}% rename label
+    \@addtoreset{algorithm}{chapter}%
+    \renewcommand{\thealgorithm}{\thechapter.\arabic{algorithm}}%
 \fi
 %-
 %-> Link support

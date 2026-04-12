@@ -72,21 +72,33 @@
 
 该机制的核心逻辑主要在 JIT 配置解析与运行时触发模块中实现。其基本思路是在 LoongArch64 \texttt{debug}、非 Java-debuggable、未显式指定阈值且未强制启用 baseline compiler 的受限条件下，对默认 \texttt{warmup\_threshold} 进行下调，而保持 \texttt{optimize\_threshold} 不变。这样可以将干预范围稳定约束在首层编译介入窗口上，避免与后续优化编译策略发生耦合。
 
-\begin{lstlisting}[language=C++,caption={基线 JIT 提早触发机制的默认阈值调节规则（伪代码）},label={lst:scheme1-warmup-rule}]
-void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
-  if (!is_debug_build || isa != LoongArch64) return;
-  if (runtime.IsJavaDebuggable()) return;
-  if (options.UseBaselineCompiler()) return;
-  if (options.HasExplicitWarmupThreshold()) return;
+\begin{algorithm}[htbp]
+    \small
+    \caption{基线 JIT 提早触发机制的默认阈值调节规则}
+    \label{alg:scheme1-warmup-rule}
+    \begin{algorithmic}[1]
+        \State \textbf{Input:} runtime options \textit{options}, runtime state \textit{runtime}
+        \State \textbf{Output:} possibly adjusted default \texttt{warmup\_threshold}
+        \If{\textit{is\_debug\_build} is false \textbf{or} \textit{isa} $\neq$ \textit{LoongArch64}}
+            \State \textbf{return}
+        \EndIf
+        \If{\textit{runtime}.\texttt{IsJavaDebuggable()} is true}
+            \State \textbf{return}
+        \EndIf
+        \If{\textit{options}.\texttt{UseBaselineCompiler()} is true}
+            \State \textbf{return}
+        \EndIf
+        \If{\textit{options}.\texttt{HasExplicitWarmupThreshold()} is true}
+            \State \textbf{return}
+        \EndIf
+        \If{\textit{options}.\texttt{GetWarmupThreshold()} $> 8192$}
+            \State \textit{options}.\texttt{SetWarmupThreshold(8192)}
+        \EndIf
+        \State keep \texttt{optimize\_threshold} unchanged
+    \end{algorithmic}
+\end{algorithm}
 
-  if (options.GetWarmupThreshold() > 8192) {
-    options.SetWarmupThreshold(8192);
-  }
-  // keep optimize_threshold unchanged
-}
-\end{lstlisting}
-
-伪代码~\ref{lst:scheme1-warmup-rule} 给出了该策略的约束边界：机制只在受限运行时条件下改写第一层进入阈值，不改变 optimizing 阶段的判定逻辑，也不覆盖用户显式配置。为避免过早编译导致代码缓存（Code Cache）状态失配，该策略同时保持 JNI 桩与基本编译路径的既有语义约束不变。
+算法~\ref{alg:scheme1-warmup-rule} 给出了该策略的约束边界：机制只在受限运行时条件下改写第一层进入阈值，不改变 optimizing 阶段的判定逻辑，也不覆盖用户显式配置。为避免过早编译导致代码缓存（Code Cache）状态失配，该策略同时保持 JNI 桩与基本编译路径的既有语义约束不变。
 
 \section{运行时与启动期关键路径优化}
 
@@ -133,23 +145,28 @@ void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
 
 该批量搬移机制需严格处理尾部边界条件。为防止小长度（\texttt{length < 8}）下的无符号下溢及越界访问，机制设计被划分为主循环的 8 路展开与尾部逐元素拷贝两部分：仅在 \texttt{i + 8 <= length} 时进入展开循环，其余元素统一走尾部路径，从而保持短字符串场景下的语义正确性与边界安全。
 
-\begin{lstlisting}[language=C++,caption={批量搬移机制 8 路展开 helper 的核心循环（伪代码）},label={lst:scheme2-bulk-copy-helper}]
-void CopyUtf16ToBytes(dst8, src16, length) {
-  int i = 0;
-  while (i + 8 <= length) {
-    for lane in 0..7 {
-      dst8[i + lane] = static_cast<uint8_t>(src16[i + lane]);
-    }
-    i += 8;
-  }
-  while (i < length) {
-    dst8[i] = static_cast<uint8_t>(src16[i]);
-    ++i;
-  }
-}
-\end{lstlisting}
+\begin{algorithm}[htbp]
+    \small
+    \caption{批量搬移机制的 8 路展开复制算法}
+    \label{alg:scheme2-bulk-copy-helper}
+    \begin{algorithmic}[1]
+        \State \textbf{Input:} destination byte array $dst8$, source UTF-16 array $src16$, copy length $length$
+        \State \textbf{Output:} byte array $dst8$ after bulk copy
+        \State $i \gets 0$
+        \While{$i + 8 \leq length$}
+            \For{$lane \gets 0$ \textbf{to} $7$}
+                \State $dst8[i + lane] \gets \texttt{uint8\_t}(src16[i + lane])$
+            \EndFor
+            \State $i \gets i + 8$
+        \EndWhile
+        \While{$i < length$}
+            \State $dst8[i] \gets \texttt{uint8\_t}(src16[i])$
+            \State $i \gets i + 1$
+        \EndWhile
+    \end{algorithmic}
+\end{algorithm}
 
-伪代码~\ref{lst:scheme2-bulk-copy-helper} 概括了该机制保留的内核：在字符串语义已知、长度通常不大且压缩判定已经完成的前提下，显式压缩循环框架成本，而不对所有复制路径进行统一替换。
+算法~\ref{alg:scheme2-bulk-copy-helper} 概括了该机制保留的内核：在字符串语义已知、长度通常不大且压缩判定已经完成的前提下，显式压缩循环框架成本，而不对所有复制路径进行统一替换。
 
 \subsection{启动期阶段：DEX 校验流水线的阶段性精简}
 
@@ -187,31 +204,37 @@ void CopyUtf16ToBytes(dst8, src16, length) {
 
 图~\ref{fig:dexverifier-phase-chain-mechanism} 展示了四阶段组织方式与热点来源之间的对应关系。沿主调用链观察，\texttt{phase12} 首先压缩 container 查询成本，\texttt{phase123} 进一步缩短 ASCII/UTF-8 比较路径，\texttt{phase1234} 再将顺序元数据解码实现为 fast path。该阶段链设计避免了对校验器的全局重写，转而沿启动期主路径逐层压缩固定成本。
 
-\begin{lstlisting}[language=C++,caption={DexFileVerifier 阶段链中的关键钩子（伪代码）},label={lst:dexverifier-phase-chain-hooks}]
-bool VerifyDexSectionChain(map_list) {
-  Reserve(offset_to_type_map);
-  for (item : map_list) {
-    CheckPadding(item.offset, item.type);
-    DispatchCheckByType(item.type);
-  }
-}
+\begin{algorithm}[htbp]
+    \small
+    \caption{DexFileVerifier 阶段链的关键钩子算法}
+    \label{alg:dexverifier-phase-chain-hooks}
+    \begin{algorithmic}[1]
+        \State \textbf{Input:} map list $map\_list$, verifier metadata structures
+        \State \textbf{Output:} section verification result and staged helper behavior
+        \State \textbf{Procedure:} VerifyDexSectionChain($map\_list$)
+        \State Reserve capacity for $offset\_to\_type\_map$
+        \ForAll{$item \in map\_list$}
+            \State Check padding at $(item.offset, item.type)$
+            \State Dispatch section check by $item.type$
+        \EndFor
+        \State \textbf{Procedure:} CheckOffsetToTypeMap($offset$, $expected\_type$) \Comment{phase12}
+        \State $entry \gets lower\_bound(offset\_to\_type\_map, offset)$
+        \State \textbf{return} $entry.exists() \land entry.key = offset \land entry.type = expected\_type$
+        \State \textbf{Procedure:} CompareModifiedUtf8($a$, $b$) \Comment{phase123}
+        \While{same ASCII prefix exists in $a$ and $b$}
+            \State advance both $a$ and $b$
+        \EndWhile
+        \State \textbf{return} DecodeUtf8SlowPath($a, b$)
+        \State \textbf{Procedure:} DecodeMetadata($ptr$) \Comment{phase1234}
+        \If{current sequence is short}
+            \State \textbf{return} FastLeb128($ptr$)
+        \Else
+            \State \textbf{return} GenericLeb128($ptr$)
+        \EndIf
+    \end{algorithmic}
+\end{algorithm}
 
-bool CheckOffsetToTypeMap(offset, expected_type) {   // phase12
-  entry = lower_bound(offset_to_type_map, offset);
-  return entry.exists() && entry.key == offset && entry.type == expected_type;
-}
-
-int CompareModifiedUtf8(a, b) {                      // phase123
-  while (same_ascii_prefix(a, b)) { advance(a, b); }
-  return DecodeUtf8SlowPath(a, b);
-}
-
-uint32_t DecodeMetadata(ptr) {                       // phase1234
-  return FastLeb128(ptr) when short_sequence else GenericLeb128(ptr);
-}
-\end{lstlisting}
-
-伪代码~\ref{lst:dexverifier-phase-chain-hooks} 将四阶段的关键钩子整合在同一条校验主链中。该结构对应的是一组逐层推进的局部压缩机制：先重构类型映射查询，再压缩 ASCII/UTF-8 比较路径，最后优化顺序元数据解码，从而沿启动期主路径逐段降低固定成本。
+算法~\ref{alg:dexverifier-phase-chain-hooks} 将四阶段的关键钩子整合在同一条校验主链中。该结构对应的是一组逐层推进的局部压缩机制：先重构类型映射查询，再压缩 ASCII/UTF-8 比较路径，最后优化顺序元数据解码，从而沿启动期主路径逐段降低固定成本。
 
 \section{基于 LSX 的规则浮点循环自动向量化}
 
@@ -252,19 +275,36 @@ uint32_t DecodeMetadata(ptr) {                       // phase1234
 
 在实现上，本文将最小路径限定为如下能力集合：面向 \texttt{float32/float64} 的 128-bit 向量路径（其中 \texttt{float32} 为 4 lane，\texttt{float64} 为 2 lane）；支持 \texttt{VecReplicateScalar}、\texttt{VecLoad}、\texttt{VecStore}、\texttt{VecAdd}、\texttt{VecSub}、\texttt{VecMul} 等核心算子；并对 \texttt{int32 -> float32} 与 \texttt{int64 -> float64} 保留受限的 \texttt{VecCnv}，用于支撑特定循环形态。
 
-\begin{lstlisting}[language=C++,caption={LSX 向量化 lowering 路径的保守启用规则（伪代码）},label={lst:lsx-enable-rule}]
-if (!is_loongarch64) return ScalarPath;
-if (!loop.IsCountable() || !loop.IsUnitStride()) return ScalarPath;
-if (packed_type not in {float32, float64}) return ScalarPath;
-if (op_set not subset of {ReplicateScalar, Load, Store, Add, Sub, Mul, Cnv}) {
-  return ScalarPath;
-}
-if (!vector_length_matches_128bit_lsx(packed_type)) return ScalarPath;
-if (!can_lower_all_required_ir_nodes_to_lsx()) return ScalarPath;
-return MinimalLSXPath;
-\end{lstlisting}
+\begin{algorithm}[htbp]
+    \small
+    \caption{LSX 向量化 lowering 路径的保守启用算法}
+    \label{alg:lsx-enable-rule}
+    \begin{algorithmic}[1]
+        \State \textbf{Input:} target ISA, loop shape, packed type, operator set, lowering capability
+        \State \textbf{Output:} \textit{MinimalLSXPath} or \textit{ScalarPath}
+        \If{target ISA is not LoongArch64}
+            \State \textbf{return} \textit{ScalarPath}
+        \EndIf
+        \If{loop is not countable \textbf{or} loop is not unit-stride}
+            \State \textbf{return} \textit{ScalarPath}
+        \EndIf
+        \If{$packed\_type \notin \{float32, float64\}$}
+            \State \textbf{return} \textit{ScalarPath}
+        \EndIf
+        \If{$op\_set \not\subseteq \{$ReplicateScalar, Load, Store, Add, Sub, Mul, Cnv$\}$}
+            \State \textbf{return} \textit{ScalarPath}
+        \EndIf
+        \If{vector length does not match 128-bit LSX for $packed\_type$}
+            \State \textbf{return} \textit{ScalarPath}
+        \EndIf
+        \If{required IR nodes cannot all be lowered to LSX}
+            \State \textbf{return} \textit{ScalarPath}
+        \EndIf
+        \State \textbf{return} \textit{MinimalLSXPath}
+    \end{algorithmic}
+\end{algorithm}
 
-伪代码~\ref{lst:lsx-enable-rule} 给出了该路径的启用规则：只有当循环形态、数据类型、向量长度和 lowering 能力同时满足条件时，才进入 LSX 向量路径；其余情形统一回退到既有标量路径。
+算法~\ref{alg:lsx-enable-rule} 给出了该路径的启用规则：只有当循环形态、数据类型、向量长度和 lowering 能力同时满足条件时，才进入 LSX 向量路径；其余情形统一回退到既有标量路径。
 
 \subsection{核心向量算子的 Lowering 实现与保守约束}
 
@@ -281,7 +321,7 @@ return MinimalLSXPath;
 
 \begin{table}[htbp]
     \centering
-    \scriptsize
+    \small
     \caption{本文正式方案中关键向量 IR 节点的结构定义}
     \label{tab:vector-ir-structure}
     \begin{tabular}{p{3.0cm}p{4.5cm}p{3.8cm}}

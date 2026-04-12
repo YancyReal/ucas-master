@@ -66,7 +66,7 @@
 
 \begin{table}[htbp]
     \centering
-    \scriptsize
+    \small
     \caption{五个正式工作负载的选择依据与角色分工}
     \label{tab:formal-workload-selection}
     \begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}p{3.3cm}>{\raggedright\arraybackslash}p{4.2cm}}
@@ -102,18 +102,18 @@ DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小�
 
 \begin{table}[htbp]
     \centering
-    \scriptsize
-    \caption{实验快照命名与归档映射}
+    \small
+    \caption{实验快照命名、用途与本文角色}
     \label{tab:experiment-snapshots}
-    \begin{tabular}{p{3.1cm}p{3.1cm}p{2.7cm}p{3.1cm}}
+    \begin{tabular}{p{3.5cm}p{3.5cm}p{4.0cm}}
         \toprule
-        \textbf{快照} & \textbf{用途} & \textbf{本文角色} & \textbf{归档映射} \\
+        \textbf{快照} & \textbf{用途} & \textbf{本文角色} \\
         \midrule
-        正式对比快照（\texttt{Snapshot-A}） & 单次全量正式对比 & 主结果来源 & \texttt{final-comparison} \\
-        统计验证快照（\texttt{Snapshot-B}） & 重复测量验证 & 稳定性判断 & \texttt{statistical-validation} \\
-        启动期校验快照（\texttt{Snapshot-C}） & DEX 校验阶段链实验 & 启动期优化评估 & \texttt{dexfileverifier-phase-chain} \\
-        \shortstack[l]{Intrinsic 补充验证快照\\（\texttt{Snapshot-D}）} & \shortstack[l]{Intrinsic 开关\\补充验证} & 机制补充 & \texttt{intrinsic-ablation} \\
-        完整 SIMD 候选消融快照（\texttt{Snapshot-E}） & 完整 LSX SIMD 覆盖候选消融 & 边界比较 & \texttt{lsx-full-simd-ablation} \\
+        正式对比快照（\texttt{Snapshot-A}） & 单次全量正式对比 & 主结果来源 \\
+        统计验证快照（\texttt{Snapshot-B}） & 重复测量验证 & 稳定性判断 \\
+        启动期校验快照（\texttt{Snapshot-C}） & DEX 校验阶段链实验 & 启动期优化评估 \\
+        \shortstack[l]{Intrinsic 补充验证快照\\（\texttt{Snapshot-D}）} & \shortstack[l]{Intrinsic 开关\\补充验证} & 机制补充 \\
+        完整 SIMD 候选消融快照（\texttt{Snapshot-E}） & 完整 LSX SIMD 覆盖候选消融 & 边界比较 \\
         \bottomrule
     \end{tabular}
 \end{table}
