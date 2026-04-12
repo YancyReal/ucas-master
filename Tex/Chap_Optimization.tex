@@ -1,0 +1,345 @@
+\chapter{面向 LoongArch 架构的 ART 性能优化策略}\label{chap:optimization}
+
+\section{优化问题建模与总体策略}
+
+完成第 3 章的基础执行框架移植之后，LoongArch 平台上的 ART 已具备解释执行、JIT 编译、跨语言调用和运行时支撑能力。此时，后续工作的重点转向稳定命中主路径的主导瓶颈识别，以及面向这些瓶颈的机制设计。
+
+在 LoongArch 平台的 ART 运行环境中，局部热点并不直接等价于研究问题。火焰图（flamegraph）、\texttt{report\_symbol.txt} 和局部 profile 可以揭示时间开销集中位置，但这些观察结果仍需结合工作负载生命周期、调用路径稳定性以及实现可控性进一步分析，才能形成可验证的优化对象。基于这一点，本文将优化问题统一建模为“成本类型、工作负载特征与可观测证据”的交集，并据此组织后续优化设计。
+
+围绕 LoongArch 平台 ART 的典型运行行为，本文将优化对象归纳为四类成本问题，如表~\ref{tab:problem-modeling-axes} 所示。它们分别对应控制流层面的 JIT 进入时机、运行时稳态阶段的数据搬移、启动期 DEX 校验链中的阶段成本，以及规则浮点数值内核在后端向量化上的能力缺口。前两类和启动期问题对应本章后续的具体机制设计，规则浮点数值内核向量化问题将在第 4.4 节展开。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{从热点观察收缩得到的四类研究问题}
+    \label{tab:problem-modeling-axes}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{6.0cm}}
+        \toprule
+        \textbf{问题类别} & \textbf{代表工作负载} & \textbf{主导成本线索} \\
+        \midrule
+        控制流与 JIT 时机 & \texttt{DaCapo/pmd} & 解释执行驻留、baseline JIT 进入偏晚 \\
+        运行时热路径数据搬移 & \texttt{pmd}、\texttt{mpegaudio} & 字符串替换、拼接、UTF-16 构造路径反复出现 \\
+        规则浮点数值内核向量化 & \texttt{scimark.lu.small} & 向量 IR 可形成但 LoongArch64 后端缺少最小 lowering \\
+        启动期 DEX 校验 & \shortstack[l]{\texttt{startup.}\\\texttt{helloworld}} & verifier、probing 与 LEB128 解码占启动时间比例较高 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:problem-modeling-axes} 所列的四类问题对应四种不同的系统成本来源。控制流问题关注短生命周期工作负载中方法从解释执行进入 baseline JIT 的时机；运行时热路径问题关注小长度、高频次的数据搬移成本；启动期问题关注 DEX 校验主链中的查询、校验与元数据解码开销；向量化问题关注规则浮点循环在前端已形成向量 IR 的前提下，后端是否具备将其稳定 lowering 为 LSX 指令的最小能力集。
+
+围绕上述问题，本文采用三项原则约束后续机制设计。第一，热点必须落实为工作负载主路径问题，局部符号热度本身不足以构成优化对象。第二，优化机制必须具备明确的作用点、实现边界和失效条件，使性能变化能够获得稳定解释。第三，不同机制之间应保持问题定义、实现边界与适用场景的一致对应关系，使后续评估能够围绕同一成本模型展开。
+
+\section{启发式 JIT 编译触发时机调优}
+
+\subsection{短生命周期负载的编译窗口分析}
+
+本节讨论短生命周期工作负载上的 JIT 进入时机问题。在 LoongArch64 \texttt{debug} JIT 环境中，\texttt{pmd} 一类短生命周期工作负载的关键约束来自方法热度的累积窗口。ART 的分层 JIT 至少包含两级关键阈值：第一层阈值 \texttt{warmup\_threshold} 决定方法何时进入 baseline JIT，第二层阈值 \texttt{optimize\_threshold} 决定方法何时进一步进入 optimizing 编译。当 benchmark 生命周期较短、热度累积窗口有限时，若第一层阈值偏高，许多热点方法将在 benchmark 结束前持续停留于解释执行状态\citep{Arnold2005,ArtJitCompiler2024,Perez2012HybridJIT,Xu2018ShareJIT}。
+
+从时间开销构成看，这类工作负载的总执行时间大致可以分为两个阶段：第一阶段是热点方法在解释器中累积热度并等待首次编译；第二阶段是方法进入编译态后的执行时间。只要第一阶段占比过大，后续是否进一步进入 optimizing 编译对总执行时间的影响就会明显减弱，因为很多方法甚至来不及跨过 baseline JIT 门槛。基于这一观察，本文将问题聚焦于“首次脱离解释器”的控制流相变点，即 baseline JIT 的进入窗口。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.00\textwidth]{optimization/scheme1-tiered-jit-flow.pdf}
+    \caption{短生命周期工作负载下 JIT 分层进入时机的主要矛盾，核心在于 baseline JIT 是否足够早触发}
+    \label{fig:scheme1-tiered-jit-flow}
+\end{figure}
+
+图~\ref{fig:scheme1-tiered-jit-flow} 对这一问题进行了抽象：对于 \texttt{pmd} 一类短生命周期工作负载，更关键的是让热点方法及时脱离解释器并进入 baseline JIT，而不是提前介入第二层 optimizing 编译。由此，本节的研究问题可表述为：LoongArch64 \texttt{debug} ART 的默认第一层阈值是否偏保守，从而压缩了短生命周期工作负载最重要的编译介入窗口。
+
+\subsection{基于热度演进的基线 JIT 阈值调节策略}
+
+围绕这一问题，本文比较了多种不同作用层级的候选方向，而不是将优化简单理解为统一调低所有阈值。按作用位置划分，这些方向大致可以归为三类：一类直接作用于分层编译阈值，调整 baseline JIT 或 optimizing 编译的进入时机；一类改写解释执行到 OSR/JIT 的切换边界；另一类尝试压缩解释器局部快路径或 JIT debug-info 生成等固定成本\citep{Arnold2005,Lameed2013,Perez2012HybridJIT,Xu2018ShareJIT}。对短生命周期工作负载而言，决定性因素在于进程结束前能否及时跨过第一层编译门槛。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{JIT 时机类候选方向的比较与适用性评估}
+    \label{tab:jittiming-candidates}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{5.0cm}}
+        \hline
+        \textbf{候选技术方向} & \textbf{机制作用点} & \textbf{技术局限性与适用性评估} \\
+        \hline
+        调整第一层 \texttt{warmup\_threshold} & baseline JIT 进入时机 & 直接作用于首层编译介入窗口，能够缓解热点方法长期驻留解释器的问题（本文采用） \\
+        \texttt{optimize\_threshold} 调整 & optimizing recompilation 进入时机 & 作用层级滞后，无法改变大量方法长期驻留解释器的早期瓶颈 \\
+        OSR 热路径内联与重检查类方向 & 解释执行向 OSR/JIT 切换边界 & 额外固定成本较高，且与短生命周期工作负载的主导瓶颈不一致 \\
+        解释器快路径扩展 & 某些局部解释器热点 & 命中点较局部，难以稳定转化为 benchmark 级总收益 \\
+        JIT debug-info 相关方向 & 调试信息生成与整理成本 & 热点可见，但与总执行时间之间缺少稳定机制联系 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:jittiming-candidates} 展示了本文对 JIT 时机类候选方向的技术评估。第一层 \texttt{warmup\_threshold} 直接作用于 baseline JIT 的首次进入窗口，因此被采纳为本节的核心机制；\texttt{optimize\_threshold} 只影响已经进入编译态的方法，作用层级偏后；OSR 热路径与局部解释器快路径虽然可能压缩局部开销，但它们与短生命周期工作负载的主导瓶颈并不一致。基于这一比较，本文将优化目标收敛为：在受限运行时条件下，调整 baseline JIT 的默认进入阈值，以缩短热点方法驻留解释器的时间。
+
+该机制的核心逻辑主要在 JIT 配置解析与运行时触发模块中实现。其基本思路是在 LoongArch64 \texttt{debug}、非 Java-debuggable、未显式指定阈值且未强制启用 baseline compiler 的受限条件下，对默认 \texttt{warmup\_threshold} 进行下调，而保持 \texttt{optimize\_threshold} 不变。这样可以将干预范围稳定约束在首层编译介入窗口上，避免与后续优化编译策略发生耦合。
+
+\begin{lstlisting}[language=C++,caption={基线 JIT 提早触发机制的默认阈值调节规则（伪代码）},label={lst:scheme1-warmup-rule}]
+void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
+  if (!is_debug_build || isa != LoongArch64) return;
+  if (runtime.IsJavaDebuggable()) return;
+  if (options.UseBaselineCompiler()) return;
+  if (options.HasExplicitWarmupThreshold()) return;
+
+  if (options.GetWarmupThreshold() > 8192) {
+    options.SetWarmupThreshold(8192);
+  }
+  // keep optimize_threshold unchanged
+}
+\end{lstlisting}
+
+伪代码~\ref{lst:scheme1-warmup-rule} 给出了该策略的约束边界：机制只在受限运行时条件下改写第一层进入阈值，不改变 optimizing 阶段的判定逻辑，也不覆盖用户显式配置。为避免过早编译导致代码缓存（Code Cache）状态失配，该策略同时保持 JNI 桩与基本编译路径的既有语义约束不变。
+
+\section{运行时与启动期关键路径优化}
+
+\subsection{运行时稳态：面向字符串热路径的内存批量搬移机制}
+
+\subsubsection{问题界定与主路径识别}
+
+本节讨论运行时字符串热路径中的高频搬移成本。对 \texttt{pmd} 的 flamegraph、profile 与运行时实现路径的持续分析表明，字符串替换、字符串拼接、UTF-16 构造以及 \texttt{StringBuilderAppend} 相关路径会稳定出现，其代表性入口包括 \texttt{String::DoReplace()}、\texttt{String::DoConcat()} 与 \texttt{String::AllocFromUtf16()}。这些路径往往长度不长但调用频繁，复制逻辑本身较简单，因此循环控制、索引换算和逐元素分支的固定开销难以被单次工作量摊薄\citep{Haubl2008OptimizedStrings,Haubl2010CompactStrings}。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.00\textwidth]{optimization/scheme2-string-copy-paths.pdf}
+    \caption{字符串热路径与 8 路批量搬移思路，强调在不改变语义的前提下压缩循环框架开销}
+    \label{fig:scheme2-string-copy-paths}
+\end{figure}
+
+图~\ref{fig:scheme2-string-copy-paths} 概括了该机制的基本设计。该机制在维持压缩字符串判定与对象布局不变的前提下，将工作负载中持续出现的几类复制路径统一改写为 8 路展开的批量搬移，以提高真正字符复制在总执行时间中的占比，并压缩循环框架与边界判断成本。因此，该优化的核心对象特指运行时热路径中\emph{小长度、高频次、语义固定}的数据搬移问题。
+
+\subsubsection{机制收缩与实现边界}
+
+运行时热路径类候选方向的共同来源，是用户态运行时内部高频复制、校验或辅助逻辑。按作用对象划分，这类方向大致可以归为三种技术路线：一类围绕字符串或 Unicode 处理路径进行专用展开与局部向量化，另一类尝试对通用复制入口进行低层接线或替换，还有一类围绕特定启动链进行结构性重排\citep{Haubl2008OptimizedStrings,Haubl2010CompactStrings,Cameron2008SIMDUTF,Lemire2022UnicodeSIMD}。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{运行时热路径类候选方向的比较与适用性评估}
+    \label{tab:runtime-candidates}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.8cm}}
+        \hline
+        \textbf{候选技术方向} & \textbf{主要命中路径} & \textbf{技术局限性与适用性评估} \\
+        \hline
+        字符串热路径批量搬移 & \texttt{DoReplace}、\texttt{DoConcat}、\texttt{AllocFromUtf16} & 直接命中运行时热路径，机制边界清晰，可在特定工作负载中形成稳定作用（本文采用） \\
+        原始数组批量搬运展开 & 泛化复制路径 & 入口泛化粒度过粗，难以对特定工作负载形成稳定且显著的性能收益 \\
+        \texttt{memcpy} 快速入口接线 & 低层复制入口 & 目标工作负载主路径并不稳定落在该入口，作用路径不集中 \\
+        CRC32 JNI 快路径 & \shortstack[l]{\texttt{CRC32.}\\\texttt{updateBytes0()}} & 热点占比过低，难以形成稳定 benchmark 级收益 \\
+        \texttt{DexFileVerifier} 容器与校验链优化 & 启动期 DEX 校验与元数据访问 & 主要作用于启动期主链，适合作为独立的启动期优化问题讨论 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:runtime-candidates} 给出了运行时热路径类候选方向的技术评估。批量搬移机制能够进入正式分析，原因在于它既稳定命中工作负载主路径，又具备清楚的实现边界；原始数组批量搬运、\texttt{memcpy} 接线与 CRC32 JNI 快路径要么入口过宽，要么热点占比过低，与正式工作负载之间缺少稳定机制联系。
+
+该机制主要围绕运行时字符串分配、构造与替换路径展开，通过在已知字符串语义、压缩判定已完成的前提下，将原有逐元素复制逻辑改写为显式展开的批量搬移结构。其核心不在于扩大复制入口的适用范围，而在于压缩正式工作负载主路径中的循环框架成本。
+
+该批量搬移机制需严格处理尾部边界条件。为防止小长度（\texttt{length < 8}）下的无符号下溢及越界访问，机制设计被划分为主循环的 8 路展开与尾部逐元素拷贝两部分：仅在 \texttt{i + 8 <= length} 时进入展开循环，其余元素统一走尾部路径，从而保持短字符串场景下的语义正确性与边界安全。
+
+\begin{lstlisting}[language=C++,caption={批量搬移机制 8 路展开 helper 的核心循环（伪代码）},label={lst:scheme2-bulk-copy-helper}]
+void CopyUtf16ToBytes(dst8, src16, length) {
+  int i = 0;
+  while (i + 8 <= length) {
+    for lane in 0..7 {
+      dst8[i + lane] = static_cast<uint8_t>(src16[i + lane]);
+    }
+    i += 8;
+  }
+  while (i < length) {
+    dst8[i] = static_cast<uint8_t>(src16[i]);
+    ++i;
+  }
+}
+\end{lstlisting}
+
+伪代码~\ref{lst:scheme2-bulk-copy-helper} 概括了该机制保留的内核：在字符串语义已知、长度通常不大且压缩判定已经完成的前提下，显式压缩循环框架成本，而不对所有复制路径进行统一替换。
+
+\subsection{启动期阶段：DEX 校验流水线的阶段性精简}
+
+\subsubsection{启动期主路径的识别}
+
+\texttt{DexFileVerifier} 相关工作对应的是启动期校验主链，而非稳态执行阶段的局部热点。在启动期校验快照（\texttt{Snapshot-C}）中，\texttt{startup.helloworld} 的对照版本 flamegraph 表明，\texttt{OffsetToPtr}、\texttt{FindIndexImpl}、\texttt{ElementForIndex}、\texttt{PtrToOffset} 与 \texttt{CheckIntraDebugInfoItem} 等 verifier、container 与字符串校验相关路径在启动时间中占有稳定比例。相比之下，这类热点在 \texttt{scimark.lu.small} 等稳态数值工作负载中占比显著更低。因此，本文将 \texttt{startup.helloworld} 视为该问题的主目标工作负载，并使用稳态数值工作负载作为对照，以区分启动期优化与稳态优化的成本边界。
+
+\subsubsection{四阶段阶段链与实现边界}
+
+启动期 DEX 校验链的优化沿主热点路径拆解为四个阶段，如表~\ref{tab:dexverifier-phases} 所示。这样组织的目的，是将 container 查询、字符串校验与元数据解码等不同成本分离出来，使每一阶段都对应明确的作用点和实现边界。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{\texttt{DexFileVerifier} 阶段链的四个阶段及其主要作用}
+    \label{tab:dexverifier-phases}
+    \begin{tabular}{>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{6.0cm}}
+        \hline
+        \textbf{阶段} & \textbf{主要改动} & \textbf{预期作用} \\
+        \hline
+        \texttt{phase1} & 缓存边界、热点 helper 强制内联、预留类型映射容量 & 降低边界检查、函数调用与扩容前置成本 \\
+        \texttt{phase12} & 类型映射由 Hash 风格查询改为 \texttt{vector + lower\_bound} & 消除 probing 链和随机访问带来的主要 container 成本 \\
+        \texttt{phase123} & UTF-8 查表、\texttt{prefetch} 与 ASCII fast path & 降低字符串校验与改写成本 \\
+        \texttt{phase1234} & LEB128 fast path & 压低元数据顺序解码成本，形成最终最优点 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.00\textwidth]{optimization/dexverifier-phase-chain-mechanism.pdf}
+    \caption{\texttt{DexFileVerifier} 启动期阶段链的主热点、阶段推进顺序与收益来源对应关系}
+    \label{fig:dexverifier-phase-chain-mechanism}
+\end{figure}
+
+图~\ref{fig:dexverifier-phase-chain-mechanism} 展示了四阶段组织方式与热点来源之间的对应关系。沿主调用链观察，\texttt{phase12} 首先压缩 container 查询成本，\texttt{phase123} 进一步缩短 ASCII/UTF-8 比较路径，\texttt{phase1234} 再将顺序元数据解码实现为 fast path。该阶段链设计避免了对校验器的全局重写，转而沿启动期主路径逐层压缩固定成本。
+
+\begin{lstlisting}[language=C++,caption={DexFileVerifier 阶段链中的关键钩子（伪代码）},label={lst:dexverifier-phase-chain-hooks}]
+bool VerifyDexSectionChain(map_list) {
+  Reserve(offset_to_type_map);
+  for (item : map_list) {
+    CheckPadding(item.offset, item.type);
+    DispatchCheckByType(item.type);
+  }
+}
+
+bool CheckOffsetToTypeMap(offset, expected_type) {   // phase12
+  entry = lower_bound(offset_to_type_map, offset);
+  return entry.exists() && entry.key == offset && entry.type == expected_type;
+}
+
+int CompareModifiedUtf8(a, b) {                      // phase123
+  while (same_ascii_prefix(a, b)) { advance(a, b); }
+  return DecodeUtf8SlowPath(a, b);
+}
+
+uint32_t DecodeMetadata(ptr) {                       // phase1234
+  return FastLeb128(ptr) when short_sequence else GenericLeb128(ptr);
+}
+\end{lstlisting}
+
+伪代码~\ref{lst:dexverifier-phase-chain-hooks} 将四阶段的关键钩子整合在同一条校验主链中。该结构对应的是一组逐层推进的局部压缩机制：先重构类型映射查询，再压缩 ASCII/UTF-8 比较路径，最后优化顺序元数据解码，从而沿启动期主路径逐段降低固定成本。
+
+\section{基于 LSX 的规则浮点循环自动向量化}
+
+\subsection{规则浮点数值内核的向量化问题定义}
+
+本节关注的问题来自编译器后端能力：当 ART 前端已经识别出可向量化循环时，LoongArch64 后端是否具备将向量 IR 稳定转化为向量机器码的最小 LSX lowering 路径。以 \texttt{scimark.lu.small} 为代表的规则浮点数值内核通常具备如下特征：循环可计数、数组访问为连续单位步长、存在循环不变量广播值，以及以加减乘为主的稳定算子组合。对于这类内核，性能瓶颈主要来自向量化机会能否真正落实到目标 ISA，而不是解释器驻留或运行时固定成本。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{规则浮点数值内核进入最小 LSX 路径分析的结构条件}
+    \label{tab:simd-kernel-features}
+    \begin{tabular}{p{3.0cm}p{7.6cm}}
+        \toprule
+        \textbf{条件} & \textbf{对 LSX 最小路径的含义} \\
+        \midrule
+        连续单位步长数组访问 & 便于直接映射到 \texttt{VecLoad/VecStore}，避免复杂 gather/scatter 需求 \\
+        循环不变量广播值 & 需要后端支持标量到向量的复制，即 \texttt{VecReplicateScalar} \\
+        加减乘为主的稳定算子组合 & 只需最小可用的浮点 \texttt{VecAdd/VecSub/VecMul} 即可解释主要收益 \\
+        向量长度可由 128-bit 自然决定 & \texttt{float32} 对应 4 lane，\texttt{float64} 对应 2 lane，适配 LSX 宽度 \\
+        不依赖复杂 idiom 与完整后端覆盖 & 使分析能够先证明“最小可用路径成立”，而非过早扩展到完整 SIMD 后端 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+表~\ref{tab:simd-kernel-features} 给出了规则浮点数值内核进入最小 LSX 路径分析的结构条件。这些条件共同决定了问题的分析范围：本文只关注规则浮点循环所需的数据类型、算子组合、向量宽度与 lowering 链路，而不扩展到更复杂的 gather/scatter、通用整数 SIMD 或完整 SIMD 后端覆盖。
+
+\subsection{LoongArch64 最小可用 LSX 浮点 SIMD 路径设计}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.00\textwidth]{optimization/scheme3-vectorization-boundary.pdf}
+    \caption{最小可用 LSX 浮点 SIMD 路径的能力边界}
+    \label{fig:scheme3-vectorization-boundary}
+\end{figure}
+
+图~\ref{fig:scheme3-vectorization-boundary} 展示了 LSX 向量化 lowering 路径的能力边界。此处“最小可用”对应两个限定条件：其一，正式论证所依赖的是规则浮点循环所需的最小能力集合，只覆盖正文分析所需的数据类型、算子、寄存器宽度和 lowering 路径；其二，相关路径必须已经通过最小回归验证，并能够稳定生成目标向量代码。
+
+在实现上，本文将最小路径限定为如下能力集合：面向 \texttt{float32/float64} 的 128-bit 向量路径（其中 \texttt{float32} 为 4 lane，\texttt{float64} 为 2 lane）；支持 \texttt{VecReplicateScalar}、\texttt{VecLoad}、\texttt{VecStore}、\texttt{VecAdd}、\texttt{VecSub}、\texttt{VecMul} 等核心算子；并对 \texttt{int32 -> float32} 与 \texttt{int64 -> float64} 保留受限的 \texttt{VecCnv}，用于支撑特定循环形态。
+
+\begin{lstlisting}[language=C++,caption={LSX 向量化 lowering 路径的保守启用规则（伪代码）},label={lst:lsx-enable-rule}]
+if (!is_loongarch64) return ScalarPath;
+if (!loop.IsCountable() || !loop.IsUnitStride()) return ScalarPath;
+if (packed_type not in {float32, float64}) return ScalarPath;
+if (op_set not subset of {ReplicateScalar, Load, Store, Add, Sub, Mul, Cnv}) {
+  return ScalarPath;
+}
+if (!vector_length_matches_128bit_lsx(packed_type)) return ScalarPath;
+if (!can_lower_all_required_ir_nodes_to_lsx()) return ScalarPath;
+return MinimalLSXPath;
+\end{lstlisting}
+
+伪代码~\ref{lst:lsx-enable-rule} 给出了该路径的启用规则：只有当循环形态、数据类型、向量长度和 lowering 能力同时满足条件时，才进入 LSX 向量路径；其余情形统一回退到既有标量路径。
+
+\subsection{核心向量算子的 Lowering 实现与保守约束}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.00\textwidth]{optimization/scheme3-lsx-lowering.pdf}
+    \caption{Loop Vectorization 到 LSX Lowering 的关键链路}
+    \label{fig:scheme3-lsx-lowering}
+\end{figure}
+
+图~\ref{fig:scheme3-lsx-lowering} 展示了本文关注的技术链路：从前端识别可向量化循环，到构造向量 IR，再到 LoongArch64 后端将 IR 节点 lowering 为 LSX 指令序列。该链路将性能问题明确定位为后端能力缺口的补齐。
+
+从实现结构看，这条链路包含三个关键环节。首先，编译器前端的循环优化器（Loop Optimizer）负责识别循环是否满足向量化条件，并在 LoongArch64 上允许受限的 \texttt{VecLoad/Replicate -> VecCnv} 等路径通过。其次，中间表示层（IR Build）将标量循环重写为 \texttt{HVecReplicateScalar}、\texttt{HVecLoad}、\texttt{HVecStore}、\texttt{HVecAdd}、\texttt{HVecSub}、\texttt{HVecMul} 与受限的 \texttt{HVecCnv}。最后，架构相关的机器码生成器（Code Generator）负责把这些向量 IR 节点 lowering 为具体的 LSX 指令。
+
+\begin{table}[htbp]
+    \centering
+    \scriptsize
+    \caption{本文正式方案中关键向量 IR 节点的结构定义}
+    \label{tab:vector-ir-structure}
+    \begin{tabular}{p{3.0cm}p{4.5cm}p{3.8cm}}
+        \toprule
+        \textbf{节点/结构} & \textbf{关键字段} & \textbf{在本文中的作用} \\
+        \midrule
+        \texttt{HVecOperation} & \shortstack[l]{\texttt{packed\_type}\\\texttt{vector\_length\_}\\\texttt{PredicationKind}} & 所有向量 IR 的公共元数据，决定 lane 类型、向量长度和谓词形式 \\
+        \texttt{HVecReplicateScalar} & \shortstack[l]{标量输入\\目标 \texttt{packed\_type}\\\texttt{vector\_length}} & 将循环不变量或标量输入广播到所有 lane \\
+        \texttt{HVecCnv} & 输入节点、输入类型、结果类型 & 表示逐 lane 类型转换，是 \texttt{int32/64 -> float32/64} 路径的桥接节点 \\
+        \texttt{HVecLoad} & \texttt{base}、\texttt{index}、\texttt{is\_string\_char\_at} & 描述连续向量读取，并保留字符串读取特例 \\
+        \texttt{HVecStore} & \texttt{base}、\texttt{index}、\texttt{value} & 描述连续向量写回，是向量化内存路径的对称出口 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{关键向量 IR 到 LSX 指令的映射}
+    \label{tab:ir-to-lsx-mapping}
+    \begin{tabular}{p{4.4cm}p{6.2cm}}
+        \toprule
+        \textbf{ART 向量 IR} & \textbf{对应 LSX 指令/序列} \\
+        \midrule
+        \texttt{ReplicateScalar<f32>} & \texttt{Movfr2gr\_s + vreplgr2vr.w} \\
+        \texttt{ReplicateScalar<f64>} & \texttt{Movfr2gr\_d + vreplgr2vr.d} \\
+        \texttt{VecLoad<f32/f64>} & \texttt{vld} \\
+        \texttt{VecStore<f32/f64>} & \texttt{vst} \\
+        \texttt{VecAdd<f32/f64>} & \texttt{vfadd.s / vfadd.d} \\
+        \texttt{VecSub<f32/f64>} & \texttt{vfsub.s / vfsub.d} \\
+        \texttt{VecMul<f32/f64>} & \texttt{vfmul.s / vfmul.d} \\
+        \texttt{VecCnv<i32/64 -> f32/64>} & \texttt{vffint.s.w / vffint.d.l} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{关键向量 IR 映射的边界条件}
+    \label{tab:ir-to-lsx-boundary}
+    \begin{tabular}{p{4.4cm}p{6.2cm}}
+        \toprule
+        \textbf{ART 向量 IR} & \textbf{关键边界条件} \\
+        \midrule
+        \texttt{ReplicateScalar<f32>} & 标量值先经 GPR，再广播到 4-lane 向量 \\
+        \texttt{ReplicateScalar<f64>} & 标量值先经 GPR，再广播到 2-lane 向量 \\
+        \texttt{VecLoad<f32/f64>} & 连续单位步长访存，地址计算满足 LSX 向量宽度 \\
+        \texttt{VecStore<f32/f64>} & 与 load 路径对称，沿既有数组布局写回 \\
+        \texttt{VecAdd/VecSub<f32/f64>} & 仅对浮点 lane 开放，不混入整数扩展语义 \\
+        \texttt{VecMul<f32/f64>} & 直接命中规则浮点内核中的核心乘法路径 \\
+        \texttt{VecCnv<i32/64 -> f32/64>} & 仅保留正文所需的受限类型转换路径 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+LSX 向量化 lowering 路径的实现集中在编译器前端的循环识别、中间表示层的向量节点构建以及 LoongArch64 后端的目标指令生成三个层次。为避免错误代码生成，该路径采用保守启用策略：只有在循环形态、向量长度、类型组合与目标 lowering 均满足条件时，向量路径才被启用；否则统一退回标量路径。
+
+\section{本章小结}
+
+本章围绕控制流、运行时稳态路径、启动期校验链和后端向量化四类主导瓶颈，给出了 LoongArch 平台 ART 的优化问题建模、机制设计与实现边界。基线 JIT 提早触发机制聚焦首层编译介入窗口，批量搬移机制聚焦字符串热路径中的小长度高频复制问题，启动期阶段链优化聚焦 DEX 校验主链上的固定成本压缩，LSX 向量化 lowering 路径则聚焦规则浮点循环的最小后端能力补齐。对应机制的实验环境、正确性验证与性能结果将在第 5 章统一评估。
