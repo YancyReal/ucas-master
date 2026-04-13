@@ -560,7 +560,7 @@ def build_deck() -> None:
         1,
         [
             {
-                "text": "本文从“可运行”推进到“可验证”再到“可优化”，最终给出稳定主结论与收益边界。",
+                "text": "本文从“可运行”推进到“可验证”再到“可优化”，最终给出稳定核心结论与收益边界。",
                 "size": 16,
                 "bold": True,
                 "color": NAVY,
@@ -774,9 +774,9 @@ def build_deck() -> None:
     )
     add_picture_contain(slide, SPEEDUP, 5.48, 2.02, 5.55, 4.42)
 
-    # 11. 稳定主结论
+    # 11. 稳定核心结论
     slide = prs.slides.add_slide(prs.slide_layouts[13])
-    add_slide_title(slide, "稳定主结论：LSX 浮点 SIMD 向量化")
+    add_slide_title(slide, "稳定核心结论：LSX 浮点 SIMD 向量化")
     add_textbox(
         slide,
         0.84,
@@ -833,7 +833,7 @@ def build_deck() -> None:
     set_placeholder_text(
         slide,
         1,
-        [{"text": "论文主结论", "size": 19, "bold": True, "color": NAVY}],
+        [{"text": "论文核心结论", "size": 19, "bold": True, "color": NAVY}],
         margin=0.0,
         valign=MSO_ANCHOR.MIDDLE,
     )

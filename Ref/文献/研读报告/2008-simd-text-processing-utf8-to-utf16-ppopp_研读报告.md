@@ -64,7 +64,7 @@
 
 ### 3.1. 主要发现概述 (Overview of Key Findings)
 
-论文主结论是“端到端转码可达数量级提升”，并且跨 ISA（MMX/SSE/Altivec）都成立，但幅度受语言分布影响明显。
+论文核心结论是“端到端转码可达数量级提升”，并且跨 ISA（MMX/SSE/Altivec）都成立，但幅度受语言分布影响明显。
 
 ### 3.2. 关键数据与图表解读 (Interpretation of Key Data & Figures)
 

@@ -77,7 +77,7 @@ Figure 1 的 PCA 结果显示 Renaissance 在主成分空间分布更分散，�
 
 ### 4.4. 局限性与未来研究 (Limitations & Future Research)
 
-论文也承认 Renaissance 不是终极全集。你的后续可采用“主结论用 DaCapo+SPEC，外推验证用 Renaissance”的两层结构，兼顾历史可比性与现代代表性。
+论文也承认 Renaissance 不是终极全集。你的后续可采用“核心结论用 DaCapo+SPEC，外推验证用 Renaissance”的两层结构，兼顾历史可比性与现代代表性。
 
 ---
 

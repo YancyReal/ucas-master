@@ -104,7 +104,7 @@
 
 ## 4. 使用建议（与你当前实验数据对齐）
 
-- 正式结论优先引用 `MyBenchMark/test-data/final-baseline/`、`scheme1/`、`scheme2/` 的结果，不使用 `screening/` 作为主结论证据。
+- 正式结论优先引用 `MyBenchMark/test-data/final-baseline/`、`scheme1/`、`scheme2/` 的结果，不使用 `screening/` 作为核心结论证据。
 - 统计学与 warmup 风险统一由 `2007`、`2016`、`2017 warmup` 三篇支撑，避免“只报均值”。
 - 字符串路径优化的论证链建议固定为：`2008 strings` + `2010 compact strings` + 你自己的 `scheme2` 数据。
 - JIT 阈值方案的论证链建议固定为：`2012 hybrid jit` + `ShareJIT`（阈值与缓存）+ 你自己的 `scheme1` 数据。

@@ -93,7 +93,7 @@ void MaybeTuneLoongArch64WarmupThreshold(options, runtime) {
 
 表~\ref{tab:scheme1-result} 中最具代表性的结果是 \texttt{pmd} 的 \texttt{+3.30\%}。这一变化与图~\ref{fig:scheme1-tiered-jit-flow} 所示机理一致，即方法更早进入 baseline JIT 后，短生命周期工作负载能够更快回收解释器驻留成本。\texttt{mpegaudio} 只出现轻微提升，也符合其更依赖稳态吞吐而非进入时机的特点。
 
-\texttt{lu.small} 在单次正式快照中也出现了可观增幅，但这并不足以支撑与第 6 章同强度的主结论。更稳妥的解释如下：当规则数值循环运行时间足够长时，更早进入编译态同样可能带来附带收益。但这一现象并不能回答“为何 LoongArch64 数值内核能够在向量化后获得大幅收益”这一更核心的问题。因此，方案一的正式定位仍然是控制流与 JIT 进入时机案例。
+\texttt{lu.small} 在单次正式快照中也出现了可观增幅，但这并不足以支撑与第 6 章同强度的核心结论。更稳妥的解释如下：当规则数值循环运行时间足够长时，更早进入编译态同样可能带来附带收益。但这一现象并不能回答“为何 LoongArch64 数值内核能够在向量化后获得大幅收益”这一更核心的问题。因此，方案一的正式定位仍然是控制流与 JIT 进入时机案例。
 
 进一步的统计验证快照（\texttt{Snapshot-B}）表明，方案一在 \texttt{pmd} 上虽然呈现出与正式单次快照一致的受益方向，但三轮样本中仍存在明显抖动，尚不足以被表述为“均值稳定收益”的强结论。因此，方案一的论文价值更多在于揭示 LoongArch64 \texttt{debug} ART 中第一层进入时机的敏感性，而非给出一个可以无条件推广的统一默认配置。
 
@@ -293,11 +293,11 @@ uint32_t DecodeMetadata(ptr) {                       // phase1234
 
 负对照 \texttt{lu.small} 的作用在这里也非常关键。它在各阶段都围绕 \texttt{82\,ops/m} 附近波动，且 verifier hot share 仅 \texttt{0.3\%} 到 \texttt{0.4\%}，因此不应被当作该阶段链的收益证明。这表明，\texttt{DexFileVerifier} 优化的论文价值，在于说明“命中启动期 DEX 校验主路径时可以形成明确收益”，而非证明“任何工作负载都会因为 verifier 变快而受益”。
 
-\subsection{为何将其与主结论分开讨论}
+\subsection{为何将其与核心结论分开讨论}
 
-将 \texttt{DexFileVerifier} 置于本章而非下一章，有两点原因：它不共享三项正式方案的统一对比设置，若强行并入第 6 章，会打断以 LSX SIMD 为中心的主结论递进；同时，它与前两节共同构成控制流、数据流与启动期路径三类局部案例，使本章能够总结更普遍的方法论。关于阶段链的详细数据表、源码位置与补充分析，详见附录第~\ref{app:dexverifier-details} 节。
+将 \texttt{DexFileVerifier} 置于本章而非下一章，有两点原因：它不共享三项正式方案的统一对比设置，若强行并入第 6 章，会打断以 LSX SIMD 为中心的核心结论递进；同时，它与前两节共同构成控制流、数据流与启动期路径三类局部案例，使本章能够总结更普遍的方法论。关于阶段链的详细数据表、源码位置与补充分析，详见附录第~\ref{app:dexverifier-details} 节。
 
-\section{局部案例的共同规律与主结论路标}
+\section{局部案例的共同规律与核心结论路标}
 
 JIT 进入时机、字符串热路径搬移和 \texttt{DexFileVerifier} 阶段链三个案例表明，LoongArch 平台 ART 的局部优化不应简化为对可见热点的直接改写，而需满足一组更严格的方法论条件。
 
@@ -308,7 +308,7 @@ JIT 进入时机、字符串热路径搬移和 \texttt{DexFileVerifier} 阶段�
     \item \textbf{局部有效不等于适合作为统一默认配置。} 方案一波动较大，方案二受工作负载依赖强，\texttt{DexFileVerifier} 只对启动期主路径有效。这些事实共同说明，局部案例更适合用于建立方法论与边界认识，而非直接组合成无条件统一配置。
 \end{enumerate}
 
-\subsection{为何主结论转向最小可用 LSX 路径}
+\subsection{为何核心结论转向最小可用 LSX 路径}
 
 与前三节的局部案例不同，向量化方向对应的是编译器后端能力缺口，而非某条解释器或运行时热路径的固定成本。因此，其筛选标准更强调“能力链是否建立”和“收益是否具有清楚的结构性解释”。围绕 LoongArch64 数值内核，本文主要比较了三类候选方向，如表~\ref{tab:vectorization-candidates} 所示。
 
@@ -322,8 +322,8 @@ JIT 进入时机、字符串热路径搬移和 \texttt{DexFileVerifier} 阶段�
         \textbf{候选方向} & \textbf{主要目标} & \textbf{本文中的处理方式} \\
         \hline
         标量循环展开增强 & 增大指令级并行度 & 未保留；增加代码体积，但没有把标量流真正改成向量流 \\
-        最小可用 LSX 浮点 SIMD 路径 & 打通 \texttt{Loop Vectorization -> LSX Lowering} & 保留为第 6 章正式主结论 \\
-        完整 SIMD 覆盖候选版 & 扩大 lowering 与 idiom 覆盖范围 & 不作为正文主结论，降为边界比较并下沉附录第~\ref{app:full-simd-ablation} 节 \\
+        最小可用 LSX 浮点 SIMD 路径 & 打通 \texttt{Loop Vectorization -> LSX Lowering} & 保留为第 6 章正式核心结论 \\
+        完整 SIMD 覆盖候选版 & 扩大 lowering 与 idiom 覆盖范围 & 不作为正文核心结论，降为边界比较并下沉附录第~\ref{app:full-simd-ablation} 节 \\
         \hline
     \end{tabular}
 \end{table}
