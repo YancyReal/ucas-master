@@ -2,9 +2,7 @@
 
 \section{实验环境与评估方法}
 
-第 3 章给出了 LoongArch 平台 ART 基础执行框架的构建过程，第 4 章讨论了各项优化机制的设计与实现边界。本章进一步说明这些结论所依赖的实验设计，并围绕两个问题展开：其一，适配后的执行引擎是否具备可靠的语义正确性；其二，后续性能结果是否建立在一致、可重复的实验条件之上。
-
-围绕上述目标，本文将实验划分为正确性验证与性能评测两部分。所有实验统一建立在同一 LoongArch64 目标设备和同一源码状态下，并遵循“编译、部署、回归、评测”的基本流程：首先编译当前 ART 产物，其次以轻量同步方式部署到目标机，然后执行目标机回归与类库验证，最后在验证通过后运行基准测试并采集分数、日志与热点数据。
+第 3 章完成了 LoongArch 平台 ART 基础执行框架的构建，第 4 章给出了各项优化机制的设计与实现。本章在此基础上说明实验环境、验证流程与评测方法，并从正确性与性能两个方面对系统进行评估。图~\ref{fig:verification-workflow} 概括了本文的实验组织流程。所有实验均基于同一 LoongArch64 目标设备和同一源码状态，按“编译—部署—回归—评测”的流程执行。只有在系统语义得到验证后，性能结果才具有解释意义。
 
 \begin{figure}[htbp]
     \centering
@@ -13,13 +11,11 @@
     \label{fig:verification-workflow}
 \end{figure}
 
-图~\ref{fig:verification-workflow} 概括了从固定源码状态到正式数据归档的实验组织流程。该流程首先确认系统语义正确，然后再进入性能评测，从而将“系统能否正确执行”与“性能是否发生变化”区分开来。只有在前者得到验证后，后者才具有可解释性。
-
 \subsection{实验环境与执行设置}
 
-本文的实验平台基于真实 LoongArch64 目标设备，处理器为龙芯 3A6000，，四核八线程，主频 \texttt{2.5\,GHz}，内存为 \texttt{16\,GB}；目标系统为 Android 15，内核版本为 Linux 6.6.46。软件侧以 AOSP 15 源码中的 \texttt{art/} 子项目为研究对象，在完成第 3 章所述平台适配后开展后续验证与性能评测\citep{Loongson3A6000DataBook2023,AospArtAndroid15R1}。
+本文的实验平台基于真实 LoongArch64 目标设备，处理器为龙芯 3A6000，四核八线程，主频 \texttt{2.5\,GHz}，内存为 \texttt{16\,GB}；目标系统为 Android 15，内核版本为 Linux 6.6.46。软件侧以 AOSP 15 源码中的 \texttt{art/} 子项目为研究对象，在完成第 3 章所述平台适配后开展后续验证与性能评测\citep{Loongson3A6000DataBook2023,AospArtAndroid15R1}。
 
-本文的正式性能结论统一建立在 LoongArch64 64 位 \texttt{debug} ART 与 \texttt{JIT} 模式下。选择这一设置有两方面考虑。首先，\texttt{debug} 构建更容易暴露调用约定、异常恢复和慢路径跳转等平台相关问题，有利于在适配收敛过程中建立稳定基线。其次，第 4 章中的正式机制均在相同设置下完成对比，因此能够保证实验条件的一致性。
+除对不同执行模式的基线比较（详见第~\ref{sec:art-mode-baseline}~节）外，本文关于优化机制的性能结论统一建立在 LoongArch64 64 位 \texttt{debug} ART 与 \texttt{JIT} 模式下。选择这一配置主要出于两方面考量：首先，\texttt{debug} 构建更容易暴露调用约定、异常恢复和慢路径跳转等平台相关问题，有利于在适配收敛过程中建立稳定基线；其次，第 4 章中的正式机制均在相同设置下完成对比，从而保证实验条件的一致性。
 
 \begin{table}[htbp]
     \centering
@@ -34,7 +30,7 @@
         对照版本 & \textit{control} / \texttt{baseline} & 指统一对照版本与实验设置；正文统一称“对照版本”，归档目录保留 \texttt{baseline} 标签 \\
         正式对比快照 & \texttt{Snapshot-A}  & 用于正式结果的单次全量对比数据集 \\
         统计验证快照 & \texttt{Snapshot-B}  & 用于同日重复测量与稳定性判断 \\
-        启动期校验快照 & \texttt{Snapshot-C}  & 用于 DEX 校验阶段链实验 \\
+        启动期校验快照 & \texttt{Snapshot-C}  & 用于 DEX 校验阶段化消融实验 \\
         Intrinsic 补充验证快照 & \texttt{Snapshot-D}  & 用于 Intrinsic 开关的机制补充验证 \\
         完整 SIMD 候选消融快照 & \texttt{Snapshot-E} & 用于最小 SIMD 方案与完整覆盖候选版的边界比较 \\
         \hline
@@ -62,7 +58,7 @@
 
 \subsection{工作负载选择与指标定义}
 
-性能评测的目标是在统一实验条件下观察执行引擎优化对代表性工作负载的影响，而不是给出可泛化至所有 Android 应用场景的绝对结论。基于这一目标，本文选择 DaCapo 与 SPECjvm2008 作为主要基准测试集合\citep{Blackburn2006,SPECjvm2008}。
+性能评测的目标是在统一实验条件下观察执行引擎优化对代表性工作负载的影响，而不是给出可泛化至所有 Android 应用场景的绝对结论。本文选择 DaCapo 与 SPECjvm2008 作为主要基准测试集合\citep{Blackburn2006,SPECjvm2008}。
 
 \begin{table}[htbp]
     \centering
@@ -111,14 +107,14 @@ DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小�
         \midrule
         正式对比快照（\texttt{Snapshot-A}） & 单次全量正式对比 & 主结果来源 \\
         统计验证快照（\texttt{Snapshot-B}） & 重复测量验证 & 稳定性判断 \\
-        启动期校验快照（\texttt{Snapshot-C}） & DEX 校验阶段链实验 & 启动期优化评估 \\
+        启动期校验快照（\texttt{Snapshot-C}） & DEX 校验阶段化消融实验 & 启动期优化评估 \\
         \shortstack[l]{Intrinsic 补充验证快照\\（\texttt{Snapshot-D}）} & \shortstack[l]{Intrinsic 开关\\补充验证} & 机制补充 \\
         完整 SIMD 候选消融快照（\texttt{Snapshot-E}） & 完整 LSX SIMD 覆盖候选消融 & 边界比较 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-在这一命名体系下，正式结果统一来自正式对比快照（\texttt{Snapshot-A}）；若需要判断收益是否具有稳定性，则进一步引用统计验证快照（\texttt{Snapshot-B}）。其余快照用于启动期案例、机制补充和边界比较。
+正式结果统一来自正式对比快照（\texttt{Snapshot-A}）；判断收益稳定性时引用统计验证快照（\texttt{Snapshot-B}）。其余快照用于启动期案例、机制补充和边界比较。
 
 \begin{table}[htbp]
     \centering
@@ -142,11 +138,11 @@ DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小�
 
 \subsection{分层验证思路}
 
-本文采用分层验证方式检验执行正确性，具体包括三个层次。第一，宿主机侧测试用于尽早发现与平台化改动相关的公共组件回归，例如 DEX 处理、命令行参数解析和编译器基础设施错误。第二，目标机侧 run-test 用于验证解释执行、编译执行、异常处理、对象访问和调用约定等执行引擎核心语义。第三，libcore 测试进一步覆盖集合框架、输入输出、并发、数学运算、加解密与网络等 Java API 层面的行为。
+本文采用分层验证方式检验执行正确性，包括三个层次。第一，宿主机侧测试尽早发现与平台化改动相关的公共组件回归，例如 DEX 处理、命令行参数解析和编译器基础设施错误。第二，目标机侧 run-test 验证解释执行、编译执行、异常处理、对象访问和调用约定等执行引擎核心语义。第三，libcore 测试进一步覆盖集合框架、输入输出、并发、数学运算、加解密与网络等 Java API 行为。
 
 \subsection{\texorpdfstring{目标机侧 \texttt{run-test} 整体验收}{目标机侧 run-test 整体验收}}
 
-目标机侧 run-test 是本文验证执行引擎正确性的核心手段。整体验收使用如下命令：
+目标机侧 run-test 是验证执行引擎正确性的核心手段。整体验收使用如下命令：
 \begin{lstlisting}[language=bash,basicstyle=\ttfamily\small]
 art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 7
 \end{lstlisting}
@@ -174,20 +170,40 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-表~\ref{tab:target-run-test-result} 表明，LoongArch 平台 ART 已能够在固定目标机条件下，对 \texttt{1033} 个 run-test 用例和 \texttt{7} 类 compiler 变体进行系统级回归。
+表~\ref{tab:target-run-test-result} 反映出，LoongArch 平台 ART 已能够在固定目标机条件下，对 \texttt{1033} 个 run-test 用例和 \texttt{7} 类 compiler 变体进行系统级回归。
 
 \subsection{\texorpdfstring{\texttt{libcore} 测试结果}{libcore 测试结果}}
 
-仅依赖 run-test 仍不足以证明 Java 核心类库层面的行为完全正确，因此本文进一步引入 libcore 测试集，以覆盖集合框架、输入输出、并发、数学运算、加解密与网络等 Java API 语义。按当前实验归档保留的包级摘要，设备侧已覆盖 libcore 的主要测试包，验证结果以通过为主，少量测试因架构条件限制被自动跳过。
+仅依赖 run-test 仍不足以证明 Java 核心类库层面的行为完全正确，本文进一步引入 libcore 测试集，以覆盖集合框架、输入输出、并发、数学运算、加解密与网络等 API 语义。按当前实验归档保留的包级摘要，设备侧已覆盖 libcore 的主要测试包，验证结果以通过为主，少量测试因架构条件限制被自动跳过。
 
 \subsection{优化阶段的最小相关回归}
 
-性能优化阶段不重复执行全量系统回归，而是遵循“最小相关回归优先”的原则。即每个候选机制在进入基准测试之前，先根据改动所在模块选择直接受影响的目标机测试集合。本文三项正式机制采用了如下代表性验证方式：
+性能优化阶段不重复执行全量系统回归，而是遵循“最小相关回归优先”原则。每个候选机制在进入基准测试之前，先根据改动所在模块选择直接受影响的目标机测试集合。本文三项正式机制的代表性验证方式如下：
 \begin{itemize}
     \item \textbf{基线 JIT 提早触发机制。} 重点验证 JIT 路径、代码缓存与 JNI 边界相关用例。
     \item \textbf{批量搬移机制。} 重点验证字符串语义、profile 保存、OSR 和 JIT 路径相关用例。
     \item \textbf{LSX 向量化 lowering 路径。} 重点验证 SIMD 图、数组访问、OSR 与 JIT 路径相关用例。
 \end{itemize}
+
+\section{LoongArch 平台下 ART 不同执行模式的基线性能评估}
+\label{sec:art-mode-baseline}
+
+在完成正确性验证后，本节统计 \texttt{switch-interpreter}、\texttt{Nterp}、\texttt{JIT} 与 \texttt{JIT-on-first-use} 四种执行模式在代表性基准测试项上的结果，观察移植后 ART 在该平台上的性能阶梯。当前共纳入 24 个基准测试项；在 4 种执行模式下，理论上对应 96 个“测试项$\times$模式”组合，其中 89 个组合具有有效结果，7 个组合缺失。数据汇总时，同一“测试项$\times$模式”仅采用优先级最高来源中的有效结果，不混用不同目录中的多份数据。
+
+为避免不同基准测试集合的指标方向不一致造成误读，本文统一将结果换算为相对 \texttt{switch-interpreter} 的 speedup。对于 \texttt{SPECjvm2008} 与独立 \texttt{SciMark} 采用吞吐型口径，对于 \texttt{DaCapo} 采用时延型口径。分组统计时，对组内可比测试项的 speedup 取几何平均，且仅在同时具有 \texttt{switch-interpreter} 与目标模式有效结果的共同测试项子集上进行比较。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\textwidth]{mybenchmark/art-mode-comparison-speedup.pdf}
+    \caption{LoongArch 平台下 ART 不同执行模式相对 \texttt{switch-interpreter} 的基线性能比较}
+    \label{fig:art-mode-comparison-speedup}
+\end{figure}
+
+图~\ref{fig:art-mode-comparison-speedup} 给出了各执行模式相对 \texttt{switch-interpreter} 的分组 speedup。\texttt{Nterp} 相比 \texttt{switch-interpreter} 已取得稳定收益：在当前可比测试项子集上，\texttt{Startup} 分组为 $8.80\times$，\texttt{Crypto} 分组为 $6.89\times$，说明更高效的解释执行路径能够明显降低解释器开销。\texttt{JIT} 与 \texttt{JIT-on-first-use} 在部分计算密集型工作负载上继续放大性能优势，例如 \texttt{Compress} 分组分别达到 $769.83\times$ 与 $699.33\times$，独立 \texttt{SciMark} 分组分别达到 $561.92\times$ 与 $497.92\times$，表明热点方法在编译执行后获得了远高于解释执行的吞吐能力。
+
+总体上，移植后的 ART 能够在 LoongArch 平台上呈现清晰的性能阶梯：\texttt{switch-interpreter} 构成基线，\texttt{Nterp} 改进解释执行性能，而 \texttt{JIT} 与 \texttt{JIT-on-first-use} 则在热点工作负载上释放编译执行潜力。
+
+当前并非所有测试项都具备可用于公平比较的 \texttt{switch-interpreter} 基线。例如 \texttt{mpegaudio} 与 \texttt{h2} 因缺失对应数据，无法计算直接可比的 speedup，因此未纳入图~\ref{fig:art-mode-comparison-speedup} 的几何平均统计。本图反映的是当前可比测试项子集上的模式基线结果。
 
 \section{运行时与 JIT 优化策略评估}
 
@@ -211,9 +227,9 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-表~\ref{tab:scheme1-result} 中最具代表性的结果是 \texttt{pmd} 的 \texttt{+3.30\%}。这一变化与第 4 章的机理分析一致，即方法更早进入 baseline JIT 后，短生命周期工作负载能够更快回收解释器驻留成本。\texttt{mpegaudio} 只出现轻微提升，也符合其更依赖稳态吞吐而非进入时机的特点。
+表~\ref{tab:scheme1-result} 中 \texttt{pmd} 的 \texttt{+3.30\%} 提升与第 4 章的机理分析一致：方法更早进入 baseline JIT 后，短生命周期工作负载能够更快回收解释器驻留成本。\texttt{mpegaudio} 仅有轻微提升，符合其更依赖稳态吞吐而非进入时机的特点。
 
-为判断该机制能否从“单次性能提升”进一步推广为“稳定收益”，本文进一步引用统计验证快照（\texttt{Snapshot-B}）中 \texttt{pmd} 的同日三轮重复测量结果，如表~\ref{tab:scheme1-stability} 所示。
+为判断该机制收益的稳定性，本文引用统计验证快照（\texttt{Snapshot-B}）中 \texttt{pmd} 的同日三轮重复测量结果，如表~\ref{tab:scheme1-stability} 所示。
 
 \begin{table}[htbp]
     \centering
@@ -230,7 +246,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-表~\ref{tab:scheme1-stability} 表明，该机制同时呈现两类信号：两次样本与正式快照方向一致，而第三轮出现高延迟样本，导致三轮均值回落至对照版本之下。因此，该机制在部分测试轮次中表现出了一定的性能提升，但整体方差较大，缺乏稳定的加速能力”。
+表~\ref{tab:scheme1-stability} 显示，该机制前两次样本与正式快照方向一致，但第三轮出现高延迟样本，导致均值回落。这说明该机制在部分轮次中表现出性能提升，但整体方差较大，缺乏稳定的加速能力。
 
 \subsection{批量搬移机制的性能表现}
 
@@ -252,20 +268,20 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-与基线 JIT 提早触发机制和 LSX 向量化 lowering 路径相比，批量搬移机制的收益明显更弱。\texttt{pmd} 和 \texttt{mpegaudio} 上都只出现约 \texttt{1\%} 的轻微提升，说明字符串热路径虽然被命中，但并不是这些工作负载的唯一主导瓶颈。\texttt{lu.small} 出现 \texttt{-8.89\%} 的回退，也说明该机制的适用范围具有明显的工作负载依赖性。
+批量搬移机制的收益相对较弱。\texttt{pmd} 和 \texttt{mpegaudio} 均只出现约 \texttt{1\%} 的轻微提升，表明字符串热路径虽然被命中，但并非这些工作负载的主导瓶颈。\texttt{lu.small} 的 \texttt{-8.89\%} 回退进一步反映出该机制的适用范围具有工作负载依赖性。
 
-\subsection{启动期 DEX 校验阶段链结果}
+\subsection{启动期 DEX 校验阶段化消融结果}
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/dexfileverifier-phase-chain-speedup.pdf}
-    \caption{\texttt{DexFileVerifier} 阶段链在主目标工作负载与负对照上的相对收益}
+    \caption{\texttt{DexFileVerifier} 阶段化验证在主目标工作负载与负对照上的相对收益}
     \label{fig:dexverifier-phase-chain-speedup}
 \end{figure}
 
-图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段链结果。\texttt{phase1} 尚未形成稳定性能提升，在主目标 \texttt{startup.helloworld} 上其均值甚至略低于对照版本。但在 \texttt{phase12} 中，当 \texttt{offset\_to\_type\_map\_} 被替换为 \texttt{vector + lower\_bound} 后，均值相对对照版本收益达到 \texttt{+4.83\%}，且标准差明显收敛。这表明启动期 verifier 的主要成本并不来自边界检查本身，而来自 Hash 容器 probing 链。
+图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段化验证结果。\texttt{phase1} 尚未形成稳定提升，在主目标 \texttt{startup.helloworld} 上均值略低于对照版本。在 \texttt{phase12} 中，将 \texttt{offset\_to\_type\_map\_} 替换为 \texttt{vector + lower\_bound} 后，收益达到 \texttt{+4.83\%} 且标准差收敛。这表明启动期 verifier 的主要成本来自 Hash 容器 probing 链，而非边界检查本身。
 
-继续向后看，\texttt{phase123} 在保留性能提升的同时，并未形成新的明显台阶，说明 UTF-8/ASCII fast path 更接近收益巩固的次级优化；\texttt{phase1234} 则进一步将收益推进到 \texttt{+5.46\%}。负对照 \texttt{lu.small} 在各阶段都围绕 \texttt{82\,ops/m} 附近波动，说明这一优化属于启动期专用路径，而非通用工作负载的收益来源。
+\texttt{phase123} 未形成新的明显台阶，说明 UTF-8/ASCII fast path 属于次级优化；\texttt{phase1234} 则将收益推进至 \texttt{+5.46\%}。负对照 \texttt{lu.small} 围绕 \texttt{82\,ops/m} 附近波动，证明该优化专用于启动期路径。
 
 \section{浮点循环自动向量化性能评估}
 
@@ -290,8 +306,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \end{tabular}
 \end{table}
 
-\texttt{lu.small} 高达 \texttt{+44.40\%} 的提升是全文最显著的性能结果之一。这一数据不仅收益幅度明显，而且与第 4 章的机理分析一致：最小 LSX lowering 路径补齐之后，前端形成的向量 IR 得以直接转化为目标向量指令。相比之下，该机制在 \texttt{pmd} 上未产生显著影响，在 \texttt{fft.small} 上则出现轻微回退，也说明其收益主要集中在规则浮点数值内核。
-
+\texttt{lu.small} 获得了 \texttt{+44.40\%} 的显著提升。这与第 4 章机理分析相符：最小 LSX lowering 路径补齐后，前端形成的向量 IR 得以直接转化为目标向量指令。相比之下，该机制在 \texttt{pmd} 上未产生显著影响，在 \texttt{fft.small} 上出现轻微回退，反映出其收益集中在规则浮点数值内核。
 
 \section{综合性能对比与扩展分析}
 
@@ -311,7 +326,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:lsx-full-simd-ablation-geomean}
 \end{figure}
 
-为了厘清 LSX 向量化 lowering 路径与“完整 SIMD 后端”之间的边界，本文引入完整 SIMD 候选消融快照（\texttt{Snapshot-E}）进行比较。图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角下的总体结果。若评价维度是“全部可运行 JIT 工作负载的几何平均”，则当前最优版本仍然是正文采用的最小路径版本：\texttt{S1/S0 = 1.0318x}，而 \texttt{S2/S0 = 1.0252x}，\texttt{S2/S1 = 0.9936x}。
+本文引入完整 SIMD 候选消融快照（\texttt{Snapshot-E}）进行边界比较。图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角的总体结果。若按“全部可运行 JIT 工作负载的几何平均”进行评价，最优版本仍是正文采用的最小路径版本：\texttt{S1/S0 = $1.0318\times$}，而 \texttt{S2/S0 = $1.0252\times$}，\texttt{S2/S1 = $0.9936\times$}。
 
 \begin{table}[htbp]
     \centering
@@ -322,16 +337,16 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
         \toprule
         \textbf{分组视角} & \textbf{\texttt{S2/S1}} \\
         \midrule
-        全部 \texttt{JIT} 工作负载 & \texttt{0.9936x} \\
-        \texttt{SPEC} startup & \texttt{0.9762x} \\
-        \texttt{SPEC} throughput & \texttt{0.9993x} \\
-        \texttt{DaCapo} & \texttt{1.0402x} \\
-        关键 SIMD 敏感工作负载 & \texttt{1.0157x} \\
+        全部 \texttt{JIT} 工作负载 & $0.9936\times$ \\
+        \texttt{SPEC} startup & $0.9762\times$ \\
+        \texttt{SPEC} throughput & $0.9993\times$ \\
+        \texttt{DaCapo} & $1.0402\times$ \\
+        关键 SIMD 敏感工作负载 & $1.0157\times$ \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-表~\ref{tab:s2-boundary-groups} 进一步说明，\texttt{S2} 与 \texttt{S1} 的差异本质上是“收益重分布”，而不是单向升降。当观察视角切换到 \texttt{SPEC} startup 时，\texttt{S2} 明显落后于 \texttt{S1}；而在 \texttt{DaCapo} 和关键 SIMD 敏感工作负载上，\texttt{S2} 又能够扩大收益。这说明完整覆盖候选版并不天然优于最小路径版本，机制取舍仍需结合工作负载结构。
+表~\ref{tab:s2-boundary-groups} 显示，\texttt{S2} 与 \texttt{S1} 的差异本质上是“收益重分布”。在 \texttt{SPEC} startup 视角下，\texttt{S2} 落后于 \texttt{S1}；而在 \texttt{DaCapo} 和关键 SIMD 敏感工作负载上，\texttt{S2} 能够扩大收益。完整覆盖候选版并不天然优于最小路径版本，机制取舍需结合工作负载结构。
 
 \subsection{三类正式机制的统一比较}
 
@@ -342,7 +357,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-图~\ref{fig:final-comparison-heatmap} 汇总了正式对比快照（\texttt{Snapshot-A}）中五个代表性工作负载的统一结果。由图可见，三类机制分别命中不同主路径：基线 JIT 提早触发机制在 \texttt{pmd} 上最具代表性，说明它更适合解释短生命周期工作负载的 JIT 进入窗口问题；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上只有弱性能提升，却在 \texttt{lu.small} 上回退，体现出其微优化性质；LSX 向量化 lowering 路径在 \texttt{lu.small} 上取得压倒性收益，但对 \texttt{pmd} 未产生显著影响，对 \texttt{sor.small} 与 \texttt{fft.small} 也未产生同等级提升。
+图~\ref{fig:final-comparison-heatmap} 汇总了正式对比快照（\texttt{Snapshot-A}）中五个代表性工作负载的统一结果。三类机制分别命中不同主路径：基线 JIT 提早触发机制在 \texttt{pmd} 上最具代表性，适合解决短生命周期工作负载的 JIT 进入窗口问题；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上仅有弱性能提升，在 \texttt{lu.small} 上发生回退，体现出微优化性质；LSX 向量化 lowering 路径在 \texttt{lu.small} 上取得压倒性收益，但对 \texttt{pmd}、\texttt{sor.small} 与 \texttt{fft.small} 未产生同等级提升。
 
 \subsection{多项机制的叠加效应分析}
 
@@ -362,8 +377,8 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \end{tabular}
 \end{table}
 
-表~\ref{tab:stacking-conflict} 表明，单项机制的有效性并不能自然转化为组合时的叠加收益。叠加批量搬移机制后，\texttt{pmd} 发生明显回退；再叠加 LSX 向量化 lowering 路径虽进一步提升了 \texttt{lu.small}，但导致 \texttt{mpegaudio} 显著下降。这提示不同机制可能在代码体积、运行时成本以及 JIT 行为上相互制约，因此多机制组合并不天然优于单机制优化。
+表~\ref{tab:stacking-conflict} 表明，单项机制的有效性不能自然转化为叠加收益。叠加批量搬移机制后，\texttt{pmd} 发生明显回退；再叠加 LSX 向量化 lowering 路径虽提升了 \texttt{lu.small}，却导致 \texttt{mpegaudio} 显著下降。不同机制在代码体积、运行时成本以及 JIT 行为上可能相互制约，多机制组合并不天然优于单机制优化。
 
 \section{本章小结}
 
-本章统一给出了实验环境、正确性验证、正式对比结果、重复测量验证以及扩展比较结果。第 3 章的移植工作通过 run-test 与 libcore 验证建立了正确性基础；第 4 章中的三类正式机制在统一实验条件下呈现出不同的收益边界：基线 JIT 提早触发机制命中短生命周期工作负载的 JIT 进入窗口，批量搬移机制属于定向微优化，LSX 向量化 lowering 路径在规则浮点数值内核上形成最显著且最稳定的收益；完整 SIMD 候选版与多机制叠加结果则进一步说明，LoongArch 平台 ART 的优化必须围绕具体工作负载主路径展开，不能简单依赖策略堆叠。
+本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出不同的收益边界：基线 JIT 提早触发机制命中短生命周期工作负载的 JIT 进入窗口，批量搬移机制属于定向微优化，LSX 向量化 lowering 路径在规则浮点数值内核上形成显著收益。扩展评估与多机制叠加结果进一步证实，LoongArch 平台 ART 的优化必须围绕具体工作负载主路径展开，不能简单依赖策略堆叠。
