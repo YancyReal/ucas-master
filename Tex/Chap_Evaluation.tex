@@ -302,13 +302,13 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/dexfileverifier-phase-chain-speedup.pdf}
-    \caption{\texttt{DexFileVerifier} 阶段化验证在主目标工作负载与负对照上的相对收益}
+    \caption{\texttt{DexFileVerifier} 阶段化验证在主目标工作负载与负对照上的相对性能提升}
     \label{fig:dexverifier-phase-chain-speedup}
 \end{figure}
 
-图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段化验证结果。\texttt{phase1} 尚未形成稳定提升，在主目标 \texttt{startup.helloworld} 上均值略低于对照版本。在 \texttt{phase12} 中，将 \texttt{offset\_to\_type\_map\_} 替换为 \texttt{vector + lower\_bound} 后，收益达到 \texttt{+4.83\%} 且标准差收敛。这表明启动期 verifier 的主要成本来自 Hash 容器 probing 链，而非边界检查本身。
+图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段化验证结果。\texttt{phase1} 尚未形成稳定提升，在主目标 \texttt{startup.helloworld} 上均值略低于对照版本。在 \texttt{phase12} 中，将 \texttt{offset\_to\_type\_map\_} 替换为 \texttt{vector + lower\_bound} 后，性能提升达到 \texttt{+4.83\%} 且标准差收敛。这表明启动期 verifier 的主要成本来自 Hash 容器 probing 链，而非边界检查本身。
 
-\texttt{phase123} 未形成新的明显台阶，说明 UTF-8/ASCII fast path 属于次级优化；\texttt{phase1234} 则将收益推进至 \texttt{+5.46\%}。负对照 \texttt{lu.small} 围绕 \texttt{82\,ops/m} 附近波动，证明该优化专用于启动期路径。
+\texttt{phase123} 未形成新的明显台阶，说明 UTF-8/ASCII fast path 属于次级优化；\texttt{phase1234} 则将性能提升推进至 \texttt{+5.46\%}。负对照 \texttt{lu.small} 围绕 \texttt{82\,ops/m} 附近波动，证明该优化专用于启动期路径。
 
 \section{浮点循环自动向量化性能评估}
 
@@ -384,7 +384,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup} 系列与 \texttt{mpegaudio} 上兑现了强劲收益，在 \texttt{pmd} 等突发高压负载上通过 Veto 机制保障了基础性能底线；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上仅有弱性能提升，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 等规则数值矩阵上取得压倒性加速，但对结构复杂的控制流负载未产生影响。
+图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup} 系列与 \texttt{mpegaudio} 上兑现了强劲性能提升，在 \texttt{pmd} 等突发高压负载上通过 Veto 机制保障了基础性能底线；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上仅有弱性能提升，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 等规则数值矩阵上取得压倒性加速，但对结构复杂的控制流负载未产生影响。
 
 \subsection{多项机制的叠加冲突与架构边界分析}
 
@@ -404,8 +404,8 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \end{tabular}
 \end{table}
 
-在复杂的运行时环境中，各项独立的机制在组合启用时可能会引发底层资源的争抢。表~\ref{tab:stacking-conflict} 展示了机制叠加时的非线性表现。数据表明，单项机制的有效性不能自然转化为全局叠加收益：当在自适应 JIT 的基础上叠加批量搬移时，\texttt{pmd} 的高频调度受内存优化额外开销的影响而出现性能回退；进一步叠加 LSX 向量化后，虽然 \texttt{lu.small} 最终实现了 50.41\% 的性能提升，但由于 SIMD 路径改写了指令图结构，反而导致 \texttt{mpegaudio} 在解释器与 JIT 切换时的性能产生回落。这证明不同机制在代码缓存压力、运行时内存带宽以及 JIT 指令生成上存在互相制约的架构边界。
+在复杂的运行时环境中，各项独立的机制在组合启用时可能会引发底层资源的争抢。表~\ref{tab:stacking-conflict} 展示了机制叠加时的非线性表现。数据表明，单项机制的有效性不能自然转化为全局叠加性能提升：当在自适应 JIT 的基础上叠加批量搬移时，\texttt{pmd} 的高频调度受内存优化额外开销的影响而出现性能回退；进一步叠加 LSX 向量化后，虽然 \texttt{lu.small} 最终实现了 50.41\% 的性能提升，但由于 SIMD 路径改写了指令图结构，反而导致 \texttt{mpegaudio} 在解释器与 JIT 切换时的性能产生回落。这证明不同机制在代码缓存压力、运行时内存带宽以及 JIT 指令生成上存在互相制约的架构边界。
 
 \section{本章小结}
 
-本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出高度差异化的收益特征：自适应基线 JIT 策略精准加速了启动期的短生命周期负载，并通过资源否决（Veto）机制有效应对了突发的高压负载；批量搬移机制作为定向的底层微优化降低了内存操作开销；LSX 向量化 lowering 路径则在规则浮点数值内核上取得了显著的加速效果。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。
+本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出高度差异化的性能提升特征：自适应基线 JIT 策略精准加速了启动期的短生命周期负载，并通过资源否决（Veto）机制有效应对了突发的高压负载；批量搬移机制作为定向的底层微优化降低了内存操作开销；LSX 向量化 lowering 路径则在规则浮点数值内核上取得了显著的加速效果。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。

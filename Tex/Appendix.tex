@@ -4,7 +4,7 @@
 
 \subsection{与 JIT 时机和解释器路径相关的候选方向}
 
-本节列出与 JIT 时机和解释器路径相关、但未作为正文正式机制展开的候选方向。这些方向大多具有明确的局部热点依据和实现对象，但在当前实验设置下，尚未形成稳定且可推广的 benchmark 级收益。因此，本节保留这些方向，主要用于补充说明正式机制的选择依据，并展示不同技术路线的适用边界。
+本节列出与 JIT 时机和解释器路径相关、但未作为正文正式机制展开的候选方向。这些方向大多具有明确的局部热点依据和实现对象，但在当前实验设置下，尚未形成稳定且可推广的 benchmark 级性能提升。因此，本节保留这些方向，主要用于补充说明正式机制的选择依据，并展示不同技术路线的适用边界。
 
 \begin{figure}[htbp]
     \centering
@@ -13,7 +13,7 @@
     \label{fig:candidate-schemes-heatmap}
 \end{figure}
 
-图~\ref{fig:candidate-schemes-heatmap} 展示了固定对照版本下多个候选方向的比较结果。图中 \texttt{1.0} 表示基准性能，低于该值表明该方向未形成正向收益。候选方向涵盖阈值调节、OSR 边界改写、解释器快路径以及通用复制入口优化等技术路线\citep{Arnold2005,Lameed2013,Haubl2008OptimizedStrings,Lemire2022UnicodeSIMD}。这些结果说明，局部热点的可见性并不必然转化为系统级性能收益。
+图~\ref{fig:candidate-schemes-heatmap} 展示了固定对照版本下多个候选方向的比较结果。图中 \texttt{1.0} 表示基准性能，低于该值表明该方向未形成性能提升。候选方向涵盖阈值调节、OSR 边界改写、解释器快路径以及通用复制入口优化等技术路线\citep{Arnold2005,Lameed2013,Haubl2008OptimizedStrings,Lemire2022UnicodeSIMD}。这些结果说明，局部热点的可见性并不必然转化为系统级性能提升。
 
 \begin{table}[htbp]
     \centering
@@ -26,7 +26,7 @@
         \hline
         \texttt{optimize\_threshold} 调整 & \texttt{pmd -11.23\%} & 作用于第二层 optimizing recompilation，介入时机偏后，难以改善短生命周期负载的首层编译瓶颈 \\
         JIT OSR 热路径内联调整 & \texttt{pmd -17.78\%} & 更贴近解释器/OSR 局部路径，无法缓解当前主导瓶颈 \\
-        Nterp 热点循环 OSR 重检查调整 & \texttt{mpegaudio -1.84\%} & 引入额外固定开销，缺乏稳定收益 \\
+        Nterp 热点循环 OSR 重检查调整 & \texttt{mpegaudio -1.84\%} & 引入额外固定开销，缺乏稳定性能提升 \\
         解释器已解析类型快路径 & \texttt{pmd -18.39\%} & 改善局部解析效率，但附加判断增加了主路径成本 \\
         JIT debug-info 延后生成 & 多数工作负载低于对照版本 & 存在局部热点，但难以建立微观生效机制与宏观 benchmark 收益之间的稳定联系 \\
         \hline
@@ -57,24 +57,24 @@
 
 上述结果进一步表明，运行时热路径中的局部热点并不一定具有全局优化价值。以 CRC32 JNI 快路径为例，尽管其函数入口明确，但在目标工作负载中的开销占比过低。类似地，\texttt{memcpy} 优化与原始数组批量搬运虽然涉及复制操作，却未像正文中的运行时热路径内存批量搬移机制那样，稳定覆盖字符串替换、拼接与 UTF-16 构造等核心执行路径。
 
-针对 \texttt{DexFileVerifier} 的单一容器替换也未能形成独立收益，因此本文未将其保留为单点修补方案，而是在正文中转而采用沿 container probing、UTF-8 校验与 LEB128 解码主链展开的阶段链式优化。
+针对 \texttt{DexFileVerifier} 的单一容器替换也未能形成独立性能提升，因此本文未将其保留为单点修补方案，而是在正文中转而采用沿 container probing、UTF-8 校验与 LEB128 解码主链展开的阶段链式优化。
 
 \subsection{候选方向的共性边界}
 
 结合图~\ref{fig:candidate-schemes-heatmap}、表~\ref{tab:appendix-jit-candidates} 与表~\ref{tab:appendix-runtime-candidates}，这些候选方向主要受限于三类因素。
 
-第一，部分方向仅缓解局部热点，但未覆盖主导执行路径。此类优化在 flamegraph 中通常可见，却难以转化为宏观 benchmark 层面的稳定收益。第二，部分方向的生效时机偏后或收益窗口与目标工作负载不匹配。例如，第二层编译时机调整与 OSR 边界改写，并不能解决短生命周期负载最敏感的首层编译介入问题。第三，局部开销的降低可能破坏系统整体平衡。某些方向虽然减少了特定计算，却引入了冗余判断、增加了代码体积或降低了路径复用率，最终拖累整体性能。
+第一，部分方向仅缓解局部热点，但未覆盖主导执行路径。此类优化在 flamegraph 中通常可见，却难以转化为宏观 benchmark 层面的稳定性能提升。第二，部分方向的生效时机偏后或性能提升窗口与目标工作负载不匹配。例如，第二层编译时机调整与 OSR 边界改写，并不能解决短生命周期负载最敏感的首层编译介入问题。第三，局部开销的降低可能破坏系统整体平衡。某些方向虽然减少了特定计算，却引入了冗余判断、增加了代码体积或降低了路径复用率，最终拖累整体性能。
 
-这些扩展比较从侧面说明，正文保留的正式机制并非由局部热点直接决定，而是建立在主路径命中、机制可解释性与稳定收益三者同时成立的基础上。
+这些扩展比较从侧面说明，正文保留的正式机制并非由局部热点直接决定，而是建立在主路径命中、机制可解释性与稳定性能提升三者同时成立的基础上。
 
 
 \section{Intrinsic 机制的补充验证}\label{app:intrinsic-ablation}
 
 \subsection{实验设计与比较设置}
 
-本节补充分析 LoongArch64 架构下 ART intrinsic 机制的整体收益边界。由于 intrinsic 优化主要涉及广泛的库调用与编译器底层机制扩展，超出了正文聚焦的几类核心问题，故未将其列为正式机制。本节将其作为补充比较，用以说明 LoongArch64 平台上 JIT 与 optimizing 路径的性能改善并不只来源于正文中的几类机制。
+本节补充分析 LoongArch64 架构下 ART intrinsic 机制的整体性能提升边界。由于 intrinsic 优化主要涉及广泛的库调用与编译器底层机制扩展，超出了正文聚焦的几类核心问题，故未将其列为正式机制。本节将其作为补充比较，用以说明 LoongArch64 平台上 JIT 与 optimizing 路径的性能改善并不只来源于正文中的几类机制。
 
-实验分别在 \texttt{JIT} 与 \texttt{interpreter} 模式下评估开启与关闭 intrinsic 的性能差异。其中，\texttt{JIT} 模式用于观察 intrinsic 的实际收益，而 \texttt{interpreter} 模式作为对照组。若性能增益主要来自编译器的 intrinsic 分发与替换机制，则 \texttt{interpreter} 模式下的性能比值应接近 \texttt{1.0x}。
+实验分别在 \texttt{JIT} 与 \texttt{interpreter} 模式下评估开启与关闭 intrinsic 的性能差异。其中，\texttt{JIT} 模式用于观察 intrinsic 的实际性能提升，而 \texttt{interpreter} 模式作为对照组。若性能增益主要来自编译器的 intrinsic 分发与替换机制，则 \texttt{interpreter} 模式下的性能比值应接近 \texttt{1.0x}。
 
 \subsection{几何平均结果}
 
