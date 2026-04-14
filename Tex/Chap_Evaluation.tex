@@ -203,8 +203,6 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 总体上，移植后的 ART 能够在 LoongArch 平台上呈现清晰的性能阶梯：\texttt{switch-interpreter} 构成基线，\texttt{Nterp} 改进解释执行性能，而 \texttt{JIT} 与 \texttt{JIT-on-first-use} 则在热点工作负载上释放编译执行潜力。
 
-当前并非所有测试项都具备可用于公平比较的 \texttt{switch-interpreter} 基线。例如 \texttt{mpegaudio} 与 \texttt{h2} 因缺失对应数据，无法计算直接可比的 speedup，因此未纳入图~\ref{fig:art-mode-comparison-speedup} 的几何平均统计。本图反映的是当前可比测试项子集上的模式基线结果。
-
 \section{运行时与 JIT 优化策略评估}
 
 \subsection{基线 JIT 提早触发机制的性能表现}
