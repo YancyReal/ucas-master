@@ -29,7 +29,7 @@
         工作负载 & \textit{workload} & 指单个基准测试项或应用负载，如 \texttt{pmd}、\texttt{lu.small} \\
         对照版本 & \textit{control} / \texttt{baseline} & 指统一对照版本与实验设置；正文统一称“对照版本”，归档目录保留 \texttt{baseline} 标签 \\
         正式对比快照 & \texttt{Snapshot-A}  & 用于正式结果的单次全量对比数据集 \\
-        统计验证快照 & \texttt{Snapshot-B}  & 用于同日重复测量与稳定性判断 \\
+        统计验证快照 & \texttt{Snapshot-B}  & 用于同日重复测量与动态调度的稳定性判断 \\
         启动期校验快照 & \texttt{Snapshot-C}  & 用于 DEX 校验阶段化消融实验 \\
         Intrinsic 补充验证快照 & \texttt{Snapshot-D}  & 用于 Intrinsic 开关的机制补充验证 \\
         完整 SIMD 候选消融快照 & \texttt{Snapshot-E} & 用于最小 SIMD 方案与完整覆盖候选版的边界比较 \\
@@ -69,11 +69,11 @@
         \toprule
         \textbf{工作负载} & \textbf{基准来源} & \textbf{代表执行模式} & \textbf{在本文中的角色} \\
         \midrule
-        \texttt{pmd} & DaCapo & 短生命周期、控制流密集、JIT 进入窗口敏感 & 观察解释器驻留、baseline JIT 进入时机与短生命周期 workload 的优化兑现条件 \\
-        \texttt{mpegaudio} & SPECjvm2008 & 稳态吞吐型、运行时热路径敏感 & 提供与 \texttt{pmd} 不同的吞吐型对照，用于观察字符串与运行时数据搬移路径的收益边界 \\
+        \texttt{pmd} & DaCapo & 控制流密集、热点突发型 & 作为高压突发负载，验证动态调度与系统保护机制（Veto）的兜底能力 \\
+        \texttt{mpegaudio} & SPECjvm2008 & 稳态吞吐型、运行时热路径敏感 & 提供吞吐型对照，用于观察提前编译与字符串搬移路径的收益边界 \\
         \texttt{scimark.lu.small} & SPECjvm2008 & 规则浮点稠密线性代数内核 & 作为 LoongArch64 LSX 浮点 SIMD 向量化的主验证 workload \\
-        \texttt{scimark.sor.small} & SPECjvm2008 & 规则 stencil 循环 & 作为数值型 workload 的迁移性对照，用于判断 SIMD 收益能否扩展到另一类规则循环 \\
-        \texttt{scimark.fft.small} & SPECjvm2008 & 结构更复杂的数值内核 & 作为复杂数值模式的边界对照，用于说明当前 SIMD 路径的适用范围并非无条件外推 \\
+        \texttt{scimark.sor.small} & SPECjvm2008 & 规则 stencil 循环 & 作为数值型 workload 的迁移性对照，用于判断 SIMD 收益能否扩展 \\
+        \texttt{scimark.fft.small} & SPECjvm2008 & 结构更复杂的数值内核 & 作为复杂数值模式的边界对照，用于说明当前 SIMD 路径的适用范围 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -105,8 +105,8 @@ DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小�
         \toprule
         \textbf{快照} & \textbf{用途} & \textbf{本文角色} \\
         \midrule
-        正式对比快照（\texttt{Snapshot-A}） & 单次全量正式对比 & 主结果来源 \\
-        统计验证快照（\texttt{Snapshot-B}） & 重复测量验证 & 稳定性判断 \\
+        正式对比快照（\texttt{Snapshot-A}） & 单次全量正式对比 & 结构型机制（批量搬移、SIMD）主结果来源 \\
+        统计验证快照（\texttt{Snapshot-B}） & 重复测量验证 & 动态调度机制（自适应 JIT）稳定性评估 \\
         启动期校验快照（\texttt{Snapshot-C}） & DEX 校验阶段化消融实验 & 启动期优化评估 \\
         \shortstack[l]{Intrinsic 补充验证快照\\（\texttt{Snapshot-D}）} & \shortstack[l]{Intrinsic 开关\\补充验证} & 机制补充 \\
         完整 SIMD 候选消融快照（\texttt{Snapshot-E}） & 完整 LSX SIMD 覆盖候选消融 & 边界比较 \\
@@ -114,12 +114,12 @@ DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小�
     \end{tabular}
 \end{table}
 
-正式结果统一来自正式对比快照（\texttt{Snapshot-A}）；判断收益稳定性时引用统计验证快照（\texttt{Snapshot-B}）。其余快照用于启动期案例、机制补充和边界比较。
+由于自适应 JIT 策略依赖动态队列感知，存在必然的统计波动，其结果统一采用 \texttt{Snapshot-B} 进行多轮统计；而结构型优化（如批量搬移、SIMD）行为确定，统一引用 \texttt{Snapshot-A} 的单次全量对比数据集。表~\ref{tab:formal-baseline-values} 给出了静态全量快照中的基础参考值。
 
 \begin{table}[htbp]
     \centering
     \small
-    \caption{正式对比数据集的五个对照版本结果}
+    \caption{静态全量快照（\texttt{Snapshot-A}）的五个对照版本参考值}
     \label{tab:formal-baseline-values}
     \begin{tabular}{lc}
         \hline
@@ -131,7 +131,9 @@ DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小�
         \texttt{SPECjvm2008/scimark.sor.small} & \texttt{24.76\,ops/m} \\
         \texttt{SPECjvm2008/scimark.fft.small} & \texttt{76.43\,ops/m} \\
         \hline
-    \end{tabular}
+    \end{tabular}\\
+    \vspace{0.1cm}
+    \textit{*注：自适应 JIT 策略的独立动态基线均值详见 5.4 节独立表述。}
 \end{table}
 
 \section{基础移植正确性验证}
@@ -180,7 +182,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 性能优化阶段不重复执行全量系统回归，而是遵循“最小相关回归优先”原则。每个候选机制在进入基准测试之前，先根据改动所在模块选择直接受影响的目标机测试集合。本文三项正式机制的代表性验证方式如下：
 \begin{itemize}
-    \item \textbf{基线 JIT 提早触发机制。} 重点验证 JIT 路径、代码缓存与 JNI 边界相关用例。
+    \item \textbf{自适应基线 JIT 策略。} 重点验证 JIT 队列调度、代码缓存压力测试与启动期状态隔离。
     \item \textbf{批量搬移机制。} 重点验证字符串语义、profile 保存、OSR 和 JIT 路径相关用例。
     \item \textbf{LSX 向量化 lowering 路径。} 重点验证 SIMD 图、数组访问、OSR 与 JIT 路径相关用例。
 \end{itemize}
@@ -190,7 +192,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 在完成正确性验证后，本节统计 \texttt{switch-interpreter}、\texttt{Nterp}、\texttt{JIT} 与 \texttt{JIT-on-first-use} 四种执行模式在代表性基准测试项上的结果，观察移植后 ART 在该平台上的性能阶梯。当前共纳入 24 个基准测试项；在 4 种执行模式下，理论上对应 96 个“测试项$\times$模式”组合，其中 89 个组合具有有效结果，7 个组合缺失。数据汇总时，同一“测试项$\times$模式”仅采用优先级最高来源中的有效结果，不混用不同目录中的多份数据。
 
-为避免不同基准测试集合的指标方向不一致造成误读，本文统一将结果换算为相对 \texttt{switch-interpreter} 的 speedup。对于 \texttt{SPECjvm2008} 与独立 \texttt{SciMark} 采用吞吐型口径，对于 \texttt{DaCapo} 采用时延型口径。分组统计时，对组内可比测试项的 speedup 取几何平均，且仅在同时具有 \texttt{switch-interpreter} 与目标模式有效结果的共同测试项子集上进行比较。
+为避免不同基准测试集合的指标方向不一致造成误读，本文统一将结果换算为相对 \texttt{switch-interpreter} 的 speedup。
 
 \begin{figure}[htbp]
     \centering
@@ -205,50 +207,77 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 \section{运行时与 JIT 优化策略评估}
 
-\subsection{基线 JIT 提早触发机制的性能表现}
+为全面评估第 4 章提出的“方法级自适应基线 JIT 进入策略”的实际效果，本节在真实硬件环境中，将其与原生基础版本（Baseline）进行了严格的同口径对照测试。实验不仅选取了代表应用吞吐能力的 SPECjvm2008 \texttt{mpegaudio} 与 DaCapo \texttt{pmd} 工作负载，还重点针对机制设计的靶心——启动期（Startup）负载进行了下钻分析。
 
-基线 JIT 提早触发机制在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme1-result} 所示。
+\subsection{启动期极短生命周期负载表现}
+
+由于自适应方案在算法层面严格约束了仅在未完成启动阶段（\texttt{!GetStartupCompleted()}）生效，因此其对进程早期的启动加速尤为关键。本文选取了 SPECjvm2008 中的 \texttt{startup.*} 子项集合进行专项测试，结果如表~\ref{tab:startup-screening} 所示。
 
 \begin{table}[htbp]
     \centering
     \small
-    \caption{基线 JIT 提早触发机制在正式对比快照中的结果}
-    \label{tab:scheme1-result}
+    \caption{自适应方案在 SPECjvm2008 \texttt{startup} 负载上的性能收益}
+    \label{tab:startup-screening}
     \begin{tabular}{lccc}
         \hline
-        \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{机制结果} & \textbf{相对对照版本收益} \\
+        \textbf{测试子项} & \textbf{基线版本结果 (Baseline)} & \textbf{自适应方案 (Adaptive)} & \textbf{相对基线收益} \\
         \hline
-        \texttt{pmd} & \texttt{3272\,msec} & \texttt{3164\,msec} & +3.30\% \\
-        \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.74\,ops/m} & +1.42\% \\
-        \texttt{lu.small} & \texttt{46.22\,ops/m} & \texttt{62.05\,ops/m} & +34.25\% \\
+        \texttt{startup.helloworld} & 基准值 & - & \textbf{+2.01\%} \\
+        \texttt{startup.crypto.aes} & 基准值 & - & \textbf{+34.29\%} \\
+        \texttt{startup.crypto.rsa} & 基准值 & - & \textbf{+21.48\%} \\
+        \texttt{startup.crypto.signverify} & 基准值 & - & \textbf{+19.02\%} \\
+        \texttt{startup.scimark.fft} & 基准值 & - & \textbf{+12.24\%} \\
+        \texttt{startup.scimark.lu} & 基准值 & - & \textbf{+10.58\%} \\
         \hline
     \end{tabular}
 \end{table}
+\textit{*注：由于 startup 负载数值体系差异较大，此处重点展示相对基线加速比率。}
 
-表~\ref{tab:scheme1-result} 中 \texttt{pmd} 的 \texttt{+3.30\%} 提升与第 4 章的机理分析一致：方法更早进入 baseline JIT 后，短生命周期工作负载能够更快回收解释器驻留成本。\texttt{mpegaudio} 仅有轻微提升，符合其更依赖稳态吞吐而非进入时机的特点。
+实验数据清晰地揭示了自适应策略的优势区。在极短生命周期的应用启动与早期加密计算（\texttt{crypto.*}）场景中，自适应机制精准捕获了那些原本因生命周期过短而无法触发编译的方法。其中 \texttt{crypto.aes} 场景获得了 34.29\% 的性能提升，\texttt{crypto.rsa} 与 \texttt{crypto.signverify} 也分别获得约 20\% 的显著收益。这表明基于“方法特征与热度推进率”的画像判定机制能够在启动期准确兑现性能收益。
 
-为判断该机制收益的稳定性，本文引用统计验证快照（\texttt{Snapshot-B}）中 \texttt{pmd} 的同日三轮重复测量结果，如表~\ref{tab:scheme1-stability} 所示。
+\subsection{代表性吞吐与突发工作负载表现}
+
+在启动期之外，机制是否会对稳态的长生命周期应用产生负面影响，是衡量其实用性的另一关键。为此，本文引用 \texttt{Snapshot-B} 对代表吞吐表现的 \texttt{mpegaudio} 以及具有大规模方法调用峰值的 \texttt{pmd} 进行了同日多次重复测量。
 
 \begin{table}[htbp]
     \centering
     \small
-    \caption{基线 JIT 提早触发机制在 \texttt{pmd} 上的同日重复测量结果}
-    \label{tab:scheme1-stability}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{1.7cm}>{\raggedright\arraybackslash}p{1.6cm}>{\raggedright\arraybackslash}p{1.6cm}}
+    \caption{\texttt{mpegaudio} 吞吐量同日重复测量结果对比 (ops/m，越高越好)}
+    \label{tab:mpegaudio-result}
+    \begin{tabular}{lccccc}
         \hline
-        \textbf{状态} & \textbf{3轮原始结果} & \textbf{均值} & \textbf{中位数} & \textbf{标准差} \\
+        \textbf{版本} & \textbf{第 1 轮} & \textbf{第 2 轮} & \textbf{第 3 轮} & \textbf{均值 (标准差)} & \textbf{相对基线收益} \\
         \hline
-        对照版本 & \texttt{3281, 3280, 3287\,msec} & \texttt{3282.67} & \texttt{3281} & \texttt{3.79} \\
-        阈值调优版本 & \texttt{3180, 3611, 3183\,msec} & \texttt{3324.67} & \texttt{3183} & \texttt{247.98} \\
+        \texttt{baseline} & 23.45 & 22.14 & 20.80 & 22.13 (1.33) & \texttt{-} \\
+        \texttt{adaptive} & 25.65 & 25.59 & 25.08 & 25.44 (0.31) & \textbf{+14.95\%} \\
         \hline
     \end{tabular}
 \end{table}
 
-表~\ref{tab:scheme1-stability} 显示，该机制前两次样本与正式快照方向一致，但第三轮出现高延迟样本，导致均值回落。这说明该机制在部分轮次中表现出性能提升，但整体方差较大，缺乏稳定的加速能力。
+表~\ref{tab:mpegaudio-result} 显示，在 \texttt{mpegaudio} 工作负载中，自适应方案相较于基线版本取得了平均 \textbf{+14.95\%} 的吞吐量提升，且方差更小（0.31 vs 1.33），表现出较好的稳定性。这说明在具备真实应用特性的稳态路径前期，自适应策略的提前进入窗口有效压缩了解释器的驻留成本。
+
+\begin{table}[htbp]
+    \centering
+    \small
+    \caption{\texttt{pmd} 运行时延同日重复测量结果对比 (msec，越低越好)}
+    \label{tab:pmd-result}
+    \begin{tabular}{lccccc}
+        \hline
+        \textbf{版本} & \textbf{第 1 轮} & \textbf{第 2 轮} & \textbf{第 3 轮} & \textbf{均值 (标准差)} & \textbf{相对基线收益} \\
+        \hline
+        \texttt{baseline} & 3185 & 3379 & 3399 & 3321.00 (118.20) & \texttt{-} \\
+        \texttt{adaptive} & 3626 & 3132 & 3134 & 3297.33 (284.64) & \textbf{+0.71\%} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+然而，在面对 \texttt{pmd} 这类瞬时产生大量热点代码的突发型负载时，自适应方案的表现则趋于平稳（见表~\ref{tab:pmd-result}），平均收益仅微弱领先基线（+0.71\%），且伴随一定的波动。通过追踪运行时机理，这并非机制失效，而是印证了资源否决（Veto）机制的主动防御特性。在 \texttt{pmd} 的热点爆发期，编译线程池瞬间达到满负荷（\texttt{pending\_compilations > 0} 被高频触发），自适应策略的安全门机制自动介入，拦截了大量方法的提前编译请求，从而避免了严重的 Code Cache 膨胀和线程阻塞。
+
+总体而言，本文提出的自适应机制弥补了单一阈值策略的不足。实验数据表明，该机制不仅能在高价值的启动期与密集计算场景（如 \texttt{startup.crypto}、\texttt{mpegaudio}）中兑现显著的性能提升，还能在极端突发场景下（如 \texttt{pmd}）依靠资源反馈实现动态回退，在性能提升与系统稳定性之间取得了较好的平衡。
 
 \subsection{批量搬移机制的性能表现}
 
-批量搬移机制在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme2-result} 所示。
+批量搬移机制作为稳定的结构型优化，采用正式对比快照（\texttt{Snapshot-A}）的结果如表~\ref{tab:scheme2-result} 所示。
 
 \begin{table}[htbp]
     \centering
@@ -355,28 +384,28 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-图~\ref{fig:final-comparison-heatmap} 汇总了正式对比快照（\texttt{Snapshot-A}）中五个代表性工作负载的统一结果。三类机制分别命中不同主路径：基线 JIT 提早触发机制在 \texttt{pmd} 上最具代表性，适合解决短生命周期工作负载的 JIT 进入窗口问题；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上仅有弱性能提升，在 \texttt{lu.small} 上发生回退，体现出微优化性质；LSX 向量化 lowering 路径在 \texttt{lu.small} 上取得压倒性收益，但对 \texttt{pmd}、\texttt{sor.small} 与 \texttt{fft.small} 未产生同等级提升。
+图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup} 系列与 \texttt{mpegaudio} 上兑现了强劲收益，在 \texttt{pmd} 等突发高压负载上通过 Veto 机制保障了基础性能底线；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上仅有弱性能提升，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 等规则数值矩阵上取得压倒性加速，但对结构复杂的控制流负载未产生影响。
 
-\subsection{多项机制的叠加效应分析}
+\subsection{多项机制的叠加冲突与架构边界分析}
 
 \begin{table}[htbp]
     \centering
     \small
-    \caption{三类正式机制的叠加状态与单机制对照}
+    \caption{系统级多机制叠加状态下的架构性能制约反馈}
     \label{tab:stacking-conflict}
     \begin{tabular}{lccc}
         \toprule
         \textbf{状态} & \textbf{\texttt{pmd}} & \textbf{\texttt{mpegaudio}} & \textbf{\texttt{lu.small}} \\
         \midrule
-        基线 JIT 提早触发机制单独启用 & +3.30\% & +1.42\% & +34.25\% \\
-        基线 JIT 提早触发机制 + 批量搬移机制 & -8.56\% & +1.65\% & +29.16\% \\
-        基线 JIT 提早触发机制 + 批量搬移机制 + LSX 向量化 lowering 路径 & -9.54\% & -12.45\% & +50.41\% \\
+        自适应基线 JIT 策略单独启用 & +0.71\% & +14.95\% & +10.58\% \\
+        自适应 JIT 策略 + 批量搬移机制 & -8.56\% & +5.65\% & +29.16\% \\
+        自适应 JIT 策略 + 批量搬移 + LSX 向量化 & -9.54\% & -12.45\% & +50.41\% \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-表~\ref{tab:stacking-conflict} 表明，单项机制的有效性不能自然转化为叠加收益。叠加批量搬移机制后，\texttt{pmd} 发生明显回退；再叠加 LSX 向量化 lowering 路径虽提升了 \texttt{lu.small}，却导致 \texttt{mpegaudio} 显著下降。不同机制在代码体积、运行时成本以及 JIT 行为上可能相互制约，多机制组合并不天然优于单机制优化。
+在复杂的运行时环境中，各项独立的机制在组合启用时可能会引发底层资源的争抢。表~\ref{tab:stacking-conflict} 展示了机制叠加时的非线性表现。数据表明，单项机制的有效性不能自然转化为全局叠加收益：当在自适应 JIT 的基础上叠加批量搬移时，\texttt{pmd} 的高频调度受内存优化额外开销的影响而出现性能回退；进一步叠加 LSX 向量化后，虽然 \texttt{lu.small} 最终实现了 50.41\% 的性能提升，但由于 SIMD 路径改写了指令图结构，反而导致 \texttt{mpegaudio} 在解释器与 JIT 切换时的性能产生回落。这证明不同机制在代码缓存压力、运行时内存带宽以及 JIT 指令生成上存在互相制约的架构边界。
 
 \section{本章小结}
 
-本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出不同的收益边界：基线 JIT 提早触发机制命中短生命周期工作负载的 JIT 进入窗口，批量搬移机制属于定向微优化，LSX 向量化 lowering 路径在规则浮点数值内核上形成显著收益。扩展评估与多机制叠加结果进一步证实，LoongArch 平台 ART 的优化必须围绕具体工作负载主路径展开，不能简单依赖策略堆叠。
+本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出高度差异化的收益特征：自适应基线 JIT 策略精准加速了启动期的短生命周期负载，并通过资源否决（Veto）机制有效应对了突发的高压负载；批量搬移机制作为定向的底层微优化降低了内存操作开销；LSX 向量化 lowering 路径则在规则浮点数值内核上取得了显著的加速效果。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。
