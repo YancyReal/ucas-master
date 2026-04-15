@@ -4,7 +4,7 @@
 
 第 2 章从执行链、体系结构约束和问题类型三个角度分析了 AOSP 15 ART 在 LoongArch 平台上的主要难点。本章在此基础上进一步讨论这些难点如何落实为可运行、可连通且可验证的基础执行框架。
 
-AOSP 15 的 ART 由解释执行、动态编译、跨语言调用以及运行时辅助机制共同构成闭合执行系统\citep{AndroidRuntime2024,ArtJitCompiler2024,LoongArchISA2023,LoongArchELFABI2025}。对于尚未获得官方后端支持的新架构平台，仅补齐若干体系结构相关文件并不足以形成可用执行环境；只有当解释器、JIT 编译器、JNI 桥接和运行时入口点在目标平台上建立一致的调用约定、控制流组织方式与异常处理语义时，Android 应用层代码才具备稳定执行的基础。
+AOSP 15 的 ART 由解释执行、动态编译、跨语言调用以及运行时辅助机制共同构成闭合执行系统\citep{AndroidRuntime2024,ArtJitCompiler2024,LoongArchISA2023,LoongArchELFABI2025}。对于尚未获得官方后端支持的新架构平台，仅补齐若干体系结构相关文件并不足以形成可用执行环境；只有当解释器、JIT 编译器、JNI 桥接和运行时入口点在目标平台上建立一致的调用约定、控制流组织方式与异常处理语义时，Android 应用层代码才具备稳定执行的基础条件。
 
 本文的移植工作主要涵盖四个相互协同的核心模块：用于建立基础执行基线的 C++ 与 Nterp 解释器、负责机器码生成的 JIT 编译器后端、打通 Java/native 边界的 JNI 桥接层，以及支撑高频行为的运行时入口点与快速路径。
 
@@ -49,7 +49,7 @@ AOSP 15 的 ART 由解释执行、动态编译、跨语言调用以及运行时�
 
 \section{C++ 解释器与 Nterp 汇编解释器适配}
 
-C++ 解释器是 LoongArch 平台建立最小可运行路径的起点。与 Nterp 和 JIT 相比，它对平台特定汇编能力的依赖最低，因此有助于在早期隔离并定位方法调用、参数传递、ShadowFrame 布局以及异常传播中的基础问题。适配工作的关键在于，当 \texttt{ArtMethod::Invoke()} 进入解释执行时，\texttt{Thread*}、\texttt{ArtMethod*}、参数区和返回值通道均能与 LoongArch64 ABI 保持一致，并保证 DEX PC、调用现场与异常状态可被稳定保存与恢复。
+C++ 解释器是 LoongArch 平台建立最小可运行路径的起点，与 Nterp 和 JIT 相比，它对平台特定汇编能力的依赖最低，因此有助于在早期隔离并定位方法调用、参数传递、ShadowFrame 布局以及异常传播中的基础问题。适配工作的关键在于，当 \texttt{ArtMethod::Invoke()} 进入解释执行时，\texttt{Thread*}、\texttt{ArtMethod*}、参数区和返回值通道均能与 LoongArch64 ABI 保持一致，并保证 DEX PC、调用现场与异常状态可被稳定保存与恢复。
 
 在 C++ 解释器语义稳定后，进一步建立 LoongArch64 平台上的 Nterp 汇编解释器。Nterp 依托既有解释器逻辑，通过引入固定寄存器协议、派发表和汇编处理块，将热点解释路径转化为更直接的控制流组织\citep{Ertl2003,ArtJitCompiler2024}。为此，本文首先确定解释器帧指针、当前 DEX PC、派发表基址等关键寄存器的固定分工，再补齐入口、返回、类初始化和 helper 调用等骨架路径，使 Nterp 可以在 LoongArch64 上形成可扩展的汇编解释执行框架。
 
@@ -74,9 +74,9 @@ LoongArch64 平台上的 Nterp 适配需要使 Nterp 自建解释器帧、普通
 
 \subsection{LoongArch64 浮点 NaN 语义的底层指令对齐}
 
-浮点路径的适配关键在于保证 DEX/Java 语义在 LoongArch64 浮点指令上的可重现性。以 \texttt{runtime/interpreter/mterp/loongarch64/floating\_point.S} 为例，\texttt{cmpg/cmpl} 指令通过组合 \texttt{fcmp.cle}/\texttt{fcmp.clt} 的结果，显式保留 DEX 字节码要求的 \texttt{gt-bias}/\texttt{lt-bias} 语义；同一文件中的 \texttt{float/double} 到整数转换路径还使用 \texttt{fclass} 对 NaN 情形做额外判别，以满足 DEX 规范关于 NaN 转换结果的约束。
+浮点路径的适配工作重点在于保证 DEX/Java 语义在 LoongArch64 浮点指令上的可重现性。以 \texttt{runtime/interpreter/mterp/loongarch64/floating\_point.S} 为例，\texttt{cmpg/cmpl} 指令通过组合 \texttt{fcmp.cle}/\texttt{fcmp.clt} 的结果即可显式保留 DEX 字节码要求的 \texttt{gt-bias}/\texttt{lt-bias} 语义；但同一文件中的 \texttt{float/double} 到整数转换路径还需要使用 \texttt{fclass} 对 NaN 情形做额外判别，以满足 DEX 规范关于 NaN 转换结果的约束。
 
-LoongArch64 浮点适配的核心挑战，是确保平台默认的无序比较与分类结果能够精确映射至 ART 的既定语义。基于这一点，本文在处理 NaN 问题时强调语义对齐：比较类字节码需要保持 \texttt{cmpg/cmpl} 的偏置规则，转换类字节码需要保证 NaN 不被错误传播为任意整数结果。通过上述处理，LoongArch64 Nterp 的浮点路径获得了与 ART 语义边界一致的目标实现。
+LoongArch64 浮点适配的核心难点是确保平台默认的无序比较与分类结果能够精确映射至 ART 的既定语义。基于这一点，本文在处理 NaN 问题时强调语义对齐：比较类字节码需要保持 \texttt{cmpg/cmpl} 的偏置规则，转换类字节码需要保证 NaN 不被错误传播为任意整数结果。通过上述处理，LoongArch64 Nterp 的浮点路径获得了与 ART 语义边界一致的实现方式。
 
 \section{JIT 编译器后端与跨语言调用（JNI）支持}
 
@@ -84,7 +84,7 @@ LoongArch64 浮点适配的核心挑战，是确保平台默认的无序比较�
 
 在这一基础上，进一步补齐了从基础算术、分支、返回到对象、数组、字段访问与多类 invoke 节点的 HIR 支持，并实现了空指针、越界、类初始化和异常处理等 SlowPath 组织方式。JIT 后端的补齐使得 LoongArch64 平台能够在主路径代码生成、慢路径回退、链接修补以及 OSR/deoptimization 协同中保持行为一致\citep{Fink2003,Lameed2013}。
 
-JNI 适配解决了 Java 与 native 之间的调用链打通问题。对于新架构平台而言，即使解释器与 JIT 都已可用，若缺失 JNI 调用约定描述、宏汇编器骨架与线程状态切换路径，Java 方法仍无法稳定调用 native 代码。为此，本文补齐了 LoongArch64 下 Java 参数、返回值、\texttt{JNIEnv*} 与隐藏参数的寄存器/栈映射，实现了 JNI 宏汇编器、JNI 帧建立与恢复、线程状态从 Runnable 到 Native 的切换逻辑，并以普通 JNI 调用路径为优先收敛目标，使跨语言调用链能够在 LoongArch 平台上闭合。
+JNI 适配解决了 Java 与 native 之间的调用链打通问题。对于新架构平台而言，即使解释器与 JIT 都已可用，若缺失 JNI 调用约定描述、宏汇编器骨架与线程状态切换路径，Java 方法仍无法稳定调用 native 代码来使用经典C++外部库。为此，本文补齐了 LoongArch64 下 Java 参数、返回值、\texttt{JNIEnv*} 与隐藏参数的寄存器/栈映射，实现了 JNI 宏汇编器、JNI 帧建立与恢复、线程状态从 Runnable 到 Native 的切换逻辑，并以普通 JNI 调用路径为优先收敛目标，使跨语言调用链能够在 LoongArch 平台上成功运行。
 
 JIT 后端与 JNI 模块的协同，使基础执行框架从纯解释环境成功扩展至包含动态编译与跨语言调用的真实运行场景。
 
