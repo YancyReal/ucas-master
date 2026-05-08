@@ -10,9 +10,9 @@
 \setcounter{page}{1}% 开始页码
 \pagenumbering{Roman}% 页码符号
 
-面向国产处理器平台完善 Android 运行时，是基础软件生态建设中的关键问题。针对 AOSP 15 官方版本尚未提供 LoongArch 架构 ART 执行引擎后端实现的问题，本文以 AOSP 15 的 Android Runtime（ART）为研究对象，围绕基础执行框架移植、统一实验评估体系构建以及平台相关性能优化三个方面展开研究。
+面向国产处理器平台完善 Android 运行时，是基础软件生态建设中的关键问题。针对 AOSP 15 官方版本尚未提供 Android Runtime（ART，Android 运行时）面向 LoongArch 架构的执行引擎后端实现的问题，本文以 AOSP 15 ART 为研究对象，围绕基础执行框架移植、统一实验评估体系构建以及平台相关性能优化三个方面展开研究。
 
-本文补齐了 LoongArch 平台上 ART 执行引擎的关键模块，包括汇编器、C++ 解释器、Nterp、JIT 编译器后端、AOT/编译执行相关路径、JNI 桥接以及运行时快速路径，建立了可运行且可验证的 ART 执行环境。在此基础上，进一步构建了覆盖编译、部署、目标机回归、libcore 测试和基准测试评估的统一实验框架，为后续性能比较提供一致、可重复的评估条件。
+本文补齐了 LoongArch 平台上 ART 执行引擎的关键模块，包括汇编器、C++ 解释器、Nterp、即时编译（Just-In-Time，JIT）编译器后端、提前编译（Ahead-Of-Time，AOT）/编译执行相关路径、Java 本地接口（Java Native Interface，JNI）桥接以及运行时快速路径，建立了可运行且可验证的 ART 执行环境。在此基础上，进一步构建了覆盖编译、部署、目标机回归、libcore 测试和基准测试评估的统一实验框架，为后续性能比较提供一致、可重复的评估条件。
 
 围绕统一实验框架，本文分析了控制流、运行时热路径、启动期校验链与后端向量化等代表性问题，并对自适应基线 JIT 提前触发机制、运行时热路径内存批量搬移机制和 LSX 向量化 lowering 路径进行了系统评估。结果表明，自适应基线 JIT 提前触发机制在短生命周期启动负载与稳态计算场景中取得了显著提升；批量搬移机制则在特定工作负载上表现出小幅的定向微优化收益；同时，在补齐 LoongArch64 最小可用 LSX 浮点向量 lowering 链路后，\texttt{SPECjvm2008/scimark.lu.small} 相较于基线版本取得了 \texttt{+44.40\%} 的性能提升，并在多次重复验证中保持了约 \texttt{+45.70\%} 的稳定收益。
 
@@ -24,9 +24,9 @@
 %-
 \intobmk\chapter*{Abstract}% 显示在书签但不显示在目录
 
-Improving Android runtime support on LoongArch-based and other locally developed processor platforms is an important task in the construction of a complete system software ecosystem. Since AOSP 15 does not provide an official ART execution engine backend for LoongArch, this thesis takes AOSP 15 Android Runtime (ART) as the target system and studies three closely related aspects: foundation execution framework porting, unified experimental evaluation, and platform-aware performance optimization.
+Improving Android runtime support on LoongArch-based and other locally developed processor platforms is an important task in the construction of a complete system software ecosystem. Since AOSP 15 does not provide an official Android Runtime (ART) execution engine backend for LoongArch, this thesis takes AOSP 15 ART as the target system and studies three closely related aspects: foundation execution framework porting, unified experimental evaluation, and platform-aware performance optimization.
 
-This work ports and implements the key ART execution engine components on LoongArch, including the assembler, the C++ interpreter, Nterp, the JIT compiler backend, AOT/compiler-execution related paths, JNI bridging, and runtime fast paths, thereby establishing a runnable and verifiable ART environment. On top of this foundation, a unified experimental framework is built to cover compilation, deployment, target-side regression testing, libcore testing, and benchmark evaluation, so that subsequent performance comparisons are conducted under consistent and repeatable conditions.
+This work ports and implements the key ART execution engine components on LoongArch, including the assembler, the C++ interpreter, Nterp, the Just-In-Time (JIT) compiler backend, Ahead-Of-Time (AOT)/compiler-execution related paths, Java Native Interface (JNI) bridging, and runtime fast paths, thereby establishing a runnable and verifiable ART environment. On top of this foundation, a unified experimental framework is built to cover compilation, deployment, target-side regression testing, libcore testing, and benchmark evaluation, so that subsequent performance comparisons are conducted under consistent and repeatable conditions.
 
 Within this framework, the thesis analyzes representative problems in control flow, runtime hot paths, startup-time verification chains, and backend vectorization, and evaluates three specific optimization mechanisms: an adaptive baseline JIT early triggering mechanism, a batched memory movement mechanism for runtime hot paths, and an LSX vectorization lowering path. The results show that the adaptive JIT mechanism achieves significant performance improvements in short-lived startup workloads and steady-state computational scenarios. The batched memory movement provides minor, targeted micro-optimization benefits on specific workloads. Furthermore, completing the minimal LoongArch64 LSX floating-point vector lowering chain yields a \texttt{+44.40\%} performance improvement over the baseline configuration on \texttt{SPECjvm2008/scimark.lu.small}, and maintains a stable gain of approximately \texttt{+45.70\%} in repeated validation trials.
 

@@ -4,9 +4,9 @@
 
 \subsection{研究背景}
 
-随着国产基础软件生态持续演进，LoongArch 架构的基础指令集、向量扩展及 ABI 规范已形成较为完整的公开标准体系\citep{LoongArchISA2023, LoongArchISAv2, LoongArchELFABI2025}。在移动端应用生态中，Android 操作系统长期占据主导地位\citep{StatCounter2025}。Android Runtime（ART）作为 Android 应用执行的核心运行时环境，直接影响应用启动开销、交互延迟与整体吞吐表现。因此，在 LoongArch 平台上适配并完善 ART 运行环境，是实现 Android 应用生态跨架构迁移的重要基础。
+随着国产基础软件生态持续演进，LoongArch 架构的基础指令集、向量扩展及 ABI 规范已形成较为完整的公开标准体系\citep{LoongArchISA2023, LoongArchISAv2, LoongArchELFABI2025}。在移动端应用生态中，Android 操作系统长期占据主导地位\citep{StatCounter2025}。Android Runtime（ART，Android 运行时）作为 Android 应用执行的核心运行时环境，直接影响应用启动开销、交互延迟与整体吞吐表现。因此，在 LoongArch 平台上适配并完善 ART 运行环境，是实现 Android 应用生态跨架构迁移的重要基础。
 
-ART 承担 DEX 字节码解释、即时编译（JIT）、提前编译（AOT）、类加载与 JNI 桥接等核心任务\citep{AndroidRuntime2024, ArtJitCompiler2024, AospArtAndroid15R1}。与早期运行时相比，ART 采用解释执行与多级编译混合运行模式，以在启动耗时、代码生成延时与运行时内存占用之间进行权衡\citep{Paleczny2001, Suganuma2001}。这一机制要求目标平台的适配范围同时覆盖解释器、编译器后端、JNI 调用约定与运行时快速入口点等多个相互耦合的子系统。
+ART 承担 DEX 字节码解释、即时编译（Just-In-Time，JIT）、提前编译（Ahead-Of-Time，AOT）、类加载与 Java 本地接口（Java Native Interface，JNI）桥接等核心任务\citep{AndroidRuntime2024, ArtJitCompiler2024, AospArtAndroid15R1}。与早期运行时相比，ART 采用解释执行与多级编译混合运行模式，以在启动耗时、代码生成延时与运行时内存占用之间进行权衡\citep{Paleczny2001, Suganuma2001}。这一机制要求目标平台的适配范围同时覆盖解释器、编译器后端、JNI 调用约定与运行时快速入口点等多个相互耦合的子系统。
 
 当前 AOSP 15 官方主线源码尚未提供面向 LoongArch 的 ART 执行引擎后端实现\citep{AospArtAndroid15R1, AospArtMain2026}。即使 Linux 内核与基础 C 库（Bionic）具备运行条件，ART 层的缺失仍会导致 Android 应用层逻辑无法完整执行。针对新架构平台，不仅需要补齐 Nterp 汇编解释器、JIT 和 AOT后端、JNI 桥接与运行时辅助路径等关键模块以解决可用性问题，还需要建立系统级回归与实验评估体系，以验证语义正确性并支撑后续性能优化研究。
 
