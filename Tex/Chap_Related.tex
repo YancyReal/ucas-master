@@ -10,7 +10,7 @@ ART 作为完整的执行系统，涵盖应用装载、DEX 校验、解释执行
 
 \section{LoongArch 平台约束与问题映射}
 
-LoongArch 的体系结构特征直接制约着目标平台上的运行时表现。在 ART 执行引擎上下文中，这种架构约束主要体现为三个维度：控制流与 JIT 编译约束、数据搬移与访存约束，以及 LSX 向量扩展与后端 lowering 约束\citep{LoongArchISA2023, LoongArchISAv2, LoongArchELFABI2025}。
+LoongArch 的体系结构特征直接制约着目标平台上的运行时表现。在 ART 执行引擎上下文中，这种架构约束主要体现为三个维度：控制流与 JIT 编译约束、数据搬移与访存约束，以及 LSX 向量扩展与后端目标指令映射（Lowering）约束\citep{LoongArchISA2023, LoongArchISAv2, LoongArchELFABI2025}。
 
 \begin{figure}[htbp]
     \centering
