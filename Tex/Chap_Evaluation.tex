@@ -211,7 +211,8 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 \subsection{启动期极短生命周期负载表现}
 
-由于自适应方案在算法层面严格约束了仅在未完成启动阶段（\texttt{!GetStartupCompleted()}）生效，因此其对进程早期的启动加速尤为关键。本文选取了 SPECjvm2008 中的 \texttt{startup.*} 子项集合进行专项测试，结果如表~\ref{tab:startup-screening} 所示。
+由于自适应方案在算法层面严格约束了仅在未完成启动阶段（\texttt{!GetStartupCompleted()}）生效，因此其对进程早期的启动加速尤为关键。本文选取了 SPECjvm2008 中的 \texttt{startup.*} 子项集合进行专项测试，结果如表~\ref{tab:startup-screening} 所示\footnotemark。
+\footnotetext{由于 startup 负载数值体系差异较大，此处重点展示相对基线加速比率。}
 
 \begin{table}[htbp]
     \centering
@@ -231,7 +232,6 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
         \hline
     \end{tabular}
 \end{table}
-\textit{*注：由于 startup 负载数值体系差异较大，此处重点展示相对基线加速比率。}
 
 实验数据清晰地揭示了自适应策略的优势区。在极短生命周期的应用启动与早期加密计算（\texttt{crypto.*}）场景中，自适应机制精准捕获了那些原本因生命周期过短而无法触发编译的方法。其中 \texttt{crypto.aes} 场景获得了 34.29\% 的性能提升，\texttt{crypto.rsa} 与 \texttt{crypto.signverify} 也分别获得约 20\% 的显著收益。这表明基于“方法特征与热度推进率”的画像判定机制能够在启动期准确兑现性能收益。
 
