@@ -28,7 +28,7 @@
         JIT OSR 热路径内联调整 & \texttt{pmd -17.78\%} & 更贴近解释器/OSR 局部路径，无法缓解当前主导瓶颈 \\
         Nterp 热点循环 OSR 重检查调整 & \texttt{mpegaudio -1.84\%} & 引入额外固定开销，缺乏稳定性能提升 \\
         解释器已解析类型快路径 & \texttt{pmd -18.39\%} & 改善局部解析效率，但附加判断增加了主路径成本 \\
-        JIT debug-info 延后生成 & 多数工作负载低于对照版本 & 存在局部热点，但难以建立微观生效机制与宏观 benchmark 收益之间的稳定联系 \\
+        JIT debug-info 延后生成 & 多数工作负载低于对照版本 & 存在局部热点，但难以建立微观生效机制与宏观 benchmark 性能提升之间的稳定联系 \\
         \hline
     \end{tabular}
 \end{table}
@@ -98,7 +98,7 @@
     \label{fig:intrinsic-ablation-heatmap}
 \end{figure}
 
-进一步由图~\ref{fig:intrinsic-ablation-heatmap} 可见，intrinsic 的收益高度集中于加解密任务及部分依赖密集库调用的工作负载，而通用控制流密集型负载则几乎没有收益。具体而言，\texttt{crypto.aes} 与 \texttt{startup.crypto.aes} 的加速比分别达到 \texttt{1.4996x} 和 \texttt{1.2993x}，\texttt{h2} 与 \texttt{crypto.signverify} 也分别获得了 \texttt{1.1513x} 和 \texttt{1.0604x} 的提升。相比之下，\texttt{pmd} 出现了轻微回退（\texttt{0.9474x}），说明该负载的主导成本并不位于 intrinsic 所覆盖的路径上。
+进一步由图~\ref{fig:intrinsic-ablation-heatmap} 可见，intrinsic 的优化效果高度集中于加解密任务及部分依赖密集库调用的工作负载，而通用控制流密集型负载则几乎没有性能提升。具体而言，\texttt{crypto.aes} 与 \texttt{startup.crypto.aes} 的加速比分别达到 \texttt{1.4996x} 和 \texttt{1.2993x}，\texttt{h2} 与 \texttt{crypto.signverify} 也分别获得了 \texttt{1.1513x} 和 \texttt{1.0604x} 的提升。相比之下，\texttt{pmd} 出现了轻微回退（\texttt{0.9474x}），说明该负载的主导成本并不位于 intrinsic 所覆盖的路径上。
 
 总体而言，LoongArch64 平台 ART 的性能优化呈现出明显的分层结构。正文主要关注控制流、运行时热路径、启动期校验链和后端向量化等问题，而本节补充的 intrinsic 结果则展示了更通用的底层库优化潜力。
 
@@ -111,7 +111,7 @@
 
 实验设定了三种对比状态：\texttt{S0} 代表无 SIMD 优化的基准版本；\texttt{S1} 为正文采用的最小可用 LSX 浮点 SIMD 路径；\texttt{S2} 为完整 SIMD 覆盖候选版本，补充了更多 lowering 规则与惯用语（idiom）识别支持。
 
-这一比较的目的，不是重新定义正文正式方案，而是观察在扩大后端向量化覆盖范围后，性能收益是否能够从少数核心负载扩展到更广泛的工作负载集合。
+这一比较的目的，不是重新定义正文正式方案，而是观察在扩大后端向量化覆盖范围后，性能提升是否能够从少数核心负载扩展到更广泛的工作负载集合。
 
 \subsection{全部工作负载与关键工作负载结果}
 
@@ -125,24 +125,24 @@
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/loongarch64-lsx-full-simd-ablation-key-speedup.pdf}
-    \caption{\texttt{S0/S1/S2} 在关键工作负载上的相对收益比较}
+    \caption{\texttt{S0/S1/S2} 在关键工作负载上的相对性能变化比较}
     \label{fig:app-lsx-full-simd-ablation-key}
 \end{figure}
 
 图~\ref{fig:app-lsx-full-simd-ablation-geomean} 统计了各版本在全部 \texttt{JIT} 工作负载下的几何平均加速比（均基于式~\ref{eq:geomean-speedup} 进行同向换算）。整体而言，\texttt{S1} 的平均性能仍优于 \texttt{S2}：\texttt{S1/S0} 达到 \texttt{1.0318x}，\texttt{S2/S0} 为 \texttt{1.0252x}，而 \texttt{S2/S1} 降至 \texttt{0.9936x}。
 
-不过，图~\ref{fig:app-lsx-full-simd-ablation-key} 的细粒度比较同时显示，\texttt{S2} 在 \texttt{lu.small}、\texttt{h2} 和 \texttt{avrora} 等关键工作负载上的表现反超了 \texttt{S1}。这说明更广泛的后端指令覆盖具备客观的优化潜力，只是其收益在不同负载之间呈现出更明显的分化。
+不过，图~\ref{fig:app-lsx-full-simd-ablation-key} 的细粒度比较同时显示，\texttt{S2} 在 \texttt{lu.small}、\texttt{h2} 和 \texttt{avrora} 等关键工作负载上的表现反超了 \texttt{S1}。这说明更广泛的后端指令覆盖具备客观的优化潜力，只是其性能影响在不同负载之间呈现出更明显的分化。
 
-基于这些结果，\texttt{S2} 更适合被视为一种能够在特定核心负载上进一步扩大收益的候选增强版，而尚不足以在整体几何平均意义下替代 \texttt{S1}。
+基于这些结果，\texttt{S2} 更适合被视为一种能够在特定核心负载上进一步扩大性能改善幅度的候选增强版，而尚不足以在整体几何平均意义下替代 \texttt{S1}。
 
 \subsection{正式方案与候选增强版的边界}
 
 从边界分析的角度看，\texttt{S1} 与 \texttt{S2} 的差异主要体现在三个方面。
 
-首先，二者的目标不同。\texttt{S1} 旨在验证最小可用 LSX 浮点路径能否形成稳定、可解释且可复现的收益；\texttt{S2} 则进一步探索在扩大指令覆盖与 idiom 识别范围后，是否能够获得额外性能空间。
+首先，二者的目标不同。\texttt{S1} 旨在验证最小可用 LSX 浮点路径能否形成稳定、可解释且可复现的性能提升；\texttt{S2} 则进一步探索在扩大指令覆盖与 idiom 识别范围后，是否能够获得额外性能空间。
 
-其次，二者的适用范围不同。\texttt{S1} 在整体几何平均上更稳健，因而适合作为正文中的正式方案；\texttt{S2} 虽在若干关键负载上具有更强表现，但其收益在更广泛工作负载集合中的一致性仍不足。
+其次，二者的适用范围不同。\texttt{S1} 在整体几何平均上更稳健，因而适合作为正文中的正式方案；\texttt{S2} 虽在若干关键负载上具有更强表现，但其性能改善在更广泛工作负载集合中的一致性仍不足。
 
-最后，二者的研究定位不同。\texttt{S1} 用于支撑正文中关于最小可用 LSX 路径的正式结论；\texttt{S2} 则用于揭示在扩展向量化覆盖范围后，收益与稳定性之间的进一步权衡关系。
+最后，二者的研究定位不同。\texttt{S1} 用于支撑正文中关于最小可用 LSX 路径的正式结论；\texttt{S2} 则用于揭示在扩展向量化覆盖范围后，性能改善与稳定性之间的进一步权衡关系。
 
-因此，正文采用 \texttt{S1} 作为正式方案，而将 \texttt{S2} 保留为附录中的扩展比较对象。这样的处理方式既能保持正文结论的稳定性，也能完整呈现更广泛 SIMD 覆盖的潜在收益与边界。
+因此，正文采用 \texttt{S1} 作为正式方案，而将 \texttt{S2} 保留为附录中的扩展比较对象。这样的处理方式既能保持正文结论的稳定性，也能完整呈现更广泛 SIMD 覆盖的潜在性能提升与边界。

@@ -27,7 +27,7 @@
 
 表~\ref{tab:problem-modeling-axes} 所列的四类问题对应四种不同的系统成本来源。JIT 进入时机问题关注短生命周期工作负载中方法从解释执行进入 baseline JIT 的首层介入窗口；运行时热路径问题关注小长度、高频次的数据搬移成本；启动期问题关注 DEX 校验主链中的查询、校验与元数据解码开销；向量化支持问题关注规则浮点循环在前端已经形成向量 IR 的前提下，后端是否具备将其稳定 lowering 为 LSX 指令的最小能力集合。
 
-围绕上述问题，本文采用三项原则约束后续机制设计。第一，热点必须落实为工作负载主路径问题，局部符号热度本身不足以构成优化对象。第二，优化机制必须具备明确的作用点、实现边界和失效条件，使性能变化能够获得稳定解释。第三，不同机制之间应保持问题定义、实现边界与适用场景的一致对应关系，使后续评估能够围绕同一成本模型展开。
+围绕上述问题，本文采用三项原则约束后续机制设计。第一，热点必须落实为工作负载主路径问题，局部符号热度本身不足以构成优化对象。第二，优化机制必须具备明确的作用点、实现边界和失效条件，使性能提升能够获得稳定解释。第三，不同机制之间应保持问题定义、实现边界与适用场景的一致对应关系，使后续评估能够围绕同一成本模型展开。
 
 \section{短生命周期工作负载中的 JIT 进入时机优化}
 
@@ -48,7 +48,7 @@
 
 \subsection{基于方法特征与系统状态的自适应基线 JIT 提前触发机制}
 
-针对上一小节所述这一问题，一种直接思路是全局下调首层编译阈值；但这种做法会同时放宽所有方法的进入条件，容易使大量收益有限的方法过早进入编译队列，从而带来代码缓存膨胀和编译资源竞争。
+针对上一小节所述这一问题，一种直接思路是全局下调首层编译阈值；但这种做法会同时放宽所有方法的进入条件，容易使大量优化价值有限的方法过早进入编译队列，从而带来代码缓存膨胀和编译资源竞争。
 
 基于这一约束，本文不采用统一下调阈值的全局方案，而是在保留默认 \texttt{warmup\_threshold} 语义不变的前提下，引入一个受限的提前触发窗口。其基本思想是：仅当方法同时表现出短生命周期热点的局部特征，且运行时资源状态允许时，才允许该方法在达到默认阈值之前提前进入 baseline JIT；其余情况仍沿用原有触发路径。这样，机制的作用点仍然限定在“首次脱离解释器”的首层编译介入窗口，而不是改变整套分层 JIT 的通用阈值语义。
 
@@ -155,9 +155,9 @@
         \textbf{候选技术方向} & \textbf{主要命中路径} & \textbf{技术局限性与适用性评估} \\
         \hline
         字符串热路径的 8 路批量搬移机制 & \texttt{DoReplace}、\texttt{DoConcat}、\texttt{AllocFromUtf16} & 直接命中运行时热路径，机制边界清晰，可在特定工作负载中形成稳定作用（本文采用） \\
-        原始数组批量搬运展开 & 泛化复制路径 & 入口泛化粒度过粗，难以对特定工作负载形成稳定且显著的性能收益 \\
+        原始数组批量搬运展开 & 泛化复制路径 & 入口泛化粒度过粗，难以在特定工作负载中形成可重复观察到的 benchmark 级性能提升 \\
         \texttt{memcpy} 快速入口接线 & 低层复制入口 & 目标工作负载主路径并不稳定落在该入口，作用路径不集中 \\
-        CRC32 JNI 快路径 & \shortstack[l]{\texttt{CRC32.}\\\texttt{updateBytes0()}} & 热点占比过低，难以形成稳定 benchmark 级收益 \\
+        CRC32 JNI 快路径 & \shortstack[l]{\texttt{CRC32.}\\\texttt{updateBytes0()}} & 热点占比过低，难以形成稳定 benchmark 级性能提升 \\
         \texttt{DexFileVerifier} 容器与校验链优化 & 启动期 DEX 校验与元数据访问 & 主要作用于启动期主链，适合作为独立的启动期优化问题讨论 \\
         \hline
     \end{tabular}
@@ -198,33 +198,47 @@
 
 围绕启动期 DEX 校验链，潜在的优化方向可以同时覆盖容器访问、字符串校验、元数据解码乃至更大范围的校验器重构。但从正式工作负载的主路径出发，本文不采用对 verifier 的整体重写，而是沿启动期主链将主要固定成本拆解为若干具有明确作用点的阶段性问题，并据此组织局部机制。启动期 DEX 校验链的优化沿主热点路径拆解为四个阶段，如表~\ref{tab:dexverifier-phases} 所示。这样组织的目的，是将 container 查询、字符串校验与元数据解码等不同成本分离出来，使每一阶段都对应明确的作用点和实现边界。
 
-\begin{table}[htbp]
+\begingroup
     \centering
-    \small
-    \caption{\texttt{DexFileVerifier} 阶段链的四个阶段及其主要作用}
-    \label{tab:dexverifier-phases}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{6.0cm}}
-        \hline
-        \textbf{阶段} & \textbf{主要改动} & \textbf{预期作用} \\
-        \hline
-        \texttt{phase1} & 缓存边界、热点 helper 强制内联、预留类型映射容量 & 降低边界检查、函数调用与扩容前置成本 \\
-        \texttt{phase12} & 类型映射由 Hash 风格查询改为 \texttt{vector + lower\_bound} & 消除 probing 链和随机访问带来的主要 container 成本 \\
-        \texttt{phase123} & UTF-8 查表、\texttt{prefetch} 与 ASCII fast path & 降低字符串校验与改写成本 \\
-        \texttt{phase1234} & LEB128 fast path & 压低元数据顺序解码成本，形成最终最优点 \\
-        \hline
-    \end{tabular}
-\end{table}
+    \begin{minipage}{\textwidth}
+        \centering
+        \footnotesize
+        \setlength{\tabcolsep}{3pt}
+        \renewcommand{\arraystretch}{0.92}
+        \captionof{table}{\texttt{DexFileVerifier} 阶段链的四个阶段及其主要作用}
+        \label{tab:dexverifier-phases}
+        \begin{tabular}{>{\raggedright\arraybackslash}p{2.0cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{7.0cm}}
+            \hline
+            \textbf{阶段} & \textbf{主要改动} & \textbf{预期作用} \\
+            \hline
+            \texttt{phase1} & 缓存边界、热点 helper 强制内联、预留类型映射容量 & 降低边界检查、函数调用与扩容前置成本 \\
+            \texttt{phase12} & 类型映射由 Hash 风格查询改为 \texttt{vector + lower\_bound} & 消除 probing 链和随机访问带来的主要 container 成本 \\
+            \texttt{phase123} & UTF-8 查表、\texttt{prefetch} 与 ASCII fast path & 降低字符串校验与改写成本 \\
+            \texttt{phase1234} & LEB128 fast path & 压低元数据顺序解码成本，形成最终最优点 \\
+            \hline
+        \end{tabular}
+    \end{minipage}
+    \par
+\endgroup
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=1.00\textwidth]{optimization/dexverifier-phase-chain-mechanism.pdf}
-    \caption{\texttt{DexFileVerifier} 启动期阶段链的主热点、阶段推进顺序与收益来源对应关系}
-    \label{fig:dexverifier-phase-chain-mechanism}
-\end{figure}
+\vspace{0.5em}
 
 图~\ref{fig:dexverifier-phase-chain-mechanism} 展示了四阶段组织方式与热点来源之间的对应关系。沿主调用链观察，\texttt{phase12} 首先压缩 container 查询成本，\texttt{phase123} 进一步缩短 ASCII/UTF-8 比较路径，\texttt{phase1234} 再将顺序元数据解码实现为 fast path。该阶段链设计避免了对校验器的全局重写，转而沿启动期主路径逐层压缩固定成本。
 
-\begin{algorithm}[htbp]
+\vspace{0.75em}
+
+\begingroup
+    \centering
+    \begin{minipage}{\textwidth}
+        \centering
+        \includegraphics[width=0.84\textwidth]{optimization/dexverifier-phase-chain-mechanism.pdf}
+        \captionof{figure}{\texttt{DexFileVerifier} 启动期阶段链的主热点、阶段推进顺序与性能改善来源对应关系}
+        \label{fig:dexverifier-phase-chain-mechanism}
+    \end{minipage}
+    \par
+\endgroup
+
+\begin{algorithm}[H]
     \small
     \caption{DexFileVerifier 阶段链的关键钩子算法}
     \label{alg:dexverifier-phase-chain-hooks}
@@ -273,7 +287,7 @@
         \midrule
         连续单位步长数组访问 & 便于直接映射到 \texttt{VecLoad/VecStore}，避免复杂 gather/scatter 需求 \\
         循环不变量广播值 & 需要后端支持标量到向量的复制，即 \texttt{VecReplicateScalar} \\
-        加减乘为主的稳定算子组合 & 只需最小可用的浮点 \texttt{VecAdd/VecSub/VecMul} 即可解释主要收益 \\
+        加减乘为主的稳定算子组合 & 只需最小可用的浮点 \texttt{VecAdd/VecSub/VecMul} 即可解释主要性能提升 \\
         向量长度可由 128-bit 自然决定 & \texttt{float32} 对应 4 lane，\texttt{float64} 对应 2 lane，适配 LSX 宽度 \\
         不依赖复杂 idiom 与完整后端覆盖 & 使分析能够先证明“最小可用路径成立”，而非过早扩展到完整 SIMD 后端 \\
         \bottomrule

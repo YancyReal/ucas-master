@@ -37,48 +37,60 @@
     \end{tabular}
 \end{table}
 
-\begin{table}[htbp]
+\begingroup
     \centering
-    \small
-    \caption{实验中可以直接确认的控制措施}
-    \label{tab:experiment-control-measures}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{3.2cm}}
-        \hline
-        \textbf{控制项} & \textbf{本文实际约束} & \textbf{对应证据} \\
-        \hline
-        设备与系统环境 & 正式结果统一来自同一 LoongArch64 目标机、同一 Android 15 系统镜像，不跨设备混算 & 本节实验平台说明 \\
-        源码与构建设置 & 正式结论统一建立在同一源码状态、LoongArch64 64 位 \texttt{debug JIT} 配置和相同构建链路下 & 本节实验设置说明 \\
-        执行顺序 & 所有正式结果都遵循“编译 $\rightarrow$ 部署 $\rightarrow$ 回归 $\rightarrow$ benchmark”顺序 & 图~\ref{fig:verification-workflow} \\
-        相关回归前置 & 每项正式机制在进入 benchmark 前都先通过与改动模块直接相关的最小回归集合 & 第 5.2 节 \\
-        快照分层 & 单次正式对比与同日重复测量严格分离，不把跨轮次数据直接混算为机制收益 & 表~\ref{tab:experiment-snapshots} \\
-        同日重复测量 & 仅对最关键主张补做同日 3 轮重复测量，用于判断结论稳定性而非替代正式主快照 & \texttt{Snapshot-B} \\
-        \hline
-    \end{tabular}
-\end{table}
+    \begin{minipage}{\textwidth}
+        \centering
+        \footnotesize
+        \setlength{\tabcolsep}{3pt}
+        \renewcommand{\arraystretch}{0.92}
+        \captionof{table}{实验中可以直接确认的控制措施}
+        \label{tab:experiment-control-measures}
+        \begin{tabular}{>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{7.0cm}>{\raggedright\arraybackslash}p{3.2cm}}
+            \hline
+            \textbf{控制项} & \textbf{本文实际约束} & \textbf{对应证据} \\
+            \hline
+            设备与系统环境 & 正式结果统一来自同一 LoongArch64 目标机、同一 Android 15 系统镜像，不跨设备混算 & 本节实验平台说明 \\
+            源码与构建设置 & 正式结论统一建立在同一源码状态、LoongArch64 64 位 \texttt{debug JIT} 配置和相同构建链路下 & 本节实验设置说明 \\
+            执行顺序 & 所有正式结果都遵循“编译 $\rightarrow$ 部署 $\rightarrow$ 回归 $\rightarrow$ benchmark”顺序 & 图~\ref{fig:verification-workflow} \\
+            相关回归前置 & 每项正式机制在进入 benchmark 前都先通过与改动模块直接相关的最小回归集合 & 第 5.2 节 \\
+            快照分层 & 单次正式对比与同日重复测量严格分离，不把跨轮次数据直接混算为机制效果 & 表~\ref{tab:experiment-snapshots} \\
+            同日重复测量 & 仅对最关键主张补做同日 3 轮重复测量，用于判断结论稳定性而非替代正式主快照 & \texttt{Snapshot-B} \\
+            \hline
+        \end{tabular}
+    \end{minipage}
+    \par
+\endgroup
 
 \subsection{工作负载选择与指标定义}
 
 性能评测的目标是在统一实验条件下观察执行引擎优化对代表性工作负载的影响，而不是给出可泛化至所有 Android 应用场景的绝对结论。本文选择目前java测试基准中使用最广泛的 DaCapo 与 SPECjvm2008 作为主要基准测试集合\citep{Blackburn2006,SPECjvm2008}。
 
-\begin{table}[htbp]
+\begingroup
     \centering
-    \small
-    \caption{五个正式工作负载的选择依据与角色分工}
-    \label{tab:formal-workload-selection}
-    \begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}p{3.3cm}>{\raggedright\arraybackslash}p{4.2cm}}
-        \toprule
-        \textbf{工作负载} & \textbf{基准来源} & \textbf{代表执行模式} & \textbf{在本文中的角色} \\
-        \midrule
-        \texttt{pmd} & DaCapo & 控制流密集、热点突发型 & 作为高压突发负载，验证动态调度与系统保护机制（Veto）的兜底能力 \\
-        \texttt{mpegaudio} & SPECjvm2008 & 稳态吞吐型、运行时热路径敏感 & 提供吞吐型对照，用于观察提前编译与字符串搬移路径的收益边界 \\
-        \texttt{scimark.lu.small} & SPECjvm2008 & 规则浮点稠密线性代数内核 & 作为 LoongArch64 LSX 浮点 SIMD 向量化的主验证 workload \\
-        \texttt{scimark.sor.small} & SPECjvm2008 & 规则 stencil 循环 & 作为数值型 workload 的迁移性对照，用于判断 SIMD 收益能否扩展 \\
-        \texttt{scimark.fft.small} & SPECjvm2008 & 结构更复杂的数值内核 & 作为复杂数值模式的边界对照，用于说明当前 SIMD 路径的适用范围 \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+    \begin{minipage}{\textwidth}
+        \centering
+        \footnotesize
+        \setlength{\tabcolsep}{3pt}
+        \renewcommand{\arraystretch}{0.92}
+        \captionof{table}{五个正式工作负载的选择依据与角色分工}
+        \label{tab:formal-workload-selection}
+        \begin{tabular}{>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{5.0cm}}
+            \toprule
+            \textbf{工作负载} & \textbf{基准来源} & \textbf{代表执行模式} & \textbf{在本文中的角色} \\
+            \midrule
+            \texttt{pmd} & DaCapo & 控制流密集、热点突发型 & 作为高压突发负载，验证动态调度与系统保护机制（Veto）的兜底能力 \\
+            \texttt{mpegaudio} & SPECjvm2008 & 稳态吞吐型、运行时热路径敏感 & 提供吞吐型对照，用于观察提前编译与字符串搬移路径的性能边界 \\
+            \texttt{scimark.lu.small} & SPECjvm2008 & 规则浮点稠密线性代数内核 & 作为 LoongArch64 LSX 浮点 SIMD 向量化的主验证 workload \\
+            \texttt{scimark.sor.small} & SPECjvm2008 & 规则 stencil 循环 & 作为数值型 workload 的迁移性对照，用于判断 SIMD 优化效果能否扩展 \\
+            \texttt{scimark.fft.small} & SPECjvm2008 & 结构更复杂的数值内核 & 作为复杂数值模式的边界对照，用于说明当前 SIMD 路径的适用范围 \\
+            \bottomrule
+        \end{tabular}
+    \end{minipage}
+    \par
+\endgroup
 
-DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小表示性能越好；SPECjvm2008 的评价指标为 \texttt{ops/m}，数值越大表示吞吐越高。为避免不同指标方向不一致造成误读，本文统一将结果换算为同向的加速比（speedup），再报告相对对照版本收益。对于吞吐型指标，其定义如式~\ref{eq:speedup-throughput} 所示：
+DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小表示性能越好；SPECjvm2008 的评价指标为 \texttt{ops/m}，数值越大表示吞吐越高。为避免不同指标方向不一致造成误读，本文统一将结果换算为同向的加速比（speedup），再报告相对性能变化。对于吞吐型指标，其定义如式~\ref{eq:speedup-throughput} 所示：
 \begin{equation}
     \label{eq:speedup-throughput}
     S_{\text{throughput}} = \frac{M_{\text{scheme}}}{M_{\text{control}}}
@@ -88,7 +100,7 @@ DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小�
     \label{eq:speedup-latency}
     S_{\text{latency}} = \frac{T_{\text{control}}}{T_{\text{scheme}}}
 \end{equation}
-本文统一按式~\ref{eq:relative-gain} 报告相对对照版本收益：
+本文统一按式~\ref{eq:relative-gain} 报告相对性能变化：
 \begin{equation}
     \label{eq:relative-gain}
     G = (S - 1)\times 100\%
@@ -131,9 +143,9 @@ DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小�
         \texttt{SPECjvm2008/scimark.sor.small} & \texttt{24.76\,ops/m} \\
         \texttt{SPECjvm2008/scimark.fft.small} & \texttt{76.43\,ops/m} \\
         \hline
-    \end{tabular}\\
-    \vspace{0.1cm}
-    \textit{*注：自适应 JIT 策略的独立动态基线均值详见 5.4 节独立表述。}
+    \end{tabular}
+    \par\vspace{0.5em}
+    \footnotesize 注：自适应 JIT 策略的独立动态基线均值详见 5.4 节独立表述。
 \end{table}
 
 \section{基础移植正确性验证}
@@ -201,7 +213,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \label{fig:art-mode-comparison-speedup}
 \end{figure}
 
-图~\ref{fig:art-mode-comparison-speedup} 给出了各执行模式相对 \texttt{switch-interpreter} 的分组 speedup。\texttt{Nterp} 相比 \texttt{switch-interpreter} 已取得稳定收益：在当前可比测试项子集上，\texttt{Startup} 分组为 $8.80\times$，\texttt{Crypto} 分组为 $6.89\times$，说明更高效的解释执行路径能够明显降低解释器开销。\texttt{JIT} 与 \texttt{JIT-on-first-use} 在部分计算密集型工作负载上继续放大性能优势，例如 \texttt{Compress} 分组分别达到 $769.83\times$ 与 $699.33\times$，独立 \texttt{SciMark} 分组分别达到 $561.92\times$ 与 $497.92\times$，表明热点方法在编译执行后获得了远高于解释执行的吞吐能力。
+图~\ref{fig:art-mode-comparison-speedup} 给出了各执行模式相对 \texttt{switch-interpreter} 的分组 speedup。\texttt{Nterp} 相比 \texttt{switch-interpreter} 在当前可比测试项子集上形成了量化差异：\texttt{Startup} 分组为 $8.80\times$，\texttt{Crypto} 分组为 $6.89\times$，说明更高效的解释执行路径能够降低解释器开销。\texttt{JIT} 与 \texttt{JIT-on-first-use} 在部分计算密集型工作负载上继续放大性能优势，例如 \texttt{Compress} 分组分别达到 $769.83\times$ 与 $699.33\times$，独立 \texttt{SciMark} 分组分别达到 $561.92\times$ 与 $497.92\times$，表明热点方法在编译执行后获得了远高于解释执行的吞吐能力。
 
 总体上，移植后的 ART 能够在 LoongArch 平台上呈现清晰的性能阶梯：\texttt{switch-interpreter} 构成基线，\texttt{Nterp} 改进解释执行性能，而 \texttt{JIT} 与 \texttt{JIT-on-first-use} 则在热点工作负载上释放编译执行潜力。
 
@@ -217,11 +229,11 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 \begin{table}[htbp]
     \centering
     \small
-    \caption{自适应方案在 SPECjvm2008 \texttt{startup} 负载上的性能收益}
+    \caption{自适应方案在 SPECjvm2008 \texttt{startup} 负载上的性能提升}
     \label{tab:startup-screening}
     \begin{tabular}{lccc}
         \hline
-        \textbf{测试子项} & \textbf{基线版本结果 (Baseline)} & \textbf{自适应方案 (Adaptive)} & \textbf{相对基线收益} \\
+        \textbf{测试子项} & \textbf{基线版本结果 (Baseline)} & \textbf{自适应方案 (Adaptive)} & \textbf{相对基线性能提升} \\
         \hline
         \texttt{startup.helloworld} & 基准值 & - & \textbf{+2.01\%} \\
         \texttt{startup.crypto.aes} & 基准值 & - & \textbf{+34.29\%} \\
@@ -233,7 +245,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-实验数据清晰地揭示了自适应策略的优势区。在极短生命周期的应用启动与早期加密计算（\texttt{crypto.*}）场景中，自适应机制精准捕获了那些原本因生命周期过短而无法触发编译的方法。其中 \texttt{crypto.aes} 场景获得了 34.29\% 的性能提升，\texttt{crypto.rsa} 与 \texttt{crypto.signverify} 也分别获得约 20\% 的显著收益。这表明基于“方法特征与热度推进率”的画像判定机制能够在启动期准确兑现性能收益。
+实验数据给出了自适应策略的优势区。在极短生命周期的应用启动与早期加密计算（\texttt{crypto.*}）场景中，自适应机制覆盖了那些原本因生命周期过短而无法触发编译的方法。其中 \texttt{startup.crypto.aes} 场景获得了 \texttt{+34.29\%} 的相对基线性能提升，\texttt{startup.crypto.rsa} 与 \texttt{startup.crypto.signverify} 分别为 \texttt{+21.48\%} 与 \texttt{+19.02\%}。这表明基于“方法特征与热度推进率”的画像判定机制能够在启动期对应工作负载上转化为性能提升。
 
 \subsection{代表性吞吐与突发工作负载表现}
 
@@ -246,7 +258,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \label{tab:mpegaudio-result}
     \begin{tabular}{lccccc}
         \hline
-        \textbf{版本} & \textbf{第 1 轮} & \textbf{第 2 轮} & \textbf{第 3 轮} & \textbf{均值 (标准差)} & \textbf{相对基线收益} \\
+        \textbf{版本} & \textbf{第 1 轮} & \textbf{第 2 轮} & \textbf{第 3 轮} & \textbf{均值 (标准差)} & \textbf{相对基线性能变化} \\
         \hline
         \texttt{baseline} & 23.45 & 22.14 & 20.80 & 22.13 (1.33) & \texttt{-} \\
         \texttt{adaptive} & 25.65 & 25.59 & 25.08 & 25.44 (0.31) & \textbf{+14.95\%} \\
@@ -254,7 +266,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-表~\ref{tab:mpegaudio-result} 显示，在 \texttt{mpegaudio} 工作负载中，自适应方案相较于基线版本取得了平均 \textbf{+14.95\%} 的吞吐量提升，且方差更小（0.31 vs 1.33），表现出较好的稳定性。这说明在具备真实应用特性的稳态路径前期，自适应策略的提前进入窗口有效压缩了解释器的驻留成本。
+表~\ref{tab:mpegaudio-result} 显示，在 \texttt{mpegaudio} 工作负载中，自适应方案相较于基线版本取得了平均 \textbf{+14.95\%} 的吞吐量提升，3 轮标准差由 \texttt{1.33} 降至 \texttt{0.31}。这说明在具备真实应用特性的稳态路径前期，自适应策略的提前进入窗口有效压缩了解释器的驻留成本。
 
 \begin{table}[htbp]
     \centering
@@ -263,7 +275,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \label{tab:pmd-result}
     \begin{tabular}{lccccc}
         \hline
-        \textbf{版本} & \textbf{第 1 轮} & \textbf{第 2 轮} & \textbf{第 3 轮} & \textbf{均值 (标准差)} & \textbf{相对基线收益} \\
+        \textbf{版本} & \textbf{第 1 轮} & \textbf{第 2 轮} & \textbf{第 3 轮} & \textbf{均值 (标准差)} & \textbf{相对基线性能变化} \\
         \hline
         \texttt{baseline} & 3185 & 3379 & 3399 & 3321.00 (118.20) & \texttt{-} \\
         \texttt{adaptive} & 3626 & 3132 & 3134 & 3297.33 (284.64) & \textbf{+0.71\%} \\
@@ -271,9 +283,9 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-然而，在面对 \texttt{pmd} 这类瞬时产生大量热点代码的突发型负载时，自适应方案的表现则趋于平稳（见表~\ref{tab:pmd-result}），平均收益仅微弱领先基线（+0.71\%），且伴随一定的波动。通过追踪运行时机理，这并非机制失效，而是印证了资源否决（Veto）机制的主动防御特性。在 \texttt{pmd} 的热点爆发期，编译线程池瞬间达到满负荷（\texttt{pending\_compilations > 0} 被高频触发），自适应策略的安全门机制自动介入，拦截了大量方法的提前编译请求，从而避免了严重的 Code Cache 膨胀和线程阻塞。
+然而，在面对 \texttt{pmd} 这类瞬时产生大量热点代码的突发型负载时，自适应方案的表现则趋于平稳（见表~\ref{tab:pmd-result}），平均性能变化仅微弱领先基线（+0.71\%），且伴随一定的波动。通过追踪运行时机理，这并非机制失效，而是印证了资源否决（Veto）机制的主动防御特性。在 \texttt{pmd} 的热点爆发期，编译线程池瞬间达到满负荷（\texttt{pending\_compilations > 0} 被高频触发），自适应策略的安全门机制自动介入，拦截了大量方法的提前编译请求，从而避免了严重的 Code Cache 膨胀和线程阻塞。
 
-总体而言，本文提出的自适应机制弥补了单一阈值策略的不足。实验数据表明，该机制不仅能在高价值的启动期与密集计算场景（如 \texttt{startup.crypto}、\texttt{mpegaudio}）中兑现显著的性能提升，还能在极端突发场景下（如 \texttt{pmd}）依靠资源反馈实现动态回退，在性能提升与系统稳定性之间取得了较好的平衡。
+总体而言，本文提出的自适应机制弥补了单一阈值策略的不足。实验数据表明，该机制在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{+34.29\%}、\texttt{+21.48\%}、\texttt{+19.02\%} 的相对基线性能提升，在 \texttt{mpegaudio} 上取得 \textbf{+14.95\%} 的 3 轮平均吞吐量提升；在 \texttt{pmd} 场景下，平均性能变化为 \textbf{+0.71\%}，且标准差由 \texttt{118.20} 增至 \texttt{284.64}，说明该场景仍存在较强波动。
 
 \subsection{批量搬移机制的性能表现}
 
@@ -286,7 +298,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \label{tab:scheme2-result}
     \begin{tabular}{lccc}
         \hline
-        \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{机制结果} & \textbf{相对对照版本收益} \\
+        \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{机制结果} & \textbf{相对性能变化} \\
         \hline
         \texttt{pmd} & \texttt{3272\,msec} & \texttt{3244\,msec} & +0.86\% \\
         \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.56\,ops/m} & +0.71\% \\
@@ -295,7 +307,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-批量搬移机制的收益相对较弱。\texttt{pmd} 和 \texttt{mpegaudio} 均只出现约 \texttt{1\%} 的轻微提升，表明字符串热路径虽然被命中，但并非这些工作负载的主导瓶颈。\texttt{lu.small} 的 \texttt{-8.89\%} 回退进一步反映出该机制的适用范围具有工作负载依赖性。
+批量搬移机制的优化效果相对较弱。\texttt{pmd} 和 \texttt{mpegaudio} 均只出现约 \texttt{1\%} 的轻微提升，表明字符串热路径虽然被命中，但并非这些工作负载的主导瓶颈。\texttt{lu.small} 的 \texttt{-8.89\%} 回退进一步反映出该机制的适用范围具有工作负载依赖性。
 
 \subsection{启动期 DEX 校验阶段化消融结果}
 
@@ -306,15 +318,15 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \label{fig:dexverifier-phase-chain-speedup}
 \end{figure}
 
-图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段化验证结果。\texttt{phase1} 尚未形成稳定提升，在主目标 \texttt{startup.helloworld} 上均值略低于对照版本。在 \texttt{phase12} 中，将 \texttt{offset\_to\_type\_map\_} 替换为 \texttt{vector + lower\_bound} 后，性能提升达到 \texttt{+4.83\%} 且标准差收敛。这表明启动期 verifier 的主要成本来自 Hash 容器 probing 链，而非边界检查本身。
+图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段化验证结果。\texttt{phase1} 在主目标 \texttt{startup.helloworld} 上均值略低于对照版本。在 \texttt{phase12} 中，将 \texttt{offset\_to\_type\_map\_} 替换为 \texttt{vector + lower\_bound} 后，相对性能变化达到 \texttt{+4.83\%} 且标准差收敛。这表明启动期 verifier 的主要成本来自 Hash 容器 probing 链，而非边界检查本身。
 
-\texttt{phase123} 未形成新的明显台阶，说明 UTF-8/ASCII fast path 属于次级优化；\texttt{phase1234} 则将性能提升推进至 \texttt{+5.46\%}。负对照 \texttt{lu.small} 围绕 \texttt{82\,ops/m} 附近波动，证明该优化专用于启动期路径。
+\texttt{phase123} 相比 \texttt{phase12} 未形成新的性能增量，说明 UTF-8/ASCII fast path 属于次级优化；\texttt{phase1234} 则将相对性能变化推进至 \texttt{+5.46\%}。负对照 \texttt{lu.small} 围绕 \texttt{82\,ops/m} 附近波动，证明该优化专用于启动期路径。
 
 \section{浮点循环自动向量化性能评估}
 
 \subsection{LSX 向量化 lowering 路径的正式对比结果}
 
-LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme3-result} 所示。表中的“相对对照版本收益”统一按式~\ref{eq:speedup-throughput}--\ref{eq:relative-gain} 计算，其中 \texttt{pmd} 使用时延型定义，其余 workload 使用吞吐型定义。
+LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中的结果如表~\ref{tab:scheme3-result} 所示。表中的“相对性能变化”统一按式~\ref{eq:speedup-throughput}--\ref{eq:relative-gain} 计算，其中 \texttt{pmd} 使用时延型定义，其余 workload 使用吞吐型定义。
 
 \begin{table}[htbp]
     \centering
@@ -323,7 +335,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{tab:scheme3-result}
     \begin{tabular}{lccc}
         \toprule
-        \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{机制结果} & \textbf{相对对照版本收益} \\
+        \textbf{基准测试项} & \textbf{对照版本结果} & \textbf{机制结果} & \textbf{相对性能变化} \\
         \midrule
         \texttt{pmd} & \texttt{3272\,msec} & \texttt{3270\,msec} & +0.06\% \\
         \texttt{mpegaudio} & \texttt{25.38\,ops/m} & \texttt{25.84\,ops/m} & +1.81\% \\
@@ -333,7 +345,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \end{tabular}
 \end{table}
 
-\texttt{lu.small} 获得了 \texttt{+44.40\%} 的显著提升。这与第 4 章机理分析相符：最小 LSX lowering 路径补齐后，前端形成的向量 IR 得以直接转化为目标向量指令。相比之下，该机制在 \texttt{pmd} 上未产生显著影响，在 \texttt{fft.small} 上出现轻微回退，反映出其收益集中在规则浮点数值内核。
+\texttt{lu.small} 的吞吐量由 \texttt{46.22} 提高到 \texttt{66.74\,ops/m}，相对性能变化为 \texttt{+44.40\%}。这与第 4 章机理分析相符：最小 LSX lowering 路径补齐后，前端形成的向量 IR 得以直接转化为目标向量指令。相比之下，该机制在 \texttt{pmd} 上仅对应 \texttt{+0.06\%} 的相对性能变化，在 \texttt{fft.small} 上出现 \texttt{-2.60\%} 回退，反映出其性能提升集中在规则浮点数值内核。
 
 \section{综合性能对比与扩展分析}
 
@@ -373,7 +385,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \end{tabular}
 \end{table}
 
-表~\ref{tab:s2-boundary-groups} 显示，\texttt{S2} 与 \texttt{S1} 的差异本质上是“收益重分布”。在 \texttt{SPEC} startup 视角下，\texttt{S2} 落后于 \texttt{S1}；而在 \texttt{DaCapo} 和关键 SIMD 敏感工作负载上，\texttt{S2} 能够扩大收益。完整覆盖候选版并不天然优于最小路径版本，机制取舍需结合工作负载结构。
+表~\ref{tab:s2-boundary-groups} 显示，\texttt{S2} 与 \texttt{S1} 的差异本质上是“性能变化重分布”。在 \texttt{SPEC} startup 视角下，\texttt{S2} 落后于 \texttt{S1}；而在 \texttt{DaCapo} 和关键 SIMD 敏感工作负载上，\texttt{S2} 能够扩大性能改善幅度。完整覆盖候选版并不天然优于最小路径版本，机制取舍需结合工作负载结构。
 
 \subsection{三类正式机制的统一比较}
 
@@ -384,7 +396,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup} 系列与 \texttt{mpegaudio} 上兑现了强劲性能提升，在 \texttt{pmd} 等突发高压负载上通过 Veto 机制保障了基础性能底线；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上仅有弱性能提升，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 等规则数值矩阵上取得压倒性加速，但对结构复杂的控制流负载未产生影响。
+图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{+34.29\%}、\texttt{+21.48\%}、\texttt{+19.02\%} 的相对基线性能提升，并在 \texttt{mpegaudio} 上取得 \textbf{+14.95\%} 的 3 轮平均吞吐量提升；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{+0.86\%} 与 \texttt{+0.71\%} 的相对性能变化，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 上取得 \texttt{+44.40\%} 的吞吐量提升，但对结构复杂的控制流负载未产生影响。
 
 \subsection{多项机制的叠加冲突与架构边界分析}
 
@@ -408,4 +420,4 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 
 \section{本章小结}
 
-本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出高度差异化的性能提升特征：自适应基线 JIT 策略精准加速了启动期的短生命周期负载，并通过资源否决（Veto）机制有效应对了突发的高压负载；批量搬移机制作为定向的底层微优化降低了内存操作开销；LSX 向量化 lowering 路径则在规则浮点数值内核上取得了显著的加速效果。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。
+本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出差异化的性能变化特征：自适应基线 JIT 策略在启动期短生命周期负载上取得 \texttt{+2.01\%} 至 \texttt{+34.29\%} 的相对基线性能提升，并通过资源否决（Veto）机制应对突发的高压负载；批量搬移机制作为定向的底层微优化，在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{+0.86\%} 与 \texttt{+0.71\%} 的相对性能变化；LSX 向量化 lowering 路径则在规则浮点数值内核 \texttt{lu.small} 上取得 \texttt{+44.40\%} 的吞吐量提升。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。

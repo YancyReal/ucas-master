@@ -62,8 +62,8 @@ ART 改动统一通过 \texttt{art/tools/buildbot-build.sh --target} 完整编�
 
 表~\ref{tab:experiment-terms} 给出了本文后续统一采用的术语约定。除保留快照代号与归档标签外，正文原则上统一使用
 中文术语，并将实验对照统一称为“对照版本”；归档目录中的 \texttt{baseline} 仅作为历史标签保留，
-\texttt{baseline JIT} 仍保留为 ART 分层编译术语。全文百分比结果统一写为“相对对照版本收益”，其中正值
-表示受益，负值表示回退。
+\texttt{baseline JIT} 仍保留为 ART 分层编译术语。全文百分比结果统一写为“相对性能变化”，其中正值
+表示性能改善，负值表示回退。
 
 \begin{table}[htbp]
     \centering
@@ -78,7 +78,7 @@ ART 改动统一通过 \texttt{art/tools/buildbot-build.sh --target} 完整编�
         源码与构建设置 & 正式结论统一建立在同一源码状态、LoongArch64 64 位 \texttt{debug JIT} 配置和相同构建链路下 & 本节实验设置说明 \\
         执行顺序 & 所有正式结果都遵循“编译 $\rightarrow$ 部署 $\rightarrow$ 回归 $\rightarrow$ benchmark”顺序 & 图~\ref{fig:verification-workflow} \\
         相关回归前置 & 每项正式方案在进入 benchmark 前都先通过与改动模块直接相关的最小回归集合 & 第 4.2.4 节 \\
-        快照分层 & 单次正式对比与同日重复测量严格分离，不把跨轮次数据直接混算为方案收益 & 表~\ref{tab:experiment-snapshots} \\
+        快照分层 & 单次正式对比与同日重复测量严格分离，不把跨轮次数据直接混算为方案效果 & 表~\ref{tab:experiment-snapshots} \\
         同日重复测量 & 仅对最关键主张补做同日 3 轮重复测量，用于判断结论强度而非替代正式主快照 & \texttt{Snapshot-B} \\
         \hline
     \end{tabular}
@@ -162,7 +162,7 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
 
 \subsection{基准测试与工作负载选择}
 
-性能评测旨在统一实验条件下观察执行引擎优化对代表性工作负载的影响，而非提供可泛化至所有 Android 应用场景的绝对结论。基于这一目标，本文选择 DaCapo 与 SPECjvm2008 作为主要基准测试集合\citep{Blackburn2006,SPECjvm2008}。前者更偏向对象分配、字符串处理与复杂控制流；后者则包含更接近经典 JVM 数值与吞吐路径的工作负载。已有研究也表明，不同基准测试子项在分配速率、存活集规模和 GC 行为上存在显著差异，因此基准选择本身就是实验设计的一部分\citep{Lengauer2017GCBench,Prokopec2019Renaissance}。
+性能评测旨在统一实验条件下观察执行引擎优化对代表性工作负载的影响，而非提供可泛化至所有 Android 应用场景的绝对结论。基于这一目标，本文选择 DaCapo 与 SPECjvm2008 作为主要基准测试集合\citep{Blackburn2006,SPECjvm2008}。前者更偏向对象分配、字符串处理与复杂控制流；后者则包含更接近经典 JVM 数值与吞吐路径的工作负载。已有研究也表明，不同基准测试子项在分配速率、存活集规模和 GC 行为上存在差异，因此基准选择本身就是实验设计的一部分\citep{Lengauer2017GCBench,Prokopec2019Renaissance}。
 
 本文基于四项原则对工作负载进行筛选：其一，工作负载应来自 ART/JVM 托管运行时研究中常用的代表性基准集合；其二，五个工作负载合起来必须覆盖本文关心的典型执行模式，即短生命周期控制流、稳态吞吐热路径和规则浮点数值内核；其三，工作负载必须能在热点分析与火焰图（flamegraph）中稳定反映主导开销，排除局部噪声干扰；其四，工作负载必须共享统一的验证链、统一的 JIT 模式与正式对比快照，能够纳入同一组正文主图进行比较。只有同时满足这四项条件的工作负载，才进入本文正式图表。
 
@@ -178,9 +178,9 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
         \textbf{工作负载} & \textbf{基准来源} & \textbf{代表执行模式} & \textbf{在本文中的角色} \\
         \midrule
         \texttt{pmd} & DaCapo & 短生命周期、控制流密集、JIT 进入窗口敏感 & 观察解释器驻留、baseline JIT 进入时机与短生命周期 workload 的优化兑现条件 \\
-        \texttt{mpegaudio} & SPECjvm2008 & 稳态吞吐型、运行时热路径敏感 & 提供与 \texttt{pmd} 不同的吞吐型对照，用于观察字符串与运行时数据搬移路径的收益边界 \\
+        \texttt{mpegaudio} & SPECjvm2008 & 稳态吞吐型、运行时热路径敏感 & 提供与 \texttt{pmd} 不同的吞吐型对照，用于观察字符串与运行时数据搬移路径的性能边界 \\
         \texttt{scimark.lu.small} & SPECjvm2008 & 规则浮点稠密线性代数内核 & 作为 LoongArch64 LSX 浮点 SIMD 向量化的主验证 workload，承载第 6 章的核心性能结论 \\
-        \texttt{scimark.sor.small} & SPECjvm2008 & 规则 stencil 循环 & 作为数值型 workload 的迁移性对照，用于判断 SIMD 收益能否扩展到另一类规则循环 \\
+        \texttt{scimark.sor.small} & SPECjvm2008 & 规则 stencil 循环 & 作为数值型 workload 的迁移性对照，用于判断 SIMD 优化效果能否扩展到另一类规则循环 \\
         \texttt{scimark.fft.small} & SPECjvm2008 & 结构更复杂的数值内核 & 作为复杂数值模式的边界对照，用于说明当前 SIMD 路径的适用范围并非无条件外推 \\
         \bottomrule
     \end{tabular}
@@ -192,7 +192,7 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
 
 \texttt{startup.\allowbreak helloworld} 虽然具有研究价值，但它服务于启动期 DEX 校验这一正交案例，因不具备统一的对照设置与结果解释逻辑，故在后文作为独立案例讨论。其他未稳定反映主导开销的可运行子项亦未被纳入正文分析。
 
-其中，DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小表示性能越好；SPECjvm2008 的评价指标为 \texttt{ops/m}，数值越大表示吞吐越高。本文在后续分析中始终遵循这一指标方向，不将不同基准测试的分值含义混为一谈。为避免误读，本文统一将结果换算为同向的加速比（speedup），再报告百分比收益。对于吞吐型指标，其定义如式~\ref{eq:speedup-throughput} 所示：
+其中，DaCapo 的评价指标为执行耗时，单位为 \texttt{msec}，数值越小表示性能越好；SPECjvm2008 的评价指标为 \texttt{ops/m}，数值越大表示吞吐越高。本文在后续分析中始终遵循这一指标方向，不将不同基准测试的分值含义混为一谈。为避免误读，本文统一将结果换算为同向的加速比（speedup），再报告相对性能变化。对于吞吐型指标，其定义如式~\ref{eq:speedup-throughput} 所示：
 \begin{equation}
     \label{eq:speedup-throughput}
     S_{\text{throughput}} = \frac{M_{\text{scheme}}}{M_{\text{control}}}
@@ -202,12 +202,12 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
     \label{eq:speedup-latency}
     S_{\text{latency}} = \frac{T_{\text{control}}}{T_{\text{scheme}}}
 \end{equation}
-其中，$T_{\text{scheme}}$ 和 $T_{\text{control}}$ 分别表示方案版本与对照版本的执行耗时。本文随后统一按式~\ref{eq:relative-gain} 报告“相对对照版本收益”：
+其中，$T_{\text{scheme}}$ 和 $T_{\text{control}}$ 分别表示方案版本与对照版本的执行耗时。本文随后统一按式~\ref{eq:relative-gain} 报告“相对性能变化”：
 \begin{equation}
     \label{eq:relative-gain}
     G = (S - 1)\times 100\%
 \end{equation}
-在这一记号下，无论原始指标是 \texttt{msec} 还是 \texttt{ops/m}，只要 $G>0$ 就表示方案版本相对对照版本受益。
+在这一记号下，无论原始指标是 \texttt{msec} 还是 \texttt{ops/m}，只要 $G>0$ 就表示方案版本相对对照版本有所改善。
 
 \section{正式对比快照、统计验证快照与结果解释规则}
 
@@ -234,19 +234,19 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
     \end{tabular}
 \end{table}
 
-在这一命名体系下，正文主结果统一来自正式对比快照（\texttt{Snapshot-A}）；若需要判断收益是否具有
+在这一命名体系下，正文主结果统一来自正式对比快照（\texttt{Snapshot-A}）；若需要判断性能变化是否具有
 稳定性，则进一步引用统计验证快照（\texttt{Snapshot-B}）。其余快照仅服务于特定章节的机制补充或边界分析，不参与三项正式方案的统一总比较。
 
 \begin{itemize}
     \item \textbf{正式对比快照（\texttt{Snapshot-A}）。} 该快照用于正文主表和主图，包含统一正式
     对比设置下的对照版本、三项正式方案以及叠加状态。本文随后引用的单次正式结果若无特别说明，均指向
     该快照。其对照版本结果如表~\ref{tab:formal-baseline-values} 所示。
-    \item \textbf{统计验证快照（\texttt{Snapshot-B}）。} 该快照仅用于验证两条最关键的性能主张，即方案一在 \texttt{pmd} 上的收益方向和方案三在 \texttt{lu.small} 上的稳定收益。其结果单独展示，不与 \texttt{Snapshot-A} 的正式对比结果混算。
+    \item \textbf{统计验证快照（\texttt{Snapshot-B}）。} 该快照仅用于验证两条最关键的性能主张，即方案一在 \texttt{pmd} 上的性能变化方向和方案三在 \texttt{lu.small} 上的重复测量表现。其结果单独展示，不与 \texttt{Snapshot-A} 的正式对比结果混算。
     \item \textbf{历史对照归档。} 该部分数据仅用于保留较早阶段的对照记录，不再作为三项正式
     方案统一比较的主数据源。
 \end{itemize}
 
-本文以 3 轮重复测量作为结论强度的评估基础，旨在探究某项优化在同日、同设备、同模式下是否具备稳定收益，而非进行严格的统计显著性检验。现有 \texttt{Snapshot-B} 已足以把方案一与方案三区分开来：前者具有性能提升样本，但波动明显；后者则形成稳定且显著的重复测量结果。若后续研究需要更强统计保证，则应进一步扩展到更多轮次，并引入配对检验或 bootstrap 等方法。
+本文以 3 轮重复测量作为结论强度的评估基础，旨在探究某项优化在同日、同设备、同模式下的均值、方差和性能变化方向，而非进行严格的统计显著性检验。现有 \texttt{Snapshot-B} 已足以把方案一与方案三区分开来：前者具有性能提升样本，但波动较大；后者在 3 轮重复测量中保持同向性能提升。若后续研究需要更强统计保证，则应进一步扩展到更多轮次，并引入配对检验或 bootstrap 等方法。
 
 \begin{table}[htbp]
     \centering
@@ -266,7 +266,7 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
     \end{tabular}
 \end{table}
 
-通过将 \texttt{Snapshot-A} 与 \texttt{Snapshot-B} 明确分离，本文避免了将跨轮次、跨设备状态变化误归因为方案收益，为第 5 章和第 6 章区分“单次结果”和“稳定结论”奠定了数据基础。
+通过将 \texttt{Snapshot-A} 与 \texttt{Snapshot-B} 明确分离，本文避免了将跨轮次、跨设备状态变化误归因为方案效果，为第 5 章和第 6 章区分“单次结果”和“稳定结论”奠定了数据基础。
 
 \subsection{数据采集与分析方法}
 
@@ -289,9 +289,9 @@ Nterp 和 JIT 三条主路径一一对应。整体结果说明，第 3 章建立
     \item \textbf{设备状态与后台负载扰动。} 基准测试结果会受到目标机温度、后台服务活动、CPU 频率波动和前序运行历史的影响。因此，本文不混用不同轮次的数据源，而是将 \texttt{Snapshot-A} 与 \texttt{Snapshot-B} 严格分离。
     \item \textbf{基准测试覆盖范围有限。} 本文正文最终保留的正式工作负载包括 \texttt{pmd}、\texttt{mpegaudio}、\texttt{lu.small}、\texttt{sor.small} 和 \texttt{fft.small}。这些工作负载已经能够支撑第 5 章和第 6 章的主要结论，但对并发类工作负载、复杂服务型应用和更长生命周期应用的覆盖仍然有限。因此，正文结果应被理解为固定实验设置下的阶段性结论，而不是 LoongArch 平台 ART 的完整性能画像。
     \item \textbf{\texttt{debug} 构建限制。} 正式性能结论统一建立在 LoongArch64 \texttt{debug} ART 环境下。这一设置有利于适配阶段的问题暴露，但也会放大部分 JIT 调试信息与运行时固定成本。因此，本文所有性能结论都被限制为固定 LoongArch64 \texttt{debug JIT} 条件下的阶段性结果，不直接外推到 \texttt{release} 构建或其它系统配置。
-    \item \textbf{重复测量样本数有限。} 第 5 章和第 6 章仅对最关键的两条性能主张进行了 3 轮重复测量，旨在区分“可稳定复现的收益”和“仍需进一步验证的收益方向”，而非进行严格的统计显著性检验。因此，论文使用原始散点、均值和标准差表达结论强度，而不滥用显著性术语。
+    \item \textbf{重复测量样本数有限。} 第 5 章和第 6 章仅对最关键的两条性能主张进行了 3 轮重复测量，旨在区分“可重复观察到的性能提升”和“仍需进一步验证的性能变化方向”，而非进行严格的统计显著性检验。因此，论文使用原始散点、均值和标准差表达结论强度，而不滥用统计检验术语。
     \item \textbf{JIT 符号可观测性有限。} 部分实验归档中存在 \texttt{perf-*.map} 缺失或 JIT Java 符号不完整的情况。这意味着火焰图和 \texttt{report\_symbol.txt} 更适合用于判断“热点路径是否被命中”和“固定成本是否相对变化”，而不适合支撑过于细粒度的方法级归因。
-    \item \textbf{JIT 触发窗口对短生命周期 workload 敏感。} 对 \texttt{pmd} 一类运行时间较短的 workload 而言，阈值微调可能改变某些热点方法是否来得及进入第一层编译态。即便实验已限定在同机、同日与同模式下，少量运行时状态差异仍可能导致编译与否的边界翻转。故本文对方案一仅定性为“存在受益方向”，未声称其具有稳定均值收益。
+    \item \textbf{JIT 触发窗口对短生命周期 workload 敏感。} 对 \texttt{pmd} 一类运行时间较短的 workload 而言，阈值微调可能改变某些热点方法是否来得及进入第一层编译态。即便实验已限定在同机、同日与同模式下，少量运行时状态差异仍可能导致编译与否的边界翻转。故本文对方案一仅定性为“存在改善方向”，未声称其具有稳定均值性能提升。
 \end{enumerate}
 
 综上，本文未完全消除温度、后台活动、GC 和 JIT 触发时机带来的所有扰动，而是通过快照分层与最小相关回归将干扰限制在可解释范围内，据此区分“单次正式结果”、“同日重复测量”与“仍需验证的优化主张”。
