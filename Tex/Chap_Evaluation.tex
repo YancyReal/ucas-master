@@ -217,7 +217,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 总体上，移植后的 ART 能够在 LoongArch 平台上呈现清晰的性能阶梯：\texttt{switch-interpreter} 构成基线，\texttt{Nterp} 改进解释执行性能，而 \texttt{JIT} 与 \texttt{JIT-on-first-use} 则在热点工作负载上释放编译执行潜力。
 
-\section{运行时与 JIT 优化策略评估}
+\section{自适应基线 JIT 策略评估}
 
 为全面评估第 4 章提出的“方法级自适应基线 JIT 进入策略”的实际效果，本节在真实硬件环境中，将其与原生基础版本（Baseline）进行了严格的同口径对照测试。实验不仅选取了代表应用吞吐能力的 SPECjvm2008 \texttt{mpegaudio} 与 DaCapo \texttt{pmd} 工作负载，还重点针对机制设计的靶心——启动期（Startup）负载进行了下钻分析。
 
@@ -287,6 +287,8 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 总体而言，本文提出的自适应机制弥补了单一阈值策略的不足。实验数据表明，该机制在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{34.29\%}、\texttt{21.48\%}、\texttt{19.02\%} 的相对基线性能提升，在 \texttt{mpegaudio} 上取得 \textbf{14.95\%} 的 3 轮平均吞吐量提升；在 \texttt{pmd} 场景下，平均性能变化为 \textbf{0.71\%}，且标准差由 \texttt{118.20} 增至 \texttt{284.64}，说明该场景仍存在较强波动。
 
+\section{运行时与启动期关键路径优化评估}
+
 \subsection{批量搬移机制的性能表现}
 
 批量搬移机制作为稳定的结构型优化，采用正式对比快照（\texttt{Snapshot-A}）的结果如表~\ref{tab:scheme2-result} 所示。
@@ -349,8 +351,6 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 
 \section{综合性能对比与扩展分析}
 
-\subsection{与完整 SIMD 覆盖候选版的边界比较}
-
 对于多工作负载的整体比较，本文采用几何平均 speedup 作为统一统计量，其定义如式~\ref{eq:geomean-speedup} 所示：
 \begin{equation}
     \label{eq:geomean-speedup}
@@ -358,14 +358,63 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 \end{equation}
 其中，$S_i$ 表示第 $i$ 个 workload 相对对照版本的 speedup。
 
+\subsection{Intrinsic 机制的补充验证}\label{sec:intrinsic-ablation}
+
+\subsubsection{实验设计与比较设置}
+
+本节补充分析 LoongArch64 架构下 ART intrinsic 机制的整体性能提升边界。由于 intrinsic 优化主要涉及广泛的库调用与编译器底层机制扩展，超出了正文聚焦的几类核心问题，故未将其列为正式机制。本节将其作为补充比较，用以说明 LoongArch64 平台上 JIT 与 optimizing 路径的性能改善并不只来源于正文中的几类机制。
+
+实验分别在 \texttt{JIT} 与 \texttt{interpreter} 模式下评估开启与关闭 intrinsic 的性能差异。其中，\texttt{JIT} 模式用于观察 intrinsic 的实际性能提升，而 \texttt{interpreter} 模式作为对照组。若性能增益主要来自编译器的 intrinsic 分发与替换机制，则 \texttt{interpreter} 模式下的性能比值应接近 \texttt{1.0x}。
+
+\subsubsection{几何平均结果}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.78\textwidth]{mybenchmark/intrinsic-ablation-geomean.pdf}
+    \caption{Intrinsic 开关在 \texttt{JIT} 与 \texttt{interpreter} 下的几何平均结果}
+    \label{fig:intrinsic-ablation-geomean}
+\end{figure}
+
+如图~\ref{fig:intrinsic-ablation-geomean} 所示，在 \texttt{JIT} 模式下，LoongArch64 intrinsic 机制带来了稳定的整体性能提升。根据式~\ref{eq:geomean-speedup} 计算，所有有效工作负载的几何平均加速比为 \texttt{1.0415x}。其中，\texttt{SPEC startup}、\texttt{SPEC throughput} 与 \texttt{DaCapo} 的加速比分别为 \texttt{1.0339x}、\texttt{1.0508x} 与 \texttt{1.0387x}。作为对照，\texttt{interpreter} 模式的结果大多维持在 \texttt{\pm 2\%} 的波动范围内。
+
+这些结果表明，intrinsic 的性能增益主要来自 \texttt{JIT/optimizing} 编译路径，而非环境波动或其他构建差异。虽然 intrinsic 并非本文的正式研究对象，但这一补充结果有助于完善 LoongArch64 平台 ART 的整体性能画像。
+
+\subsubsection{逐工作负载边界分析}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{mybenchmark/intrinsic-ablation-heatmap.pdf}
+    \caption{Intrinsic 开关在代表性 workload 上的逐项比较}
+    \label{fig:intrinsic-ablation-heatmap}
+\end{figure}
+
+进一步由图~\ref{fig:intrinsic-ablation-heatmap} 可见，intrinsic 的优化效果高度集中于加解密任务及部分依赖密集库调用的工作负载，而通用控制流密集型负载则几乎没有性能提升。具体而言，\texttt{crypto.aes} 与 \texttt{startup.crypto.aes} 的加速比分别达到 \texttt{1.4996x} 和 \texttt{1.2993x}，\texttt{h2} 与 \texttt{crypto.signverify} 也分别获得了 \texttt{1.1513x} 和 \texttt{1.0604x} 的提升。相比之下，\texttt{pmd} 出现了轻微回退（\texttt{0.9474x}），说明该负载的主导成本并不位于 intrinsic 所覆盖的路径上。
+
+总体而言，LoongArch64 平台 ART 的性能优化呈现出明显的分层结构。正文主要关注控制流、运行时热路径、启动期校验链和后端向量化等问题，而本节补充的 intrinsic 结果则展示了更通用的底层库优化潜力。
+
+\subsection{与完整 SIMD 覆盖候选版的边界比较}
+
+本文引入完整 SIMD 候选消融快照（\texttt{Snapshot-E}）进行边界比较。该对比旨在说明：为什么正文采用最小可用版本 \texttt{S1} 作为正式方案，同时将完整覆盖候选版本 \texttt{S2} 作为候选增强版进行分析。
+
+实验设定了三种对比状态：\texttt{S0} 代表无 SIMD 优化的基准版本；\texttt{S1} 为正文采用的最小可用 LSX 浮点 SIMD 路径；\texttt{S2} 为完整 SIMD 覆盖候选版本，补充了更多 lowering 规则与惯用语（idiom）识别支持。这一比较的目的，不是重新定义正文正式方案，而是观察在扩大后端向量化覆盖范围后，性能提升是否能够从少数核心负载扩展到更广泛的工作负载集合。
+
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.88\textwidth]{mybenchmark/loongarch64-lsx-full-simd-ablation-geomean.pdf}
-    \caption{最小 SIMD 正式方案与完整覆盖候选版的几何平均比较}
+    \caption{\texttt{S0/S1/S2} 在不同工作负载集合上的几何平均比较}
     \label{fig:lsx-full-simd-ablation-geomean}
 \end{figure}
 
-本文引入完整 SIMD 候选消融快照（\texttt{Snapshot-E}）进行边界比较。图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角的总体结果。若按“全部可运行 JIT 工作负载的几何平均”进行评价，最优版本仍是正文采用的最小路径版本：\texttt{S1/S0 = $1.0318\times$}，而 \texttt{S2/S0 = $1.0252\times$}，\texttt{S2/S1 = $0.9936\times$}。
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{mybenchmark/loongarch64-lsx-full-simd-ablation-key-speedup.pdf}
+    \caption{\texttt{S0/S1/S2} 在关键工作负载上的相对性能变化比较}
+    \label{fig:lsx-full-simd-ablation-key}
+\end{figure}
+
+图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角的总体结果。若按“全部可运行 JIT 工作负载的几何平均”进行评价，最优版本仍是正文采用的最小路径版本：\texttt{S1/S0 = $1.0318\times$}，而 \texttt{S2/S0 = $1.0252\times$}，\texttt{S2/S1 = $0.9936\times$}。
+
+不过，图~\ref{fig:lsx-full-simd-ablation-key} 的细粒度比较同时显示，\texttt{S2} 在 \texttt{lu.small}、\texttt{h2} 和 \texttt{avrora} 等关键工作负载上的表现反超了 \texttt{S1}。这说明更广泛的后端指令覆盖具备客观的优化潜力，只是其性能影响在不同负载之间呈现出更明显的分化。
 
 \begin{table}[htbp]
     \centering
@@ -386,6 +435,10 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 \end{table}
 
 表~\ref{tab:s2-boundary-groups} 显示，\texttt{S2} 与 \texttt{S1} 的差异本质上是“性能变化重分布”。在 \texttt{SPEC} startup 视角下，\texttt{S2} 落后于 \texttt{S1}；而在 \texttt{DaCapo} 和关键 SIMD 敏感工作负载上，\texttt{S2} 能够扩大性能改善幅度。完整覆盖候选版并不天然优于最小路径版本，机制取舍需结合工作负载结构。
+
+从边界分析的角度看，\texttt{S1} 与 \texttt{S2} 的差异主要体现在三个方面。首先，二者的目标不同。\texttt{S1} 旨在验证最小可用 LSX 浮点路径能否形成稳定、可解释且可复现的性能提升；\texttt{S2} 则进一步探索在扩大指令覆盖与 idiom 识别范围后，是否能够获得额外性能空间。其次，二者的适用范围不同。\texttt{S1} 在整体几何平均上更稳健，因而适合作为正文中的正式方案；\texttt{S2} 虽在若干关键负载上具有更强表现，但其性能改善在更广泛工作负载集合中的一致性仍不足。最后，二者的研究定位不同。\texttt{S1} 用于支撑正文中关于最小可用 LSX 路径的正式结论；\texttt{S2} 则用于揭示在扩展向量化覆盖范围后，性能改善与稳定性之间的进一步权衡关系。
+
+因此，正文采用 \texttt{S1} 作为正式方案，而将 \texttt{S2} 作为候选增强版纳入扩展比较。这样的处理方式既能保持正文结论的稳定性，也能完整呈现更广泛 SIMD 覆盖的潜在性能提升与边界。
 
 \subsection{三类正式机制的统一比较}
 

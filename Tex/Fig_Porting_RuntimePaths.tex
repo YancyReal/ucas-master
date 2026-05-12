@@ -25,7 +25,7 @@
 
     \node[service] (alloc) at (7.95,4.70) {对象分配\\类型解析};
     \node[service] (field) at (10.00,4.70) {字段 / 字符串\\辅助};
-    \node[service] (except) at (7.95,2.70) {异常处理\\与 Deopt};
+    \node[service] (except) at (7.95,2.70) {异常处理\\与优化失效回退};
     \node[service] (gc) at (10.00,2.70) {GC / 锁 / 线程\\JNI 支撑};
 
     \draw[flow] (java.east) -- (quick.west);
