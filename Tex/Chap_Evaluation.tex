@@ -449,7 +449,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{34.29\%}、\texttt{21.48\%}、\texttt{19.02\%} 的相对基线性能提升，并在 \texttt{mpegaudio} 上取得 \textbf{14.95\%} 的 3 轮平均吞吐量提升；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{0.86\%} 与 \texttt{0.71\%} 的相对性能变化，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 上取得 \texttt{44.40\%} 的吞吐量提升，但对结构复杂的控制流负载未产生影响。
+图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{34.29\%}、\texttt{21.48\%}、\texttt{19.02\%} 的相对基线性能提升，并在 \texttt{mpegaudio} 上取得 \textbf{14.95\%} 的 3 轮平均吞吐量提升；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{0.86\%} 与 \texttt{0.71\%} 的性能提升，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 上取得 \texttt{44.40\%} 的吞吐量提升，但对结构复杂的控制流负载未产生影响。
 
 \subsection{多项机制的叠加冲突与架构边界分析}
 
@@ -473,4 +473,4 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 
 \section{本章小结}
 
-本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出差异化的性能变化特征：自适应基线 JIT 策略在启动期短生命周期负载上取得 \texttt{2.01\%} 至 \texttt{34.29\%} 的相对基线性能提升，并通过资源否决（Veto）机制应对突发的高压负载；批量搬移机制作为定向的底层微优化，在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{0.86\%} 与 \texttt{0.71\%} 的相对性能变化；LSX 向量化 lowering 路径则在规则浮点数值内核 \texttt{lu.small} 上取得 \texttt{44.40\%} 的吞吐量提升。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。
+本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出差异化的性能变化特征：自适应基线 JIT 策略在启动期短生命周期负载上取得 \texttt{2.01\%} 至 \texttt{34.29\%} 的相对基线性能提升，并通过资源否决（Veto）机制应对突发的高压负载；批量搬移机制作为定向的底层微优化，在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{0.86\%} 与 \texttt{0.71\%} 的性能提升；LSX 向量化 lowering 路径则在规则浮点数值内核 \texttt{lu.small} 上取得 \texttt{44.40\%} 的吞吐量提升。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。

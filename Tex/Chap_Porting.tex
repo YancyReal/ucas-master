@@ -53,13 +53,15 @@ C++ 解释器是 LoongArch 平台建立最小可运行路径的起点，与 Nter
 
 在 C++ 解释器语义稳定后，进一步建立 LoongArch64 平台上的 Nterp 汇编解释器。Nterp 依托既有解释器逻辑，通过引入固定寄存器协议、派发表和汇编处理块，将热点解释路径转化为更直接的控制流组织\citep{Ertl2003,ArtJitCompiler2024}。为此，本文首先确定解释器帧指针、当前 DEX PC、派发表基址等关键寄存器的固定分工，再补齐入口、返回、类初始化和 helper 调用等骨架路径，使 Nterp 可以在 LoongArch64 上形成可扩展的汇编解释执行框架。
 
+与 C++ 解释器相比，Nterp 的加速机制并不是改变 DEX 字节码语义，而是降低逐条解释过程中的固定调度成本。C++ 解释器通常需要围绕通用解释循环维护解释状态，并在字节码分派、状态读写和运行时辅助调用之间反复切换；Nterp 则将解释器帧、DEX PC、派发表基址和引用寄存器数组等核心状态固定在寄存器中，由汇编 handler 直接完成 opcode 分派和 vreg 访问。这样可以减少主循环中的间接状态装载、分支分派和通用 C++ 调用包装开销；同时，在对象访问、类型检查、方法调用等高频边界上，Nterp 更容易与 quick entrypoints 和 trampoline 衔接，从而在仍保持解释执行语义的前提下提升冷代码和早期执行阶段的吞吐能力。
+
 Nterp 的实现重点集中在字节码处理逻辑的逐类补齐与平台相关问题修复。本文按照“基础指令 $\rightarrow$ 对象与数组语义 $\rightarrow$ 各类 invoke 变体”的顺序推进，并在这一过程中集中解决了三类代表性问题：Nterp 与调用桩之间的栈帧衔接、LoongArch64 浮点 NaN 分类差异，以及 JIT 与 Nterp 混合执行时的对象状态一致性。经过上述补齐，LoongArch 平台建立了与主流架构相近的高效解释执行路径。
 
 从解释器分发表规模看，LoongArch64 Nterp 已按 packed opcode 生成 \texttt{256} 个 handler 槽位。运行时中的 \texttt{CheckNterpAsmConstants()} 会进一步检查解释器总大小是否满足 \texttt{interp\_size = kNumPackedOpcodes * kNterpHandlerSize}，其中 \texttt{kNumPackedOpcodes = 0x100}。当前 LoongArch64 Nterp 已实现 \texttt{100\%} 的 packed opcode 槽位覆盖（共 \texttt{256} 个 handler），其深层语义的正确性将在后续系统级回归中予以验证。
 
 \subsection{寄存器规约与栈帧布局转换}
 
-LoongArch64 平台上的 Nterp 适配需要使 Nterp 自建解释器帧、普通 invoke stub、quick entrypoints 与 Nterp-to-Nterp 快速路径共享同一套栈帧约定。实际实现中，Nterp 主入口 \texttt{ExecuteNterpImpl} 负责按“寄存器槽、out 参数区与 padding”计算解释器帧大小并建立运行时布局；\texttt{invoke.S} 负责在方法调用边界上搬运参数与返回值；\texttt{quick\_entrypoints} 中的 invoke stub 与 \texttt{ExecuteSwitchImplAsm} 则承担 quick entrypoints 与解释执行之间的入口/返回包装。若这些路径对栈对齐、保存寄存器位置、\texttt{ArtMethod*} 槽位或结果寄存器的理解不一致，跨越 Nterp、JNI 桩与 JIT 桩的调用链就会在参数传递、异常展开或栈回溯阶段失配。
+LoongArch64 平台上的 Nterp 适配需要使 Nterp 自建解释器帧、普通 invoke stub、quick entrypoints 与 Nterp-to-Nterp 快速路径共享同一套栈帧约定。实际实现中，Nterp 主入口 \texttt{ExecuteNterpImpl} 负责按“寄存器槽、out 参数区与 padding”计算解释器帧大小并建立运行时布局；\texttt{invoke.S} 负责在方法调用边界上搬运参数与返回值；\texttt{quick\_entrypoints} 中的 invoke stub 与 \texttt{ExecuteSwitchImplAsm} 则承担 quick entrypoints 与解释执行之间的入口/返回包装。若这些路径对栈对齐、保存寄存器位置、\texttt{ArtMethod*} 槽位或结果寄存器的定义存在分歧，跨越 Nterp、JNI 桩与 JIT 桩的调用链就会在参数传递、异常展开或栈回溯阶段失配。
 
 图~\ref{fig:nterp-frame-layout} 抽象了跨组件共享的栈帧结构约定：一方面，系统需要从栈帧中恢复当前方法与调用边界状态，包括 \texttt{ArtMethod*}、保存现场和返回通道；另一方面，需要保持解释执行语义状态，即 \texttt{Dex PC} 与 dex register / vreg 数组；同时，还必须为 GC 和异常处理保留可见的 reference array 及对齐后的调用区。运行时辅助接口 \texttt{NterpFrameInfo()}、\texttt{NterpGetDexPC()}、\texttt{NterpGetReferenceArray()} 与 \texttt{NterpGetRegistersArray()} 分别对应这些核心布局元素。
 
@@ -70,7 +72,18 @@ LoongArch64 平台上的 Nterp 适配需要使 Nterp 自建解释器帧、普通
     \label{fig:nterp-frame-layout}
 \end{figure}
 
-针对该问题，本文在 LoongArch64 后端中统一了 frame size 与 padding 计算、调用桩的参数拷贝布局以及 Nterp 返回路径的现场恢复方式，使 \texttt{ExecuteNterpImpl}、\texttt{NterpToNterpInstance}、普通 invoke stub 与 quick entrypoints 可以在同一 ABI 假设下协同工作，从而建立起可与调用桩和运行时入口稳定衔接的解释执行链。
+进一步而言，Nterp 并不是与编译执行路径相互隔离的普通解释器，而是嵌入 ART 托管调用栈体系中的高效解释执行帧。其核心约束在于：解释器内部需要以固定寄存器协议维持字节码分派效率，同时又必须在调用边界、GC、异常处理和栈回溯场景下表现得像 compiled frame。LoongArch64 Nterp 因此将当前解释器帧、DEX PC、指令分派基址和引用寄存器数组分别固定在 \texttt{xFP}、\texttt{xPC}、\texttt{xIBASE} 与 \texttt{xREFS} 等寄存器中，使 opcode handler 可以直接访问 vreg、读取当前指令并跳转至派发表中的下一个处理块。这类直接分派结构减少了传统解释循环中的分支与状态装载开销，但也要求寄存器分工、栈帧布局和运行时辅助入口保持严格一致\citep{Ertl2003,Casey2007BranchPred,Shi2008,ArtJitCompiler2024}。
+
+图~\ref{fig:nterp-compiled-frame-interop} 展示了 Nterp 与编译帧之间的互操作关系。从入口路径看，方法经由 \texttt{ArtMethod} 的 invoke 入口进入 Nterp 后，\texttt{ExecuteNterpImpl} 根据方法的 code item 建立 Nterp 帧，并将来自 managed ABI 的参数复制到 dex register 数组中；随后，固定寄存器协议支撑 opcode dispatch 主循环。当执行过程遇到运行时辅助调用、方法调用或异常边界时，Nterp 需要将解释器状态重新暴露给 ART 运行时：引用寄存器数组为 GC 提供对象引用扫描位置，保存的 DEX PC 为异常投递和 catch handler 定位提供当前字节码位置，调用者帧指针与 \texttt{QuickMethodFrameInfo} 则使栈遍历器能够按照 compiled frame 约定识别当前帧。由此，Nterp 帧既保存解释执行所需的 dex register 语义状态，又能够被 GC、异常处理和栈回溯逻辑作为托管栈帧处理。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.00\textwidth]{porting/nterp-compiled-frame-interop.pdf}
+    \caption{LoongArch64 Nterp 与编译帧互操作机制}
+    \label{fig:nterp-compiled-frame-interop}
+\end{figure}
+
+在 invoke 边界上，LoongArch64 Nterp 还需要在多种执行形态之间完成切换。调用桩将调用过程区分为 managed ABI 到 Nterp、Nterp 到 Nterp，以及 Nterp 到 managed ABI 三类路径：当被调方法仍可使用 Nterp 时，快速路径直接建立新的 Nterp 帧并执行 vreg 到 vreg 的参数复制；当调用需要离开 Nterp 时，则依据 shorty 信息将解释器寄存器中的参数重排到机器参数寄存器或栈上，再传递给 compiled code、JIT 代码或 JNI 相关入口。针对这些边界，本文在 LoongArch64 后端中统一了 frame size 与 padding 计算、调用桩的参数拷贝布局以及 Nterp 返回路径的现场恢复方式，使 \texttt{ExecuteNterpImpl}、\texttt{NterpToNterpInstance}、普通 invoke stub 与 quick entrypoints 能够在同一 ABI 假设下协同工作，从而建立起可与调用桩和运行时入口稳定衔接的解释执行链。
 
 \subsection{LoongArch64 浮点 NaN 语义的底层指令对齐}
 
@@ -87,6 +100,29 @@ LoongArch64 浮点适配的核心难点是确保平台默认的无序比较与�
 JNI 适配解决了 Java 与 native 代码之间的调用链打通问题。对于新架构平台而言，即使解释器与 JIT 均已可用，若缺失 JNI 调用约定描述、宏汇编器骨架和线程状态切换路径，Java 方法仍无法稳定调用 native 代码，也无法可靠复用既有的 C/C++ 原生库。为此，本文补齐了 LoongArch64 下 Java 参数、返回值、\texttt{JNIEnv*} 与隐藏参数的寄存器/栈映射，实现了 JNI 宏汇编器、JNI 帧建立与恢复、线程状态从 Runnable 到 Native 的切换逻辑，并以普通 JNI 调用路径作为优先收敛目标，使跨语言调用链能够在 LoongArch 平台上成功运行。
 
 JIT 后端与 JNI 模块的协同，使基础执行框架从纯解释执行环境扩展至同时包含动态编译与跨语言调用的真实运行场景。
+
+\subsection{编译代码、运行时入口点与栈图元数据的协同机制}
+
+LoongArch64 JIT 后端的适配并不只是将 HIR 节点机械翻译为目标指令。对于 ART 这类托管运行时而言，编译代码必须同时满足三类约束：一是符合目标平台 ABI 和 ART 托管调用约定（Managed Calling Convention）；二是能够通过 \texttt{ArtMethod} 入口、\texttt{Thread} 中保存的 quick entrypoints 与运行时辅助函数衔接；三是在异常、GC、栈回溯和去优化场景下保留足够的元数据信息。只有上述三类约束同时成立，JIT 代码才不是孤立的机器码片段，而是可以被 ART 执行系统安全接入的托管代码\citep{Paleczny2001,Kotzmann2008,Arnold2005,ArtJitCompiler2024}。
+
+上述编译代码、运行时入口点与栈图元数据之间的协同关系如图~\ref{fig:compiled-runtime-stackmap-cooperation} 所示。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.00\textwidth]{porting/art-compiled-runtime-stackmap-cooperation.pdf}
+    \caption{LoongArch64 编译代码与运行时回退路径的协同机制}
+    \label{fig:compiled-runtime-stackmap-cooperation}
+\end{figure}
+
+图~\ref{fig:compiled-runtime-stackmap-cooperation} 所示机制可以从后端生成、运行时回退和元数据恢复三个层面理解。从源码结构看，LoongArch64 后端以 \texttt{CodeGeneratorLOONGARCH64} 为核心，负责完成栈帧建立与恢复、寄存器保存、调用点生成、慢路径组织以及运行时入口点调用等工作。与普通静态编译器不同，ART 的 JIT 代码在执行过程中会频繁跨越编译代码与运行时服务的边界。例如，空指针检查、数组越界检查、类初始化检查、对象分配和方法解析等操作，在主路径上会尽可能以短指令序列完成；当条件不满足或需要运行时参与时，则进入对应 \texttt{SlowPath}，并通过 \texttt{Thread} 中的 quick entrypoints 跳转到运行时辅助逻辑。
+
+这一机制的难点在于，慢路径不是简单的错误处理分支，而是编译代码与托管运行时之间的语义交界点。调用运行时入口点时，后端需要在正确位置记录 PC 信息，使 ART 能够在 GC、异常投递或去优化时恢复当前 Java 方法、DEX PC、活跃对象引用和栈帧关系。若机器码跳转、栈帧布局、入口点调用约定或 StackMap 记录之间存在不一致，即使普通算术和分支指令可以运行，也可能在异常边界、对象移动或栈回溯时出现隐蔽错误。
+
+JIT 动态代码还需要与 Code Cache 和 \texttt{ArtMethod} 入口更新机制协同。方法被编译后，生成的机器码并不会脱离运行时独立存在，而是被安装到 JIT Code Cache，并通过方法入口切换进入编译执行路径。与此同时，ProfilingInfo、inline cache、OSR 入口和 deoptimization 信息仍会参与后续编译层级切换与运行期恢复过程\citep{Fink2003,Lameed2013}。因此，LoongArch64 后端需要保证调用点、返回地址、栈图和入口动态替换机制在同一套地址与栈帧约定下保持一致。
+
+这种协同关系也解释了 AOT 与 JIT 后端为何必须作为同一类基础能力一起适配。AOT 产物需要在类加载、镜像恢复和 OAT 元数据解析中被运行时接入；JIT 产物则需要在应用运行过程中动态安装、回收和再次编译。二者触发时机不同，但都依赖相同的目标指令发射、调用约定、慢路径组织、运行时入口点调用和栈图记录机制。对新架构平台而言，如果只验证简单方法能够生成并执行机器码，而没有验证运行时回退、异常投递、栈遍历和去优化边界，那么执行框架仍不能视为实现了完整的逻辑闭合。
+
+因此，LoongArch64 后端适配的核心工作可以概括为“机器码生成能力”和“运行时接入能力”的同步闭合。前者要求后端能够覆盖常见 HIR 节点、寄存器分配结果和目标指令发射；后者要求生成代码能够与 Code Cache、\texttt{ArtMethod} 入口、quick entrypoints、StackMap 和异常处理机制一致协同。这也是本文在基础执行框架阶段强调多 compiler 变体 run-test、JIT/JNI 回归和后续基准测试共同验证的原因：只有这些路径同时成立，LoongArch 平台 ART 才具备支撑后续性能优化研究的系统基础。
 
 \subsection{AOT 编译执行路径与 JIT 后端的共享基础}
 

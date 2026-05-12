@@ -1,0 +1,42 @@
+\begin{tikzpicture}[
+    font=\small,
+    every node/.style={align=center},
+    topbox/.style={draw=#1!78, rounded corners=2pt, fill=#1!7, text width=2.25cm, minimum height=0.86cm, inner sep=4pt, line width=0.75pt},
+    panel/.style={draw=#1!72, rounded corners=3pt, fill=#1!4, line width=0.75pt},
+    state/.style={draw=blue!70!black, rounded corners=2pt, fill=blue!4, text width=3.95cm, minimum height=0.78cm, inner sep=4pt, line width=0.65pt},
+    runtime/.style={draw=green!55!black, rounded corners=2pt, fill=green!4, text width=4.30cm, minimum height=0.78cm, inner sep=4pt, line width=0.65pt},
+    flow/.style={->, line width=0.82pt, draw=black!76},
+    map/.style={->, line width=0.78pt, draw=black!70}
+]
+    \node[topbox=blue] (invoke) at (0.95,5.20) {\texttt{ArtMethod}\\\texttt{::Invoke}};
+    \node[topbox=blue] (entry) at (3.42,5.20) {Nterp entry\\\texttt{Execute}\\\texttt{NterpImpl}};
+    \node[topbox=green] (regs) at (5.95,5.20) {固定寄存器协议\\\texttt{xFP / xPC}\\\texttt{xIBASE / xREFS}};
+    \node[topbox=orange] (dispatch) at (8.48,5.20) {opcode dispatch\\handler table};
+    \node[topbox=purple] (helper) at (10.95,5.20) {runtime helper\\invoke / exception};
+
+    \draw[flow] (invoke.east) -- (entry.west);
+    \draw[flow] (entry.east) -- (regs.west);
+    \draw[flow] (regs.east) -- (dispatch.west);
+    \draw[flow] (dispatch.east) -- (helper.west);
+
+    \draw[panel=blue] (0.10,0.28) rectangle (4.90,3.95);
+    \node[font=\bfseries] at (2.50,3.64) {Nterp 帧暴露的运行时状态};
+
+    \node[state] (dexregs) at (2.50,3.08) {dex registers\\解释执行的 vreg 语义状态};
+    \node[state] (refs) at (2.50,2.25) {reference registers\\对象引用镜像数组};
+    \node[state] (dexpc) at (2.50,1.42) {saved dex pc\\运行时调用前导出当前位置};
+    \node[state] (callerfp) at (2.50,0.59) {caller fp + frame info\\调用者帧指针与帧信息};
+
+    \draw[panel=green] (6.10,0.28) rectangle (11.75,3.95);
+    \node[font=\bfseries] at (8.93,3.64) {共享 compiled frame 约定支撑的运行时能力};
+
+    \node[runtime] (boundary) at (8.93,3.08) {invoke 边界切换\\Nterp / JIT / JNI};
+    \node[runtime] (gc) at (8.93,2.25) {GC\\扫描并更新活跃引用槽位};
+    \node[runtime] (exception) at (8.93,1.42) {异常处理\\定位 dex pc 与统一 landing pad};
+    \node[runtime] (walk) at (8.93,0.59) {栈回溯\\\texttt{QuickMethodFrameInfo} / \texttt{OatQuickMethodHeader}};
+
+    \draw[map] (dexregs.east) -- node[above, font=\scriptsize, text=blue!70!black] {参数搬运} (boundary.west);
+    \draw[map] (refs.east) -- (gc.west);
+    \draw[map] (dexpc.east) -- (exception.west);
+    \draw[map] (callerfp.east) -- (walk.west);
+\end{tikzpicture}
