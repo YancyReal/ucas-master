@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mxfile host="app.diagrams.net" modified="2026-05-12T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="slide-16" name="slide-16">
+    <mxGraphModel dx="1672" dy="941" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1672" pageHeight="941" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="bg" value="" style="rounded=0;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=none;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="0" y="0" width="1672" height="941" as="geometry"/>
+        </mxCell>
+        <mxCell id="o3" value="UCAS" style="ellipse;whiteSpace=wrap;html=1;fillColor=#063f8d;strokeColor=#063f8d;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=10;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="32" y="20" width="54" height="54" as="geometry"/>
+        </mxCell>
+        <mxCell id="t4" value="中国科学院大学" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=28;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="104" y="24" width="260" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="t5" value="University of Chinese Academy of Sciences" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Times New Roman;fontColor=#063f8d;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="105" y="58" width="300" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="t6" value="硕士学位论文答辩" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="38" width="230" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="t7" value="16 / 16" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1526" y="38" width="80" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#063f8d;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="34" y="88" as="sourcePoint"/>
+            <mxPoint x="1575" y="88" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#c98a10;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1586" y="88" as="sourcePoint"/>
+            <mxPoint x="1638" y="88" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r10" value="" style="rounded=0;whiteSpace=wrap;html=1;arcSize=6;fillColor=#00469b;strokeColor=#00469b;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="0" y="879" width="1672" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="t11" value="基于 LoongArch64 的 Android Runtime 移植与优化研究" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="36" y="901" width="570" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="t12" value="16 / 16" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="901" width="100" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="r13" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=25;fillColor=#c98a10;strokeColor=#c98a10;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="34" y="120" width="11" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="t14" value="创新点、结论与展望" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=42;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="118" width="980" height="58" as="geometry"/>
+        </mxCell>
+        <mxCell id="r15" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fillColor=#ffffff;strokeColor=#063f8d;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="42" y="218" width="514" height="498" as="geometry"/>
+        </mxCell>
+        <mxCell id="r16" value="创新点" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fillColor=#00469b;strokeColor=#00469b;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="198" y="196" width="202" height="42" as="geometry"/>
+        </mxCell>
+        <mxCell id="r17" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fillColor=#ffffff;strokeColor=#063f8d;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="570" y="218" width="514" height="498" as="geometry"/>
+        </mxCell>
+        <mxCell id="r18" value="主要结论" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fillColor=#00469b;strokeColor=#00469b;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="726" y="196" width="202" height="42" as="geometry"/>
+        </mxCell>
+        <mxCell id="r19" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fillColor=#ffffff;strokeColor=#063f8d;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1098" y="218" width="516" height="498" as="geometry"/>
+        </mxCell>
+        <mxCell id="r20" value="后续展望" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fillColor=#00469b;strokeColor=#00469b;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1254" y="196" width="202" height="42" as="geometry"/>
+        </mxCell>
+        <mxCell id="o21" value="01" style="ellipse;whiteSpace=wrap;html=1;fillColor=#c98a10;strokeColor=#c98a10;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="64" y="286" width="48" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="o22" value="🔗" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="134" y="264" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t23" value="执行链适配" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="242" y="272" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t24" value="首次在 LoongArch64 平台上补齐 ART&#10;执行引擎关键后端，形成解释、JIT、&#10;JNI 与运行时入口完整闭合的执行链。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="242" y="308" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="e25" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#c7d3e5;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="62" y="396" as="sourcePoint"/>
+            <mxPoint x="534" y="396" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o26" value="02" style="ellipse;whiteSpace=wrap;html=1;fillColor=#c98a10;strokeColor=#c98a10;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="64" y="438" width="48" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="o27" value="⚗" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="134" y="416" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t28" value="统一实验基线" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="242" y="424" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t29" value="构建可复现、可对比的统一实验环境&#10;与基线体系，覆盖性能、正确性与稳&#10;定性，为后续优化提供可信度保障。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="242" y="460" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="e30" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#c7d3e5;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="62" y="548" as="sourcePoint"/>
+            <mxPoint x="534" y="548" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o31" value="03" style="ellipse;whiteSpace=wrap;html=1;fillColor=#c98a10;strokeColor=#c98a10;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="64" y="590" width="48" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="o32" value="⊙" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="134" y="568" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t33" value="主路径优化边界" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="242" y="576" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t34" value="聚焦主路径瓶颈（JIT 时机、字符串搬&#10;移、DEX 校验、LSX lowering），分析&#10;收益上限与边界条件，指导工程取舍。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="242" y="612" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="o35" value="✓" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="662" y="264" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t36" value="适配可行" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="770" y="272" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t37" value="在 LoongArch64 上完成 ART 执行链适配，&#10;Android 应用能够正确稳定运行，功能与&#10;主流平台一致。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="770" y="308" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="e38" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#c7d3e5;strokeWidth=1;dashed=1;dashPattern=6 6;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="590" y="396" as="sourcePoint"/>
+            <mxPoint x="1062" y="396" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o39" value="▟" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="662" y="416" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t40" value="收益有边界" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="770" y="424" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t41" value="在统一基线上，性能提升与场景、输入&#10;规模和资源约束强相关，优化收益存在&#10;明确上限与边界。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="770" y="460" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="e42" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#c7d3e5;strokeWidth=1;dashed=1;dashPattern=6 6;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="590" y="548" as="sourcePoint"/>
+            <mxPoint x="1062" y="548" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o43" value="▣" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="662" y="568" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t44" value="LSX 在规则浮点内核显著" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="770" y="576" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t45" value="面向规则浮点计算的 LSX 向量化优化在&#10;特定内核中取得显著收益，但受数据依赖&#10;与控制流影响明显。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="770" y="612" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="o46" value="01" style="ellipse;whiteSpace=wrap;html=1;fillColor=#c98a10;strokeColor=#c98a10;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="286" width="48" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="o47" value="AOT" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="264" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t48" value="推进 AOT" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1298" y="272" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t49" value="完善 AOT 编译链路，扩大 AOT 覆盖率，&#10;降低冷启动成本，提升短生命周期场景&#10;下的性能表现。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1298" y="308" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="e50" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#c7d3e5;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1118" y="396" as="sourcePoint"/>
+            <mxPoint x="1590" y="396" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o51" value="02" style="ellipse;whiteSpace=wrap;html=1;fillColor=#c98a10;strokeColor=#c98a10;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="438" width="48" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="o52" value="↙↗" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="416" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t53" value="LSX/LASX 扩展" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1298" y="424" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t54" value="探索更多可向量化模式与自动化向量化&#10;策略，推进 LASX 支持，扩大并优化高&#10;性能计算内核。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1298" y="460" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="e55" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#c7d3e5;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1118" y="548" as="sourcePoint"/>
+            <mxPoint x="1590" y="548" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="o56" value="03" style="ellipse;whiteSpace=wrap;html=1;fillColor=#c98a10;strokeColor=#c98a10;fontFamily=Microsoft YaHei;fontColor=#ffffff;fontSize=24;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="590" width="48" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="o57" value="▯" style="ellipse;whiteSpace=wrap;html=1;fillColor=#eef5ff;strokeColor=none;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=34;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="568" width="88" height="88" as="geometry"/>
+        </mxCell>
+        <mxCell id="t58" value="应用级验证" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1298" y="576" width="250" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="t59" value="在更多典型应用与更广泛的真实业务场景&#10;中进行长期、规模化验证，持续完善稳定&#10;性与工程化能力。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1298" y="612" width="278" height="62" as="geometry"/>
+        </mxCell>
+        <mxCell id="r60" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=5;fillColor=#f8fbff;strokeColor=#9fb6d9;strokeWidth=1;fontFamily=Microsoft YaHei;fontColor=#202935;fontSize=16;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="42" y="746" width="1572" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="t61" value="▰" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#063f8d;fontSize=54;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="112" y="765" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e62" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#063f8d;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="244" y="772" as="sourcePoint"/>
+            <mxPoint x="244" y="824" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t63" value="感谢聆听，请各位老师批评指正" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=40;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="290" y="770" width="760" height="56" as="geometry"/>
+        </mxCell>
+        <mxCell id="t64" value="▥▥▥▥▥▥" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Microsoft YaHei;fontColor=#b8cce6;fontSize=42;" vertex="1" parent="1">
+          <mxGeometry x="1138" y="762" width="420" height="70" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
