@@ -245,7 +245,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-实验数据给出了自适应策略的优势区。在极短生命周期的应用启动与早期加密计算（\texttt{crypto.*}）场景中，自适应机制覆盖了那些原本因生命周期过短而无法触发编译的方法。其中 \texttt{startup.crypto.aes} 场景获得了 \texttt{+34.29\%} 的相对基线性能提升，\texttt{startup.crypto.rsa} 与 \texttt{startup.crypto.signverify} 分别为 \texttt{+21.48\%} 与 \texttt{+19.02\%}。这表明基于“方法特征与热度推进率”的画像判定机制能够在启动期对应工作负载上转化为性能提升。
+实验数据给出了自适应策略的优势区。在极短生命周期的应用启动与早期加密计算（\texttt{crypto.*}）场景中，自适应机制覆盖了那些原本因生命周期过短而无法触发编译的方法。其中 \texttt{startup.crypto.aes} 场景获得了 \texttt{34.29\%} 的相对基线性能提升，\texttt{startup.crypto.rsa} 与 \texttt{startup.crypto.signverify} 分别为 \texttt{21.48\%} 与 \texttt{19.02\%}。这表明基于“方法特征与热度推进率”的画像判定机制能够在启动期对应工作负载上转化为性能提升。
 
 \subsection{代表性吞吐与突发工作负载表现}
 
@@ -266,7 +266,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-表~\ref{tab:mpegaudio-result} 显示，在 \texttt{mpegaudio} 工作负载中，自适应方案相较于基线版本取得了平均 \textbf{+14.95\%} 的吞吐量提升，3 轮标准差由 \texttt{1.33} 降至 \texttt{0.31}。这说明在具备真实应用特性的稳态路径前期，自适应策略的提前进入窗口有效压缩了解释器的驻留成本。
+表~\ref{tab:mpegaudio-result} 显示，在 \texttt{mpegaudio} 工作负载中，自适应方案相较于基线版本取得了平均 \textbf{14.95\%} 的吞吐量提升，3 轮标准差由 \texttt{1.33} 降至 \texttt{0.31}。这说明在具备真实应用特性的稳态路径前期，自适应策略的提前进入窗口有效压缩了解释器的驻留成本。
 
 \begin{table}[htbp]
     \centering
@@ -283,9 +283,9 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-然而，在面对 \texttt{pmd} 这类瞬时产生大量热点代码的突发型负载时，自适应方案的表现则趋于平稳（见表~\ref{tab:pmd-result}），平均性能变化仅微弱领先基线（+0.71\%），且伴随一定的波动。通过追踪运行时机理，这并非机制失效，而是印证了资源否决（Veto）机制的主动防御特性。在 \texttt{pmd} 的热点爆发期，编译线程池瞬间达到满负荷（\texttt{pending\_compilations > 0} 被高频触发），自适应策略的安全门机制自动介入，拦截了大量方法的提前编译请求，从而避免了严重的 Code Cache 膨胀和线程阻塞。
+然而，在面对 \texttt{pmd} 这类瞬时产生大量热点代码的突发型负载时，自适应方案的表现则趋于平稳（见表~\ref{tab:pmd-result}），平均性能变化仅微弱领先基线（0.71\%），且伴随一定的波动。通过追踪运行时机理，这并非机制失效，而是印证了资源否决（Veto）机制的主动防御特性。在 \texttt{pmd} 的热点爆发期，编译线程池瞬间达到满负荷（\texttt{pending\_compilations > 0} 被高频触发），自适应策略的安全门机制自动介入，拦截了大量方法的提前编译请求，从而避免了严重的 Code Cache 膨胀和线程阻塞。
 
-总体而言，本文提出的自适应机制弥补了单一阈值策略的不足。实验数据表明，该机制在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{+34.29\%}、\texttt{+21.48\%}、\texttt{+19.02\%} 的相对基线性能提升，在 \texttt{mpegaudio} 上取得 \textbf{+14.95\%} 的 3 轮平均吞吐量提升；在 \texttt{pmd} 场景下，平均性能变化为 \textbf{+0.71\%}，且标准差由 \texttt{118.20} 增至 \texttt{284.64}，说明该场景仍存在较强波动。
+总体而言，本文提出的自适应机制弥补了单一阈值策略的不足。实验数据表明，该机制在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{34.29\%}、\texttt{21.48\%}、\texttt{19.02\%} 的相对基线性能提升，在 \texttt{mpegaudio} 上取得 \textbf{14.95\%} 的 3 轮平均吞吐量提升；在 \texttt{pmd} 场景下，平均性能变化为 \textbf{0.71\%}，且标准差由 \texttt{118.20} 增至 \texttt{284.64}，说明该场景仍存在较强波动。
 
 \subsection{批量搬移机制的性能表现}
 
@@ -307,7 +307,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \end{tabular}
 \end{table}
 
-批量搬移机制的优化效果相对较弱。\texttt{pmd} 和 \texttt{mpegaudio} 均只出现约 \texttt{1\%} 的轻微提升，表明字符串热路径虽然被命中，但并非这些工作负载的主导瓶颈。\texttt{lu.small} 的 \texttt{-8.89\%} 回退进一步反映出该机制的适用范围具有工作负载依赖性。
+批量搬移机制的优化效果相对较弱。\texttt{pmd} 和 \texttt{mpegaudio} 均只出现约 \texttt{1\%} 的轻微提升，表明字符串热路径虽然被命中，但并非这些工作负载的主导瓶颈。\texttt{lu.small} 的 \texttt{8.89\%} 性能回退进一步反映出该机制的适用范围具有工作负载依赖性。
 
 \subsection{启动期 DEX 校验阶段化消融结果}
 
@@ -318,9 +318,9 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \label{fig:dexverifier-phase-chain-speedup}
 \end{figure}
 
-图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段化验证结果。\texttt{phase1} 在主目标 \texttt{startup.helloworld} 上均值略低于对照版本。在 \texttt{phase12} 中，将 \texttt{offset\_to\_type\_map\_} 替换为 \texttt{vector + lower\_bound} 后，相对性能变化达到 \texttt{+4.83\%} 且标准差收敛。这表明启动期 verifier 的主要成本来自 Hash 容器 probing 链，而非边界检查本身。
+图~\ref{fig:dexverifier-phase-chain-speedup} 给出了 \texttt{Snapshot-C} 的阶段化验证结果。\texttt{phase1} 在主目标 \texttt{startup.helloworld} 上均值略低于对照版本。在 \texttt{phase12} 中，将 \texttt{offset\_to\_type\_map\_} 替换为 \texttt{vector + lower\_bound} 后，相对性能提升达到 \texttt{4.83\%} 且标准差收敛。这表明启动期 verifier 的主要成本来自 Hash 容器 probing 链，而非边界检查本身。
 
-\texttt{phase123} 相比 \texttt{phase12} 未形成新的性能增量，说明 UTF-8/ASCII fast path 属于次级优化；\texttt{phase1234} 则将相对性能变化推进至 \texttt{+5.46\%}。负对照 \texttt{lu.small} 围绕 \texttt{82\,ops/m} 附近波动，证明该优化专用于启动期路径。
+\texttt{phase123} 相比 \texttt{phase12} 未形成新的性能增量，说明 UTF-8/ASCII fast path 属于次级优化；\texttt{phase1234} 则将相对性能提升推进至 \texttt{5.46\%}。负对照 \texttt{lu.small} 围绕 \texttt{82\,ops/m} 附近波动，证明该优化专用于启动期路径。
 
 \section{浮点循环自动向量化性能评估}
 
@@ -345,7 +345,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \end{tabular}
 \end{table}
 
-\texttt{lu.small} 的吞吐量由 \texttt{46.22} 提高到 \texttt{66.74\,ops/m}，相对性能变化为 \texttt{+44.40\%}。这与第 4 章机理分析相符：最小 LSX lowering 路径补齐后，前端形成的向量 IR 得以直接转化为目标向量指令。相比之下，该机制在 \texttt{pmd} 上仅对应 \texttt{+0.06\%} 的相对性能变化，在 \texttt{fft.small} 上出现 \texttt{-2.60\%} 回退，反映出其性能提升集中在规则浮点数值内核。
+\texttt{lu.small} 的吞吐量由 \texttt{46.22} 提高到 \texttt{66.74\,ops/m}，相对性能提升为 \texttt{44.40\%}。这与第 4 章机理分析相符：最小 LSX lowering 路径补齐后，前端形成的向量 IR 得以直接转化为目标向量指令。相比之下，该机制在 \texttt{pmd} 上仅对应 \texttt{0.06\%} 的性能提升，在 \texttt{fft.small} 上出现 \texttt{-2.60\%} 回退，反映出其性能提升集中在规则浮点数值内核。
 
 \section{综合性能对比与扩展分析}
 
@@ -396,7 +396,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:final-comparison-heatmap}
 \end{figure}
 
-图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{+34.29\%}、\texttt{+21.48\%}、\texttt{+19.02\%} 的相对基线性能提升，并在 \texttt{mpegaudio} 上取得 \textbf{+14.95\%} 的 3 轮平均吞吐量提升；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{+0.86\%} 与 \texttt{+0.71\%} 的相对性能变化，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 上取得 \texttt{+44.40\%} 的吞吐量提升，但对结构复杂的控制流负载未产生影响。
+图~\ref{fig:final-comparison-heatmap} 汇总了本文三项机制所应对的不同性能维度。三类机制各自命中了截然不同的主路径：自适应基线 JIT 策略在 \texttt{startup.crypto.aes}、\texttt{startup.crypto.rsa}、\texttt{startup.crypto.signverify} 上分别取得 \texttt{34.29\%}、\texttt{21.48\%}、\texttt{19.02\%} 的相对基线性能提升，并在 \texttt{mpegaudio} 上取得 \textbf{14.95\%} 的 3 轮平均吞吐量提升；批量搬移机制在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{0.86\%} 与 \texttt{0.71\%} 的相对性能变化，体现出内存操作的微优化性质；LSX 向量化 lowering 路径则在 \texttt{lu.small} 上取得 \texttt{44.40\%} 的吞吐量提升，但对结构复杂的控制流负载未产生影响。
 
 \subsection{多项机制的叠加冲突与架构边界分析}
 
@@ -420,4 +420,4 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 
 \section{本章小结}
 
-本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出差异化的性能变化特征：自适应基线 JIT 策略在启动期短生命周期负载上取得 \texttt{+2.01\%} 至 \texttt{+34.29\%} 的相对基线性能提升，并通过资源否决（Veto）机制应对突发的高压负载；批量搬移机制作为定向的底层微优化，在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{+0.86\%} 与 \texttt{+0.71\%} 的相对性能变化；LSX 向量化 lowering 路径则在规则浮点数值内核 \texttt{lu.small} 上取得 \texttt{+44.40\%} 的吞吐量提升。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。
+本章给出了实验环境、正确性验证、正式对比与扩展分析的结果。移植工作通过 run-test 与 libcore 验证建立了正确性基础。三类正式机制在统一实验条件下呈现出差异化的性能变化特征：自适应基线 JIT 策略在启动期短生命周期负载上取得 \texttt{2.01\%} 至 \texttt{34.29\%} 的相对基线性能提升，并通过资源否决（Veto）机制应对突发的高压负载；批量搬移机制作为定向的底层微优化，在 \texttt{pmd} 与 \texttt{mpegaudio} 上分别对应 \texttt{0.86\%} 与 \texttt{0.71\%} 的相对性能变化；LSX 向量化 lowering 路径则在规则浮点数值内核 \texttt{lu.small} 上取得 \texttt{44.40\%} 的吞吐量提升。扩展评估中的多机制叠加冲突进一步证实，LoongArch 平台上的 ART 优化必须围绕具体的微观工作负载主路径展开，不能简单地叠加优化策略。
