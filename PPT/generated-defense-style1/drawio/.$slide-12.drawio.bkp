@@ -11,7 +11,10 @@
           <mxGeometry height="54" width="54" x="32" y="20" as="geometry" />
         </mxCell>
         <mxCell id="t4" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=SimSun;fontColor=#063f8d;fontSize=28;fontStyle=1;" value="性能优化" vertex="1">
-          <mxGeometry height="32" width="260" x="100" y="31" as="geometry" />
+          <mxGeometry height="32" width="260" x="104" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Times New Roman;fontColor=#063f8d;fontSize=12;fontStyle=1;" value="University of Chinese Academy of Sciences" vertex="1">
+          <mxGeometry height="18" width="300" x="105" y="58" as="geometry" />
         </mxCell>
         <mxCell id="e8" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;strokeColor=#063f8d;strokeWidth=3;" value="">
           <mxGeometry height="50" relative="1" width="50" as="geometry">
