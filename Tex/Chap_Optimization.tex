@@ -44,8 +44,8 @@
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=1.00\textwidth]{optimization/scheme1-tiered-jit-flow.pdf}
-    \caption{短生命周期工作负载下 JIT 分层进入时机的主要矛盾，核心在于 baseline JIT 是否足够早触发}
+    \includegraphics[width=1.00\textwidth]{optimization/scheme1-tiered-jit-flow.png}
+    \caption{短生命周期工作负载下 JIT 分层进入时机的主要矛盾}
     \label{fig:scheme1-tiered-jit-flow}
 \end{figure}
 
@@ -139,7 +139,7 @@
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=1.00\textwidth]{optimization/scheme2-string-copy-paths.pdf}
+    \includegraphics[width=1.00\textwidth]{optimization/scheme2-string-copy-paths.png}
     \caption{字符串热路径与 8 路批量搬移思路，强调在不改变语义的前提下压缩循环框架开销}
     \label{fig:scheme2-string-copy-paths}
 \end{figure}
@@ -203,6 +203,8 @@
 
 围绕启动期 DEX 校验链，潜在的优化方向可以同时覆盖容器访问、字符串校验、元数据解码乃至更大范围的校验器重构。但从正式工作负载的主路径出发，本文不采用对 verifier 的整体重写，而是沿启动期主链将主要固定成本拆解为若干具有明确作用点的阶段性问题，并据此组织局部机制。启动期 DEX 校验链的优化沿主热点路径拆解为四个阶段，如表~\ref{tab:dexverifier-phases} 所示。这样组织的目的，是将 container 查询、字符串校验与元数据解码等不同成本分离出来，使每一阶段都对应明确的作用点和实现边界。
 
+在上述阶段链中，\texttt{phase12} 的关键变化是重新利用 DEX 文件自身的顺序性。DEX 文件中的映射项以偏移量组织，类型映射在建表阶段可以按照该顺序追加到连续数组中，因此查表阶段不必依赖哈希桶、链式节点和随机指针跳转，而可以在有序向量上执行二分定位。图~\ref{fig:dex-hash-vector-layout} 展示了这一结构变化：原哈希结构将键值节点分散在桶和链表中，优化后的有序向量则将 \texttt{offset} 与 \texttt{type} 组成紧凑条目，连续存放在内存中。
+
 \begingroup
     \centering
     \begin{minipage}{\textwidth}
@@ -227,8 +229,6 @@
 \endgroup
 
 \vspace{0.5em}
-
-在上述阶段链中，\texttt{phase12} 的关键变化是重新利用 DEX 文件自身的顺序性。DEX 文件中的映射项以偏移量组织，类型映射在建表阶段可以按照该顺序追加到连续数组中，因此查表阶段不必依赖哈希桶、链式节点和随机指针跳转，而可以在有序向量上执行二分定位。图~\ref{fig:dex-hash-vector-layout} 展示了这一结构变化：原哈希结构将键值节点分散在桶和链表中，优化后的有序向量则将 \texttt{offset} 与 \texttt{type} 组成紧凑条目，连续存放在内存中。
 
 \vspace{0.75em}
 
@@ -270,7 +270,7 @@
     \centering
     \begin{minipage}{\textwidth}
         \centering
-        \includegraphics[width=1.00\textwidth]{optimization/dexverifier-phase-chain-mechanism.pdf}
+        \includegraphics[width=1.00\textwidth]{optimization/dexverifier-phase-chain-mechanism.png}
         \captionof{figure}{\texttt{DexFileVerifier} 启动期阶段链的主热点、阶段推进顺序与性能改善来源对应关系}
         \label{fig:dexverifier-phase-chain-mechanism}
     \end{minipage}
@@ -339,7 +339,7 @@
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=1.00\textwidth]{optimization/scheme3-vectorization-boundary.pdf}
+    \includegraphics[width=1.00\textwidth]{optimization/scheme3-vectorization-boundary.png}
     \caption{最小可用 LSX 浮点 SIMD 路径的能力边界}
     \label{fig:scheme3-vectorization-boundary}
 \end{figure}
@@ -348,36 +348,36 @@
 
 在实现上，本文将最小路径限定为如下能力集合：面向 \texttt{float32/float64} 的 128-bit 向量路径（其中 \texttt{float32} 为 4 lane，\texttt{float64} 为 2 lane）；支持 \texttt{VecReplicateScalar}、\texttt{VecLoad}、\texttt{VecStore}、\texttt{VecAdd}、\texttt{VecSub}、\texttt{VecMul} 等核心算子；并对 \texttt{int32 -> float32} 与 \texttt{int64 -> float64} 保留受限的 \texttt{VecCnv}，用于支撑特定循环形态。
 
-\begin{algorithm}[htbp]
-    \small
-    \caption{LSX 向量化 lowering 路径的保守启用算法}
-    \label{alg:lsx-enable-rule}
-    \begin{algorithmic}[1]
-        \State \textbf{Input:} target ISA, loop shape, packed type, operator set, lowering capability
-        \State \textbf{Output:} \textit{MinimalLSXPath} or \textit{ScalarPath}
-        \If{target ISA is not LoongArch64}
-            \State \textbf{return} \textit{ScalarPath}
-        \EndIf
-        \If{loop is not countable \textbf{or} loop is not unit-stride}
-            \State \textbf{return} \textit{ScalarPath}
-        \EndIf
-        \If{$packed\_type \notin \{float32, float64\}$}
-            \State \textbf{return} \textit{ScalarPath}
-        \EndIf
-        \If{$op\_set \not\subseteq \{$ReplicateScalar, Load, Store, Add, Sub, Mul, Cnv$\}$}
-            \State \textbf{return} \textit{ScalarPath}
-        \EndIf
-        \If{vector length does not match 128-bit LSX for $packed\_type$}
-            \State \textbf{return} \textit{ScalarPath}
-        \EndIf
-        \If{required IR nodes cannot all be lowered to LSX}
-            \State \textbf{return} \textit{ScalarPath}
-        \EndIf
-        \State \textbf{return} \textit{MinimalLSXPath}
-    \end{algorithmic}
-\end{algorithm}
+% \begin{algorithm}[htbp]
+%     \small
+%     \caption{LSX 向量化 lowering 路径的保守启用算法}
+%     \label{alg:lsx-enable-rule}
+%     \begin{algorithmic}[1]
+%         \State \textbf{Input:} target ISA, loop shape, packed type, operator set, lowering capability
+%         \State \textbf{Output:} \textit{MinimalLSXPath} or \textit{ScalarPath}
+%         \If{target ISA is not LoongArch64}
+%             \State \textbf{return} \textit{ScalarPath}
+%         \EndIf
+%         \If{loop is not countable \textbf{or} loop is not unit-stride}
+%             \State \textbf{return} \textit{ScalarPath}
+%         \EndIf
+%         \If{$packed\_type \notin \{float32, float64\}$}
+%             \State \textbf{return} \textit{ScalarPath}
+%         \EndIf
+%         \If{$op\_set \not\subseteq \{$ReplicateScalar, Load, Store, Add, Sub, Mul, Cnv$\}$}
+%             \State \textbf{return} \textit{ScalarPath}
+%         \EndIf
+%         \If{vector length does not match 128-bit LSX for $packed\_type$}
+%             \State \textbf{return} \textit{ScalarPath}
+%         \EndIf
+%         \If{required IR nodes cannot all be lowered to LSX}
+%             \State \textbf{return} \textit{ScalarPath}
+%         \EndIf
+%         \State \textbf{return} \textit{MinimalLSXPath}
+%     \end{algorithmic}
+% \end{algorithm}
 
-算法~\ref{alg:lsx-enable-rule} 给出了该路径的启用规则：只有当循环形态、数据类型、向量长度和 lowering 能力同时满足条件时，才进入 LSX 向量路径；其余情形统一回退到既有标量路径。
+该路径的启用规则：只有当循环形态、数据类型、向量长度和 lowering 能力同时满足条件时，才进入 LSX 向量路径；其余情形统一回退到既有标量路径。
 
 \subsection{核心向量算子的 Lowering 实现与保守约束}
 

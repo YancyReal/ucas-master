@@ -6,7 +6,7 @@
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=1.00\textwidth]{verification/experiment-validation-workflow.pdf}
+    \includegraphics[width=1.00\textwidth]{verification/experiment-validation-workflow.png}
     \caption{本文正确性验证与性能评测的组织流程}
     \label{fig:verification-workflow}
 \end{figure}
@@ -215,7 +215,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
 
 图~\ref{fig:art-mode-comparison-speedup} 给出了各执行模式相对 \texttt{switch-interpreter} 的分组 speedup。\texttt{Nterp} 相比 \texttt{switch-interpreter} 在当前可比测试项子集上形成了量化差异：\texttt{Startup} 分组为 $8.80$倍，\texttt{Crypto} 分组为 $6.89$倍，说明更高效的解释执行路径能够降低解释器开销。\texttt{JIT} 与 \texttt{JIT-on-first-use} 在部分计算密集型工作负载上继续放大性能优势，例如 \texttt{Compress} 分组分别达到 $769.83$倍与 $699.33$倍，独立 \texttt{SciMark} 分组分别达到 $561.92$倍与 $497.92$倍，表明热点方法在编译执行后获得了远高于解释执行的吞吐能力。
 
-总体上，移植后的 ART 能够在 LoongArch 平台上呈现清晰的性能阶梯：\texttt{switch-interpreter} 构成基线，\texttt{Nterp} 改进解释执行性能，而 \texttt{JIT} 与 \texttt{JIT-on-first-use} 则在热点工作负载上释放编译执行潜力。
+总体上，移植后的 ART 能够在 LoongArch 平台上呈现清晰的性能阶梯：\texttt{switch-interpreter} 构成基线，\texttt{Nterp} 改进解释执行性能，而 \texttt{JIT} 与 \texttt{JIT-on-first-use} 则在大型基准测试利用编译器得到巨大的性能提升。
 
 \section{自适应基线 JIT 策略评估}
 
@@ -444,7 +444,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.88\textwidth]{mybenchmark/final-comparison-heatmap.pdf}
+    \includegraphics[width=0.88\textwidth]{mybenchmark/final-comparison-heatmap.png}
     \caption{三类正式机制在代表性工作负载上的统一比较}
     \label{fig:final-comparison-heatmap}
 \end{figure}
