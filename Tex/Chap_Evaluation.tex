@@ -213,7 +213,7 @@ art/test.py -r --target --no-prebuild --debug --no-image --64 --all-compiler -j 
     \label{fig:art-mode-comparison-speedup}
 \end{figure}
 
-图~\ref{fig:art-mode-comparison-speedup} 给出了各执行模式相对 \texttt{switch-interpreter} 的分组 speedup。\texttt{Nterp} 相比 \texttt{switch-interpreter} 在当前可比测试项子集上形成了量化差异：\texttt{Startup} 分组为 $8.80\times$，\texttt{Crypto} 分组为 $6.89\times$，说明更高效的解释执行路径能够降低解释器开销。\texttt{JIT} 与 \texttt{JIT-on-first-use} 在部分计算密集型工作负载上继续放大性能优势，例如 \texttt{Compress} 分组分别达到 $769.83\times$ 与 $699.33\times$，独立 \texttt{SciMark} 分组分别达到 $561.92\times$ 与 $497.92\times$，表明热点方法在编译执行后获得了远高于解释执行的吞吐能力。
+图~\ref{fig:art-mode-comparison-speedup} 给出了各执行模式相对 \texttt{switch-interpreter} 的分组 speedup。\texttt{Nterp} 相比 \texttt{switch-interpreter} 在当前可比测试项子集上形成了量化差异：\texttt{Startup} 分组为 $8.80$倍，\texttt{Crypto} 分组为 $6.89$倍，说明更高效的解释执行路径能够降低解释器开销。\texttt{JIT} 与 \texttt{JIT-on-first-use} 在部分计算密集型工作负载上继续放大性能优势，例如 \texttt{Compress} 分组分别达到 $769.83$倍与 $699.33$倍，独立 \texttt{SciMark} 分组分别达到 $561.92$倍与 $497.92$倍，表明热点方法在编译执行后获得了远高于解释执行的吞吐能力。
 
 总体上，移植后的 ART 能够在 LoongArch 平台上呈现清晰的性能阶梯：\texttt{switch-interpreter} 构成基线，\texttt{Nterp} 改进解释执行性能，而 \texttt{JIT} 与 \texttt{JIT-on-first-use} 则在热点工作负载上释放编译执行潜力。
 
@@ -364,7 +364,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
 
 本节补充分析 LoongArch64 架构下 ART intrinsic 机制的整体性能提升边界。由于 intrinsic 优化主要涉及广泛的库调用与编译器底层机制扩展，超出了正文聚焦的几类核心问题，故未将其列为正式机制。本节将其作为补充比较，用以说明 LoongArch64 平台上 JIT 与 optimizing 路径的性能改善并不只来源于正文中的几类机制。
 
-实验分别在 \texttt{JIT} 与 \texttt{interpreter} 模式下评估开启与关闭 intrinsic 的性能差异。其中，\texttt{JIT} 模式用于观察 intrinsic 的实际性能提升，而 \texttt{interpreter} 模式作为对照组。若性能增益主要来自编译器的 intrinsic 分发与替换机制，则 \texttt{interpreter} 模式下的性能比值应接近 \texttt{1.0x}。
+实验分别在 \texttt{JIT} 与 \texttt{interpreter} 模式下评估开启与关闭 intrinsic 的性能差异。其中，\texttt{JIT} 模式用于观察 intrinsic 的实际性能提升，而 \texttt{interpreter} 模式作为对照组。若性能增益主要来自编译器的 intrinsic 分发与替换机制，则 \texttt{interpreter} 模式下的性能比值应接近 \texttt{1.0倍}。
 
 \subsubsection{几何平均结果}
 
@@ -375,7 +375,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:intrinsic-ablation-geomean}
 \end{figure}
 
-如图~\ref{fig:intrinsic-ablation-geomean} 所示，在 \texttt{JIT} 模式下，LoongArch64 intrinsic 机制带来了稳定的整体性能提升。根据式~\ref{eq:geomean-speedup} 计算，所有有效工作负载的几何平均加速比为 \texttt{1.0415x}。其中，\texttt{SPEC startup}、\texttt{SPEC throughput} 与 \texttt{DaCapo} 的加速比分别为 \texttt{1.0339x}、\texttt{1.0508x} 与 \texttt{1.0387x}。作为对照，\texttt{interpreter} 模式的结果大多维持在 \texttt{\pm 2\%} 的波动范围内。
+如图~\ref{fig:intrinsic-ablation-geomean} 所示，在 \texttt{JIT} 模式下，LoongArch64 intrinsic 机制带来了稳定的整体性能提升。根据式~\ref{eq:geomean-speedup} 计算，所有有效工作负载的几何平均加速比为 \texttt{1.0415倍}。其中，\texttt{SPEC startup}、\texttt{SPEC throughput} 与 \texttt{DaCapo} 的加速比分别为 \texttt{1.0339倍}、\texttt{1.0508倍} 与 \texttt{1.0387倍}。作为对照，\texttt{interpreter} 模式的结果大多维持在 \texttt{\pm 2\%} 的波动范围内。
 
 这些结果表明，intrinsic 的性能增益主要来自 \texttt{JIT/optimizing} 编译路径，而非环境波动或其他构建差异。虽然 intrinsic 并非本文的正式研究对象，但这一补充结果有助于完善 LoongArch64 平台 ART 的整体性能画像。
 
@@ -388,7 +388,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:intrinsic-ablation-heatmap}
 \end{figure}
 
-进一步由图~\ref{fig:intrinsic-ablation-heatmap} 可见，intrinsic 的优化效果高度集中于加解密任务及部分依赖密集库调用的工作负载，而通用控制流密集型负载则几乎没有性能提升。具体而言，\texttt{crypto.aes} 与 \texttt{startup.crypto.aes} 的加速比分别达到 \texttt{1.4996x} 和 \texttt{1.2993x}，\texttt{h2} 与 \texttt{crypto.signverify} 也分别获得了 \texttt{1.1513x} 和 \texttt{1.0604x} 的提升。相比之下，\texttt{pmd} 出现了轻微回退（\texttt{0.9474x}），说明该负载的主导成本并不位于 intrinsic 所覆盖的路径上。
+进一步由图~\ref{fig:intrinsic-ablation-heatmap} 可见，intrinsic 的优化效果高度集中于加解密任务及部分依赖密集库调用的工作负载，而通用控制流密集型负载则几乎没有性能提升。具体而言，\texttt{crypto.aes} 与 \texttt{startup.crypto.aes} 的加速比分别达到 \texttt{1.4996倍} 和 \texttt{1.2993倍}，\texttt{h2} 与 \texttt{crypto.signverify} 也分别获得了 \texttt{1.1513倍} 和 \texttt{1.0604倍} 的提升。相比之下，\texttt{pmd} 出现了轻微回退（\texttt{0.9474倍}），说明该负载的主导成本并不位于 intrinsic 所覆盖的路径上。
 
 总体而言，LoongArch64 平台 ART 的性能优化呈现出明显的分层结构。正文主要关注控制流、运行时热路径、启动期校验链和后端向量化等问题，而本节补充的 intrinsic 结果则展示了更通用的底层库优化潜力。
 
@@ -412,7 +412,7 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
     \label{fig:lsx-full-simd-ablation-key}
 \end{figure}
 
-图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角的总体结果。若按“全部可运行 JIT 工作负载的几何平均”进行评价，最优版本仍是正文采用的最小路径版本：\texttt{S1/S0 = $1.0318\times$}，而 \texttt{S2/S0 = $1.0252\times$}，\texttt{S2/S1 = $0.9936\times$}。
+图~\ref{fig:lsx-full-simd-ablation-geomean} 给出了几何平均视角的总体结果。若按“全部可运行 JIT 工作负载的几何平均”进行评价，最优版本仍是正文采用的最小路径版本：\texttt{S1/S0 = $1.0318$倍}，而 \texttt{S2/S0 = $1.0252$倍}，\texttt{S2/S1 = $0.9936$倍}。
 
 不过，图~\ref{fig:lsx-full-simd-ablation-key} 的细粒度比较同时显示，\texttt{S2} 在 \texttt{lu.small}、\texttt{h2} 和 \texttt{avrora} 等关键工作负载上的表现反超了 \texttt{S1}。这说明更广泛的后端指令覆盖具备客观的优化潜力，只是其性能影响在不同负载之间呈现出更明显的分化。
 
@@ -425,11 +425,11 @@ LSX 向量化 lowering 路径在正式对比快照（\texttt{Snapshot-A}）中�
         \toprule
         \textbf{分组视角} & \textbf{\texttt{S2/S1}} \\
         \midrule
-        全部 \texttt{JIT} 工作负载 & $0.9936\times$ \\
-        \texttt{SPEC} startup & $0.9762\times$ \\
-        \texttt{SPEC} throughput & $0.9993\times$ \\
-        \texttt{DaCapo} & $1.0402\times$ \\
-        关键 SIMD 敏感工作负载 & $1.0157\times$ \\
+        全部 \texttt{JIT} 工作负载 & $0.9936$倍 \\
+        \texttt{SPEC} startup & $0.9762$倍 \\
+        \texttt{SPEC} throughput & $0.9993$倍 \\
+        \texttt{DaCapo} & $1.0402$倍 \\
+        关键 SIMD 敏感工作负载 & $1.0157$倍 \\
         \bottomrule
     \end{tabular}
 \end{table}
